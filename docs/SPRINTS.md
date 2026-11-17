@@ -109,12 +109,68 @@
   sidebar pinned across views, keeper-manager automation — both deferred;
   the sketch's "Tidemere" became Gull Rock Light per the Sprint 2 spec.
 
-## Sprint 3 — Rekindle layer, complete
+## ✅ Sprint 3 — Rekindle layer, complete
 
-- Ember spending tree (hold-vs-spend made real), cheap early respec
-- Second prestige layer (deeper reset, new decision space)
-- Challenges: opt-in rule-changing runs for permanent rewards
-- Prestige automation for earlier layers
+- [x] Spendable Embers (`src/game/emberShop.ts`): `embers` is now the
+      HELD balance — the production bonus applies to held Embers only —
+      and `embersTotalEarned` tracks the lifetime total (only grows;
+      Rekindle adds the gain to both). The header shows held Embers; the
+      Rekindle view shows held, total earned, and the current held-bonus %.
+- [x] Ember Shop: eight one-time perks, all PERMANENT (they survive
+      Rekindle and challenge resets), bought with held Embers — so every
+      purchase visibly trades held bonus for a perk, and the shop card
+      says exactly how much bonus you'd lose. Head Start (5 E, runs start
+      with 1,000 Lumen), Warm Lamp Oil (8 E, click ×2), Friend of Gulls
+      (10 E, Gull Rock relight cost halved to 1,000,000), Deep Wicks
+      (12 E, chain support +25% on both boards), The Long Night (20 E,
+      offline cap 8h → 12h), Full Reservoir (25 E, offline rate +10
+      points — 50→60, 75→85 — hard-capped at 90%), Ember Heart (30 E,
+      held bonus +1%/Ember: 2→3% base, 3→4% with Ember Resonance),
+      Second Wind (40 E, all production +50%). Multiplier ordering
+      extended in engine.ts: … × Keeper's Focus × Ember bonus × Second
+      Wind × challenge multiplier × lighthouse bonus = base × chain
+      factor × beam bonus.
+- [x] Recovery preview (`src/game/estimate.ts`): the Rekindle view shows
+      "estimated ~X min to recover your current Lumen/s" (or "over
+      10 hours" past the 600-minute cap). It clones the state through the
+      save serializer, applies the Rekindle, and replays the new run with
+      the greedy bot — now factored into `src/game/bot.ts` and shared
+      with the balance sim, so the preview and the sim can never drift
+      apart. Deterministic, bounded (10-second steps), computed on view
+      render / material change and cached — never per tick.
+- [x] Challenges (`src/game/challenges.ts`): three opt-in rule-changing
+      runs. Starting one resets the run exactly like a Rekindle but
+      grants no Embers; normal Rekindle is disabled while one is active.
+      The goal tracks run lifetime Lumen and completes the moment it's
+      reached (checked on every credit) — the reward banks permanently,
+      the challenge ends, and the run CONTINUES. Abandon (two-step
+      confirm) resets the run with no Embers and no reward. Completed
+      challenges can't be repeated. Fogbound (production ×0.5 → 1,000,000
+      → Fog Lamps +25%), Still Hands (clicking yields 0 → 250,000 →
+      Patient Keeper +20%), First Light Only (only tiers 1–3 buyable →
+      100,000 → Humble Mastery: tiers 1–3 ×2). Rules/rewards flow through
+      the engine (production, click value, buy gating); the Light view
+      shows a live progress banner; the Rekindle view's kept list names
+      perks and challenge rewards.
+- [x] Save format v4: held/total Embers, perk ids, active + completed
+      challenges persisted and sanitized; v3 (and v1/v2) saves migrate on
+      load with `embersTotalEarned := embers`, no perks, no challenges.
+- [x] Balance pass — the sim bot now plays through the first Rekindle
+      (at 40 Embers) and on to the second, still buying no Ember perks
+      and running no challenges: **first Rekindle in 115.0 simulated
+      minutes** (unchanged, band 40–120), **second Rekindle 76.4 minutes
+      after the first** (191.4 total). A real player spending Embers on
+      perks will reach the second faster. No tuning was needed — no
+      numbers moved this sprint.
+- [x] One test-expectation correction worth noting: the recovery estimate
+      falls as the *banked gain* grows, not as held Embers grow — holding
+      more Embers raises the recovery target (your current rate) by the
+      full bonus while the post-Rekindle bonus only grows by the gain,
+      so the estimate test compares equal portfolios banking 40 vs 100
+      Embers. The Long Night test also accounts for the held-Ember bonus
+      on the production it measures.
+- Deferred from the original Sprint 3 sketch (not in this sprint's
+  scope): second prestige layer, Ember respec, prestige automation.
 
 ## Sprint 4 — Moths, bottles, weather
 
