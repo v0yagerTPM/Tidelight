@@ -1,8 +1,10 @@
 import Decimal from "break_infinity.js";
-import type { GameState, SavedState, StorageLike } from "./types";
+import type { BuyAmount, GameState, SavedState, StorageLike } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
+/** Sprint 0 saves carry this version; they migrate forward on load. */
+const LEGACY_SAVE_VERSION = 1;
 
 const MAX_LOG_ENTRIES = 60;
 
@@ -14,6 +16,8 @@ export function createInitialState(now: number = Date.now()): GameState {
     allTimeLumen: new Decimal(0),
     embers: 0,
     generators: {},
+    upgrades: [],
+    buyAmount: 1,
     totalClicks: 0,
     totalGeneratorsBought: 0,
     totalRekindles: 0,
@@ -41,6 +45,8 @@ export function serializeState(state: GameState): SavedState {
     allTimeLumen: state.allTimeLumen.toString(),
     embers: state.embers,
     generators: { ...state.generators },
+    upgrades: [...state.upgrades],
+    buyAmount: state.buyAmount,
     totalClicks: state.totalClicks,
     totalGeneratorsBought: state.totalGeneratorsBought,
     totalRekindles: state.totalRekindles,
@@ -50,10 +56,16 @@ export function serializeState(state: GameState): SavedState {
   };
 }
 
+function validBuyAmount(value: unknown): BuyAmount {
+  return value === 10 || value === 100 || value === "max" ? value : 1;
+}
+
 export function deserializeState(raw: unknown): GameState | null {
   if (typeof raw !== "object" || raw === null) return null;
   const s = raw as Partial<SavedState>;
-  if (s.version !== SAVE_VERSION) return null;
+  // Accept the current version and the Sprint 0 (v1) shape. A v1 save simply
+  // has no upgrades/buyAmount yet — both default, which is the migration.
+  if (s.version !== SAVE_VERSION && s.version !== LEGACY_SAVE_VERSION) return null;
   try {
     return {
       version: SAVE_VERSION,
@@ -62,6 +74,10 @@ export function deserializeState(raw: unknown): GameState | null {
       allTimeLumen: new Decimal(s.allTimeLumen ?? "0"),
       embers: typeof s.embers === "number" ? s.embers : 0,
       generators: typeof s.generators === "object" && s.generators !== null ? { ...s.generators } : {},
+      upgrades: Array.isArray(s.upgrades)
+        ? s.upgrades.filter((id): id is string => typeof id === "string")
+        : [],
+      buyAmount: validBuyAmount(s.buyAmount),
       totalClicks: s.totalClicks ?? 0,
       totalGeneratorsBought: s.totalGeneratorsBought ?? 0,
       totalRekindles: s.totalRekindles ?? 0,
