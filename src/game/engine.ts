@@ -8,6 +8,7 @@ import {
   milestoneMultiplier,
   type GeneratorDef,
 } from "./config";
+import { beamMultiplier, chainFactor, lighthouseMultiplier } from "./chain";
 import { addLog } from "./state";
 import type { BuyAmount, GameState } from "./types";
 import {
@@ -80,11 +81,26 @@ export function generatorProduction(state: GameState, def: GeneratorDef): Decima
   return productionForOwned(state, def, state.generators[def.id] ?? 0);
 }
 
-/** Total Lumen/s across all generators. */
-export function productionPerSecond(state: GameState): Decimal {
+/**
+ * Base production: the rate BEFORE the supply chain and beam bonus.
+ * Ordering (documented here and in chain.ts):
+ *   per-generator (base × owned × milestones × its own upgrades)
+ *   × Keeper's Focus × Ember bonus × lighthouse bonuses (Gull Rock ×1.5)
+ * This base rate is the chain's "demand" — what wick/oil/lens must support.
+ */
+export function baseProductionPerSecond(state: GameState): Decimal {
   let total = new Decimal(0);
   for (const def of GENERATORS) total = total.add(generatorProduction(state, def));
-  return total;
+  return total.mul(lighthouseMultiplier(state));
+}
+
+/**
+ * Final Lumen/s: base production × chain factor × beam bonus.
+ * The chain factor is 0.25 + 0.75 × efficiency once the chain is unlocked
+ * (1 before that); the beam bonus is +5% per Beam level across all boards.
+ */
+export function productionPerSecond(state: GameState): Decimal {
+  return baseProductionPerSecond(state).mul(chainFactor(state)).mul(beamMultiplier(state));
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
