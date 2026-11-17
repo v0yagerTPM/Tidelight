@@ -195,6 +195,39 @@ button.danger:disabled { opacity: 0.5; cursor: not-allowed; }
   .flow-arrow { transform: rotate(90deg); }
 }
 
+/* ── The Shore: tides, moths, expeditions (Sprint 4) ── */
+.tide-strip {
+  background: var(--bg-2);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+}
+.tide-strip strong { color: var(--amber-soft); }
+.shore-actions { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; margin-top: 10px; }
+.shore-action { display: inline-flex; flex-direction: column; gap: 4px; }
+.gen.moth { justify-content: flex-start; }
+.moth-swatch {
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+  border-radius: 50% 50% 50% 4px;
+  border: 1px solid var(--card-edge);
+  box-shadow: 0 0 14px rgba(245, 185, 66, 0.25);
+}
+.moth-actions { display: flex; flex-direction: column; gap: 8px; margin-left: auto; }
+.breed-select {
+  font: inherit;
+  min-height: 48px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-edge);
+  background: var(--bg-2);
+  color: var(--text);
+}
+
 /* ── Cards / Rekindle / Log ────────────────────────── */
 .card-list { display: flex; flex-direction: column; gap: 10px; }
 .lighthouse.locked { opacity: 0.72; }
