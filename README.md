@@ -13,10 +13,11 @@ Embers that make every future flame burn brighter.
 
 ## Status
 
-**Sprint 1 — full generator economy + upgrades.** Sprint 0's foundation
-(click, buy, Rekindle, offline earnings) is now a complete economy: bulk
-buying and a 22-upgrade system on top of the 8 generator tiers. The full
-design lives in [docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
+**Sprint 2 — bottleneck chain + second lighthouse.** The complete
+Sprint 1 economy now runs through a supply chain: wick, oil and lens
+must keep up with your generators or the beam dims, and a second
+lighthouse waits across the glass. The full design lives in
+[docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
 [docs/SPRINTS.md](docs/SPRINTS.md).
 
 ## What's playable
@@ -29,13 +30,23 @@ design lives in [docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
 - **22 upgrades** in their own tab — per-generator ×2s, click tiers that
   take the beam from +1 to +8, and keeper-wide globals. Locked upgrades
   appear as silhouettes with their unlock conditions.
+- **The supply chain** — at 10 generators the chain wakes: Wick, Oil and
+  Lens levels support your production rate, and the weakest node caps
+  your beam efficiency (never below 25%). The flow board in the
+  Lighthouses tab names the bottleneck and its shortfall; Beam levels
+  add +5% production each. A banner in the Light view warns you when a
+  node is starving the beam.
+- **Gull Rock Light** — relight the second lighthouse for 2,000,000
+  Lumen (your beam must be running at 50% efficiency or better) for a
+  permanent +50% production and a second, pricier chain board.
+  Lighthouses stay lit through Rekindle; chain boards reset.
 - **Rekindle, honestly priced** — gain preview, the recommended-40 marker,
   and kept/lost lists that name your upgrades. Two of them (Longer Wicks,
   Ember Resonance) are keeper knowledge and survive the reset.
 - **Offline earnings** — 50% of your rate for up to 8 hours (75% once you
   learn Longer Wicks), reported when you return.
-- Balance-checked: a greedy-bot simulation reaches the first Rekindle in
-  ~41 minutes (`npm run sim`).
+- Balance-checked: a greedy-bot simulation that also feeds the chain
+  reaches the first Rekindle in ~115 minutes (`npm run sim`).
 
 ## Run it
 
@@ -52,6 +63,8 @@ npm run build      # typecheck + production build to dist/
 - **Buy** — hire generators at the selected buy amount (×1/×10/×100/Max).
   Unaffordable buttons show how long until you can afford the batch.
 - **Upgrades tab** — spend Lumen on one-time upgrades as they unlock.
+- **Lighthouses tab** — relight Gull Rock, switch chain boards, and
+  upgrade Wick / Oil / Lens / Beam nodes to keep the beam fed.
 - **Tabs** — Light · Upgrades · Lighthouses · Rekindle · Log. One view
   at a time.
 - Progress saves automatically to your browser (localStorage,
