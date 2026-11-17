@@ -13,12 +13,12 @@ Embers that make every future flame burn brighter.
 
 ## Status
 
-**Sprint 2 — bottleneck chain + second lighthouse.** The complete
-Sprint 1 economy now runs through a supply chain: wick, oil and lens
-must keep up with your generators or the beam dims, and a second
-lighthouse waits across the glass. The full design lives in
-[docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
-[docs/SPRINTS.md](docs/SPRINTS.md).
+**Sprint 3 — the Rekindle layer, complete.** Embers are now spendable:
+an eight-perk Ember Shop trades held-Ember bonus for permanent perks,
+the Rekindle view previews your recovery time before you commit, and
+three opt-in challenge runs bend the rules for permanent rewards. The
+full design lives in [docs/DESIGN.md](docs/DESIGN.md); the build roadmap
+is in [docs/SPRINTS.md](docs/SPRINTS.md).
 
 ## What's playable
 
@@ -41,12 +41,29 @@ lighthouse waits across the glass. The full design lives in
   permanent +50% production and a second, pricier chain board.
   Lighthouses stay lit through Rekindle; chain boards reset.
 - **Rekindle, honestly priced** — gain preview, the recommended-40 marker,
-  and kept/lost lists that name your upgrades. Two of them (Longer Wicks,
-  Ember Resonance) are keeper knowledge and survive the reset.
+  a recovery-time estimate ("~X min to recover your current Lumen/s",
+  simulated by the same greedy bot the balance checks use), and kept/lost
+  lists that name your upgrades, Ember perks, and challenge rewards. Two
+  upgrades (Longer Wicks, Ember Resonance) are keeper knowledge and
+  survive the reset.
+- **The Ember Shop** — eight permanent perks bought with held Embers:
+  Head Start (runs open with 1,000 Lumen), Warm Lamp Oil (click ×2),
+  Friend of Gulls (Gull Rock at half price), Deep Wicks (chain support
+  +25%), The Long Night (12h offline cap), Full Reservoir (offline rate
+  +10 points, cap 90%), Ember Heart (+1% per held Ember), Second Wind
+  (+50% production). Spending lowers your held-Ember bonus — the shop
+  shows exactly how much.
+- **Challenges** — opt-in rule-changing runs for permanent rewards:
+  Fogbound (half production), Still Hands (no clicking), First Light
+  Only (tiers 1–3 only). Starting resets your run with no Embers;
+  finishing banks the reward and the run continues.
 - **Offline earnings** — 50% of your rate for up to 8 hours (75% once you
-  learn Longer Wicks), reported when you return.
+  learn Longer Wicks; up to 12 hours and 85% with the right Ember perks),
+  reported when you return.
 - Balance-checked: a greedy-bot simulation that also feeds the chain
-  reaches the first Rekindle in ~115 minutes (`npm run sim`).
+  reaches the first Rekindle in ~115 minutes and the second ~76 minutes
+  later (`npm run sim`) — without buying perks or running challenges, so
+  real keepers will be faster.
 
 ## Run it
 
@@ -65,6 +82,8 @@ npm run build      # typecheck + production build to dist/
 - **Upgrades tab** — spend Lumen on one-time upgrades as they unlock.
 - **Lighthouses tab** — relight Gull Rock, switch chain boards, and
   upgrade Wick / Oil / Lens / Beam nodes to keep the beam fed.
+- **Rekindle tab** — Rekindle for Embers (with a recovery-time preview),
+  spend held Embers in the Ember Shop, and start or abandon challenges.
 - **Tabs** — Light · Upgrades · Lighthouses · Rekindle · Log. One view
   at a time.
 - Progress saves automatically to your browser (localStorage,
