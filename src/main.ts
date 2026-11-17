@@ -1,13 +1,30 @@
 import "./style.css";
 import Decimal from "break_infinity.js";
 import {
+  CHAIN_LIGHTHOUSES,
+  CHAIN_NODES,
+  CHAIN_NODE_IDS,
+  CHAIN_UNLOCK_GENERATORS,
+  FIRST_LIGHT_ID,
   GENERATORS,
-  LIGHTHOUSES,
+  GULL_ROCK_ID,
   MILESTONE_THRESHOLDS,
   PRESTIGE_RECOMMENDED_EMBERS,
+  TEASER_LIGHTHOUSES,
+  chainLighthouseById,
   milestoneMultiplier,
+  type ChainNodeId,
   type GeneratorDef,
 } from "./game/config";
+import {
+  buyNodeUpgrade,
+  chainStatus,
+  gullRockStatus,
+  isLit,
+  nextNodeCost,
+  relightGullRock,
+  totalSupport,
+} from "./game/chain";
 import {
   applyOfflineEarnings,
   buyQuote,
@@ -21,7 +38,7 @@ import {
 } from "./game/engine";
 import { formatDuration, formatNumber } from "./game/format";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
-import { addLog, createInitialState, loadState, saveState } from "./game/state";
+import { addLog, createInitialState, loadState, saveState, startBoard } from "./game/state";
 import type { BuyAmount, GameState } from "./game/types";
 import {
   UPGRADES,
@@ -29,6 +46,7 @@ import {
   emberBonusPerEmber,
   isPermanentUpgrade,
   isUnlocked,
+  totalGeneratorsOwned,
   unlockText,
   upgradeById,
   type UpgradeDef,
@@ -69,9 +87,11 @@ app.innerHTML = `
 
   <main>
     <section id="view-light" class="view active">
+      <div id="chain-banner" class="chain-banner hidden" role="button" tabindex="0"></div>
       <div class="beam-wrap">
         <button id="flash" class="beam">✦ Flash the Beam ✦</button>
         <p class="beam-hint" id="beam-hint"></p>
+        <p class="beam-efficiency" id="beam-efficiency"></p>
       </div>
       <div class="buy-toggle" role="group" aria-label="Buy amount">
         <span class="buy-toggle-label">Buy</span>
@@ -96,8 +116,10 @@ app.innerHTML = `
 
     <section id="view-lighthouses" class="view">
       <h2>The Seven Lighthouses</h2>
-      <p class="muted">One burns. Six are dark shapes on a glass sea. Sprint 0 is a teaser — the voyage comes later.</p>
+      <p class="muted">Lit lighthouses stay lit forever — even through a Rekindle. Their supply chains don't: every board is stripped back to its starting levels when the light gutters.</p>
       <div id="lighthouse-list" class="card-list"></div>
+      <h3 class="section-title">Supply Chain — Wick → Oil → Lens → Beam</h3>
+      <div id="chain-area"></div>
     </section>
 
     <section id="view-rekindle" class="view">
@@ -128,14 +150,24 @@ app.innerHTML = `
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".tab"));
+function activateTab(name: string): void {
+  tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+  document.querySelector(`#view-${name}`)?.classList.add("active");
+  renderDynamic();
+}
 for (const tab of tabs) {
   tab.addEventListener("click", () => {
-    tabs.forEach((t) => t.classList.toggle("active", t === tab));
-    document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
-    document.querySelector(`#view-${tab.dataset.tab}`)?.classList.add("active");
-    renderDynamic();
+    if (tab.dataset.tab) activateTab(tab.dataset.tab);
   });
 }
+
+// The bottleneck banner in the Light view jumps straight to the chain board.
+const chainBanner = document.querySelector<HTMLDivElement>("#chain-banner");
+chainBanner?.addEventListener("click", () => activateTab("lighthouses"));
+chainBanner?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") activateTab("lighthouses");
+});
 
 // ── Buy-amount toggle (persisted in the save) ────────────────────────────────
 const toggleBtns = Array.from(document.querySelectorAll<HTMLButtonElement>(".toggle-btn"));
@@ -292,15 +324,249 @@ function rebuildUpgrades(): void {
   }
 }
 
-// ── Lighthouses teaser (static content) ──────────────────────────────────────
+// ── Lighthouses & the supply chain ───────────────────────────────────────────
+// Cards and the flow board are rebuilt when their structure changes (a
+// lighthouse lights, a node level changes, the selected board switches);
+// numbers, statuses and affordability refresh in place every frame.
 const lhList = document.querySelector<HTMLDivElement>("#lighthouse-list");
-if (lhList) {
-  LIGHTHOUSES.forEach((lh, i) => {
+const chainArea = document.querySelector<HTMLDivElement>("#chain-area");
+let selectedBoardId: string = FIRST_LIGHT_ID;
+let lhStructureKey = "";
+let relightBtn: HTMLButtonElement | null = null;
+let relightNote: HTMLElement | null = null;
+let lockedChainNote: HTMLElement | null = null;
+let chainSummary: HTMLElement | null = null;
+
+interface NodeRowRefs {
+  box: HTMLDivElement;
+  status: HTMLElement;
+  level: HTMLElement;
+  detail: HTMLElement;
+  flag: HTMLElement;
+  cost: HTMLElement;
+  note: HTMLElement;
+  buy: HTMLButtonElement;
+}
+let nodeRows = new Map<ChainNodeId, NodeRowRefs>();
+
+function lighthouseStructureKey(): string {
+  const levels = state.litLighthouses
+    .map((id) => CHAIN_NODE_IDS.map((n) => state.chainBoards[id]?.[n] ?? 0).join(","))
+    .join(";");
+  const unlocked = totalGeneratorsOwned(state) >= CHAIN_UNLOCK_GENERATORS;
+  return `${state.litLighthouses.join(",")}|${selectedBoardId}|${unlocked}|${levels}`;
+}
+
+function rebuildLighthouses(): void {
+  relightBtn = null;
+  relightNote = null;
+  lockedChainNote = null;
+  chainSummary = null;
+  nodeRows = new Map();
+  if (!isLit(state, selectedBoardId)) selectedBoardId = state.litLighthouses[0] ?? FIRST_LIGHT_ID;
+
+  // ── Cards: the two chain lighthouses, then the five dark teasers ──
+  if (lhList) {
+    lhList.innerHTML = "";
+    CHAIN_LIGHTHOUSES.forEach((def, i) => {
+      const lit = isLit(state, def.id);
+      const card = document.createElement("div");
+      card.className = `card lighthouse${lit ? " lit" : " locked"}`;
+      const bonus =
+        def.productionBonus > 0 ? ` · +${Math.round(def.productionBonus * 100)}% production while lit` : "";
+      card.innerHTML = `
+        <div class="gen-name">${lit ? "🔥" : "🌑"} ${i + 1}. ${def.name}</div>
+        <p class="muted">${def.hint}</p>
+        ${lit ? `<p class="learned">Lit ✓${bonus}</p>` : ""}`;
+      if (!lit && def.relightCost !== null) {
+        const buyWrap = document.createElement("div");
+        buyWrap.className = "relight-row";
+        buyWrap.innerHTML = `<button class="buy">Relight — ${formatNumber(def.relightCost)} Lumen</button><div class="gen-note muted"></div>`;
+        relightBtn = buyWrap.querySelector<HTMLButtonElement>(".buy");
+        relightNote = buyWrap.querySelector<HTMLElement>(".gen-note");
+        relightBtn?.addEventListener("click", () => {
+          if (relightGullRock(state)) {
+            selectedBoardId = def.id;
+            saveState(state);
+            renderDynamic();
+          }
+        });
+        card.appendChild(buyWrap);
+      }
+      lhList.appendChild(card);
+    });
+    TEASER_LIGHTHOUSES.forEach((lh, i) => {
+      const card = document.createElement("div");
+      card.className = "card lighthouse locked";
+      card.innerHTML = `<div class="gen-name">🌑 ${i + 3}. ${lh.name}</div><p class="muted">${lh.hint}</p>`;
+      lhList.appendChild(card);
+    });
+  }
+
+  // ── Chain area: locked teaser, or switcher + flow board ──
+  if (!chainArea) return;
+  chainArea.innerHTML = "";
+  const status = chainStatus(state);
+  if (!status.unlocked) {
     const card = document.createElement("div");
-    card.className = `card lighthouse${i === 0 ? " lit" : " locked"}`;
-    card.innerHTML = `<div class="gen-name">${i === 0 ? "🔥" : "🌑"} ${i + 1}. ${lh.name}</div><p class="muted">${lh.hint}</p>`;
-    lhList.appendChild(card);
+    card.className = "card";
+    card.innerHTML = `
+      <div class="gen-name">🔒 The supply chain is asleep</div>
+      <p class="muted locked-chain-note"></p>`;
+    lockedChainNote = card.querySelector<HTMLElement>(".locked-chain-note");
+    chainArea.appendChild(card);
+    return;
+  }
+
+  if (state.litLighthouses.length > 1) {
+    const switcher = document.createElement("div");
+    switcher.className = "buy-toggle";
+    switcher.setAttribute("role", "group");
+    switcher.setAttribute("aria-label", "Lighthouse board");
+    switcher.innerHTML = `<span class="buy-toggle-label">Board</span>`;
+    for (const id of state.litLighthouses) {
+      const btn = document.createElement("button");
+      btn.className = `toggle-btn${id === selectedBoardId ? " active" : ""}`;
+      btn.textContent = chainLighthouseById(id).name;
+      btn.addEventListener("click", () => {
+        selectedBoardId = id;
+        renderDynamic();
+      });
+      switcher.appendChild(btn);
+    }
+    chainArea.appendChild(switcher);
+  }
+
+  const board = document.createElement("div");
+  board.className = "flow-board";
+  CHAIN_NODE_IDS.forEach((nodeId, idx) => {
+    if (idx > 0) {
+      const arrow = document.createElement("div");
+      arrow.className = "flow-arrow";
+      arrow.textContent = "→";
+      board.appendChild(arrow);
+    }
+    const def = CHAIN_NODES[nodeId];
+    const box = document.createElement("div");
+    box.className = "node";
+    box.innerHTML = `
+      <div class="node-head"><span class="node-name">${def.name}</span><span class="node-status"></span></div>
+      <div class="node-level"></div>
+      <div class="gen-flavor">${def.flavor}</div>
+      <div class="node-detail muted"></div>
+      <div class="node-flag"></div>
+      <div class="gen-buy node-buy">
+        <button class="buy">Upgrade</button>
+        <div class="gen-cost"></div>
+        <div class="gen-note muted"></div>
+      </div>`;
+    const buy = box.querySelector<HTMLButtonElement>(".buy");
+    if (!buy) return;
+    buy.addEventListener("click", () => {
+      if (buyNodeUpgrade(state, selectedBoardId, nodeId)) {
+        saveState(state);
+        renderDynamic();
+      }
+    });
+    board.appendChild(box);
+    nodeRows.set(nodeId, {
+      box,
+      status: box.querySelector(".node-status") as HTMLElement,
+      level: box.querySelector(".node-level") as HTMLElement,
+      detail: box.querySelector(".node-detail") as HTMLElement,
+      flag: box.querySelector(".node-flag") as HTMLElement,
+      cost: box.querySelector(".gen-cost") as HTMLElement,
+      note: box.querySelector(".gen-note") as HTMLElement,
+      buy,
+    });
   });
+  chainArea.appendChild(board);
+
+  const summary = document.createElement("p");
+  summary.className = "muted chain-summary";
+  chainArea.appendChild(summary);
+  chainSummary = summary;
+}
+
+function statusWord(efficiency: number): { word: string; cls: string } {
+  if (efficiency >= 1) return { word: "● FLOWING", cls: "status-flowing" };
+  if (efficiency >= 0.7) return { word: "● STRAINED", cls: "status-strained" };
+  return { word: "● STARVED", cls: "status-starved" };
+}
+
+/** In-place refresh of everything in the Lighthouses view that moves. */
+function updateChainView(): void {
+  const status = chainStatus(state);
+
+  if (lockedChainNote) {
+    lockedChainNote.textContent = `Own ${CHAIN_UNLOCK_GENERATORS} generators to wake it (you own ${totalGeneratorsOwned(state)}). Until then the beam burns at full strength — after that, wick, oil and lens must keep up with what your generators produce.`;
+  }
+
+  // Relight button: enabled only when every gate passes; the note says why not.
+  if (relightBtn && relightNote) {
+    const gr = gullRockStatus(state);
+    relightBtn.disabled = !gr.canRelight;
+    relightBtn.classList.toggle("affordable", gr.canRelight);
+    const reasons: string[] = [];
+    if (!gr.chainUnlocked) reasons.push(`wake the supply chain first (own ${CHAIN_UNLOCK_GENERATORS} generators)`);
+    if (gr.chainUnlocked && !gr.efficiencyOk) {
+      reasons.push(`needs beam efficiency ≥ ${Math.round(gr.efficiencyRequired * 100)}% — yours is ${Math.round(gr.efficiency * 100)}%`);
+    }
+    if (!gr.affordable) {
+      const tta = timeToAffordCost(state, gr.cost);
+      reasons.push(
+        Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : `costs ${formatNumber(gr.cost)} Lumen`,
+      );
+    }
+    relightNote.textContent = gr.canRelight ? "The rock is within reach of your beam." : reasons.join(" · ");
+  }
+
+  const board = state.chainBoards[selectedBoardId];
+  if (!board) return;
+  for (const [nodeId, refs] of nodeRows) {
+    const level = board[nodeId];
+    refs.level.textContent = `Level ${level}`;
+    const cost = nextNodeCost(state, selectedBoardId, nodeId);
+    refs.cost.textContent = `${formatNumber(cost)} Lumen`;
+    const affordable = state.lumen.gte(cost);
+    refs.buy.disabled = !affordable;
+    refs.buy.classList.toggle("affordable", affordable);
+    if (affordable) {
+      refs.note.textContent = `→ Level ${level + 1}`;
+    } else {
+      const tta = timeToAffordCost(state, cost);
+      refs.note.textContent = Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : "earn Lumen first";
+    }
+
+    if (nodeId === "beam") {
+      const total = status.beamLevels;
+      refs.status.textContent = `+${Math.round((status.beamMultiplier.toNumber() - 1) * 100)}% output`;
+      refs.status.className = "node-status status-flowing";
+      refs.detail.textContent = `${total} Beam level${total === 1 ? "" : "s"} across all boards · +5% production each`;
+      refs.box.classList.remove("bottleneck");
+      refs.flag.textContent = "";
+    } else {
+      const nodeStatus = status.nodes.find((n) => n.nodeId === nodeId);
+      if (!nodeStatus) continue;
+      const { word, cls } = statusWord(nodeStatus.efficiency);
+      refs.status.textContent = word;
+      refs.status.className = `node-status ${cls}`;
+      refs.detail.textContent = `Supports ${formatNumber(totalSupport(state, nodeId))}/s of ${formatNumber(status.demand)}/s produced · ${Math.round(nodeStatus.efficiency * 100)}%`;
+      const isBottleneck = status.bottleneck === nodeId;
+      refs.box.classList.toggle("bottleneck", isBottleneck);
+      refs.flag.textContent = isBottleneck
+        ? `⚠ BOTTLENECK — short by ${formatNumber(status.shortfall)}/s`
+        : "";
+    }
+  }
+
+  if (chainSummary) {
+    const beamPct = Math.round((status.beamMultiplier.toNumber() - 1) * 100);
+    chainSummary.textContent =
+      `${chainLighthouseById(selectedBoardId).name} board · Beam efficiency ${Math.round(status.efficiency * 100)}% ` +
+      `(chain factor ×${status.chainFactor.toFixed(2)}${beamPct > 0 ? `, Beam +${beamPct}%` : ""}). ` +
+      `Support sums across every lit lighthouse; node costs on Gull Rock's board are ×8.`;
+  }
 }
 
 // ── Flash the Beam ───────────────────────────────────────────────────────────
@@ -331,6 +597,7 @@ const hud = {
   rate: document.querySelector<HTMLElement>("#hud-rate"),
   embers: document.querySelector<HTMLElement>("#hud-embers"),
   beamHint: document.querySelector<HTMLElement>("#beam-hint"),
+  beamEfficiency: document.querySelector<HTMLElement>("#beam-efficiency"),
   rkGain: document.querySelector<HTMLElement>("#rk-gain"),
   rkHeld: document.querySelector<HTMLElement>("#rk-held"),
   rkHeldLabel: document.querySelector<HTMLElement>("#rk-held-label"),
@@ -349,6 +616,34 @@ function renderDynamic(): void {
   if (hud.beamHint) {
     hud.beamHint.textContent = `+${formatNumber(clickValue(state))} Lumen per flash. Hire help below and the light keeps itself.`;
   }
+
+  // Supply chain: efficiency line in the Light view + bottleneck banner.
+  const chain = chainStatus(state);
+  if (hud.beamEfficiency) {
+    if (!chain.unlocked) {
+      hud.beamEfficiency.textContent = "";
+    } else {
+      const beamPct = Math.round((chain.beamMultiplier.toNumber() - 1) * 100);
+      hud.beamEfficiency.textContent = `Beam efficiency: ${Math.round(chain.efficiency * 100)}%${beamPct > 0 ? ` · Beam +${beamPct}%` : ""}`;
+    }
+  }
+  if (chainBanner) {
+    if (chain.unlocked && chain.efficiency < 1 && chain.bottleneck) {
+      const bn = chain.nodes.find((n) => n.nodeId === chain.bottleneck);
+      chainBanner.textContent = `⚠ ${CHAIN_NODES[chain.bottleneck].name.toUpperCase()} is limiting your beam to ${Math.round(chain.efficiency * 100)}% — supports ${formatNumber(bn?.support ?? 0)}/s vs ${formatNumber(chain.demand)}/s produced. Tap to see the chain board.`;
+      chainBanner.classList.remove("hidden");
+    } else {
+      chainBanner.classList.add("hidden");
+    }
+  }
+
+  // Lighthouses view: rebuild on structure change, refresh in place after.
+  const key2 = lighthouseStructureKey();
+  if (key2 !== lhStructureKey) {
+    lhStructureKey = key2;
+    rebuildLighthouses();
+  }
+  updateChainView();
 
   // Buy toggle: reflect the persisted setting.
   for (const btn of toggleBtns) {
@@ -419,6 +714,13 @@ function renderDynamic(): void {
     const lostUps = state.upgrades.filter((id) => !isPermanentUpgrade(id)).map((id) => upgradeById(id).name);
     if (keptUps.length > 0) kept.push(`Keeper knowledge: ${keptUps.join(", ")}`);
     if (lostUps.length > 0) lost.push(`Upgrades: ${lostUps.join(", ")}`);
+    if (isLit(state, GULL_ROCK_ID)) kept.push("Gull Rock Light stays lit (+50% production)");
+    const boardsProgressed = state.litLighthouses.some((id) => {
+      const start = startBoard(id);
+      const board = state.chainBoards[id];
+      return board && CHAIN_NODE_IDS.some((n) => board[n] !== start[n]);
+    });
+    if (boardsProgressed) lost.push("Chain node levels (every board resets to its starting levels)");
     hud.rkKept.innerHTML = kept.map((item) => `<li>${item}</li>`).join("");
     hud.rkLost.innerHTML = lost.map((item) => `<li>${item}</li>`).join("");
   }
