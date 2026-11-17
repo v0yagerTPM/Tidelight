@@ -18,15 +18,29 @@ hit the wall → **Rekindle** → relight faster and further.
 - Production is linear per copy, **doubled at 25 / 50 / 100 owned**.
 - Automation retires verbs in order: click → generator → keeper → allocation.
 
-## Signature systems (later sprints)
+## Signature systems (all shipped)
 
 1. **Bottleneck chain** — wick → oil → lens → beam, with the limiting node
-   always visible and named.
-2. **Tide & weather planning** — what you queue before bed matters.
-3. **Lantern-moth breeding** — individual moths with inherited wing patterns;
-   the collection feeds a global production multiplier.
-4. **Bottle expeditions** — bottles sent out return with permanent loot and
-   story, never just a timer and a chest.
+   always visible and named. Every lit lighthouse runs its own board;
+   support sums across boards, efficiency is support ÷ production, and
+   the chain factor (0.25 + 0.75 × efficiency) never cuts production
+   below 25%.
+2. **Tide & weather planning** — a deterministic 30-minute tide (Low /
+   High / Glass Calm / Stormfront) bends production, clicking and chain
+   support; the forecast is exact, so what you queue before bed matters.
+3. **Lantern-moth breeding** — individual moths with inherited wing
+   patterns; up to three on duty feed a global production bonus.
+4. **Bottle expeditions** — bottles sent out return with Lumen caches,
+   story fragments, and eight permanent relics — never just a timer and
+   a chest.
+5. **The seven lighthouses** — relit in order, each gated on the
+   previous light, chain efficiency and cost, each granting a different
+   permanent bonus (production, chain support, Ember gain, offline
+   earnings). Efficiency gates descend steeply down the coast (50% →
+   0.2%): at endgame demand, support (linear per level, geometric cost)
+   can only ever be a sliver of production (exponential) — the gates
+   bite in absolute terms; the percentages are small because the sea
+   is big. Full derivation in `config.ts`.
 
 ## Prestige — Rekindle
 
@@ -36,29 +50,46 @@ hit the wall → **Rekindle** → relight faster and further.
   decision, not a formality.
 - The UI always previews the gain and marks the **recommended first Rekindle
   at 40 Embers**, so nobody falls for the genre's classic early-reset trap.
-- A second, deeper prestige layer arrives in Sprint 3+, plus opt-in
-  challenges that change the rules rather than just adding %.
+- Embers are spendable in the Ember Shop (eight permanent perks) — the
+  production bonus applies to **held** Embers only, so spending is a
+  real trade. Three opt-in challenges change the rules (half production,
+  no clicking, tiers 1–3 only) for permanent rewards.
+- The deeper prestige layer is the **Next Keeping** (NG+), unlocked by
+  the ending: a legacy bonus of ×(1 + 0.25 × Keepings) on production and
+  +5 inherited Embers per Keeping (held only, never counted as earned).
 
 ## Offline
 
-Earnings = production rate × min(time away, **8-hour cap**) × rate
-(50% in Sprint 0, upgradeable later). Leaving is always safe: no decay,
-no streak loss, no expiring currency. The welcome-back screen reports the
-lump sum and points at the next affordable purchase.
+Earnings = production rate × min(time away, cap) × rate. Base: 50%
+rate, 8-hour cap — upgradeable to 75% (Longer Wicks), a 12h cap (The
+Long Night), +10 points (Full Reservoir) and +5 points (Keeper's Coat),
+hard-capped at 90%; Siren's Rest adds +10 points and +4 hours. Leaving
+is always safe: no decay, no streak loss, no expiring currency. The
+welcome-back log lines report the lump sum — and a hatched cocoon or a
+returned bottle, when the Shore has news.
 
 ## Pacing targets
 
 - First generator within ~30 seconds; a meaningful purchase every
   5–15 seconds early, every 1–5 minutes late.
 - First Rekindle in the 45–90 minute band for an engaged first session
-  (recommended threshold: 40 Embers).
-- Full story: **35–50 hours** to the ending, then New Game+ endless mode.
+  (recommended threshold: 40 Embers). The pessimistic bot bound
+  (`npm run sim`, no perks/moths/relics/tides): 103 minutes to the
+  first Rekindle, +69 to the second.
+- Full story: **35–50 hours** of engaged play to the ending, then the
+  Next Keeping endless mode. The same no-everything bot needs ~201
+  hours — it is the floor, not the expectation.
 
 ## Story
 
-Three acts, delivered by unlock order — no cutscenes. Each lighthouse
-relit reveals what stilled the sea. The game has a real ending; prestige
-is framed as New Game+, not an endless treadmill.
+Three acts, 21 beats, delivered by unlock order — no cutscenes. Each
+beat is a predicate over the player's own progress (first moth, first
+relic, each lighthouse, 100 Embers earned, a Prismatic in the roost…),
+fires once, and lands in the Log; the Log's Story section keeps every
+beat readable, with silhouettes and hints for the ones ahead. The final
+lighthouse reveals what stilled the sea. The game has a real ending;
+the Next Keeping is framed as a new keeper inheriting the shore, not
+an endless treadmill.
 
 ## Monetization
 
@@ -70,9 +101,12 @@ that respect their time; this design takes that as a hard rule.
 ## UI rules
 
 - Persistent header: Lumen, Lumen/s, Embers — never more than a glance.
-- Tab menu with separate views (Light / Lighthouses / Rekindle / Log…),
-  never one long scrolling page.
-- Buy amounts ×1/×10/×100/Max (Sprint 1), time-to-afford and payback on
-  every purchase, prestige preview with kept-vs-lost in two columns.
-- Number formatting: full digits < 1000, then K/M/B/T…, e-notation beyond,
-  with a scientific-notation setting.
+- Tab menu with separate views (Light / Upgrades / Lighthouses / Shore /
+  Rekindle / Log), never one long scrolling page.
+- Buy amounts ×1/×10/×100/Max, time-to-afford on every purchase,
+  prestige preview with kept-vs-lost in two columns.
+- Number formatting: full digits < 1000, then K/M/B/T…, e-notation beyond
+  — or full scientific notation, switchable in the Keeper's Desk (Log
+  view), where the save export/import and hard reset also live.
+- Shipping: the web build ships to Steam in a Tauri v2 wrapper — see
+  [STEAM.md](STEAM.md).
