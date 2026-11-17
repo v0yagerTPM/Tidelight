@@ -30,8 +30,16 @@ export interface GameState {
   lifetimeLumen: Decimal;
   /** All-time Lumen earned across every run (a kept stat, never reset). */
   allTimeLumen: Decimal;
-  /** Prestige currency currently held. Each held Ember boosts production. */
+  /** Prestige currency currently held (spendable). Each HELD Ember boosts production. */
   embers: number;
+  /** Lifetime Embers ever earned (Sprint 3). Only grows — spending never reduces it. */
+  embersTotalEarned: number;
+  /** Purchased Ember-shop perk ids (see emberShop.ts). Permanent, never reset. */
+  emberPerks: string[];
+  /** Id of the challenge run in progress (see challenges.ts), or null. */
+  activeChallenge: string | null;
+  /** Ids of challenges completed (reward banked permanently). Never reset. */
+  completedChallenges: string[];
   /** Generator id → copies owned. */
   generators: Record<string, number>;
   /** Purchased upgrade ids (see upgrades.ts). Permanent ones survive Rekindle. */
@@ -59,6 +67,10 @@ export interface SavedState {
   lifetimeLumen: string;
   allTimeLumen: string;
   embers: number;
+  embersTotalEarned: number;
+  emberPerks: string[];
+  activeChallenge: string | null;
+  completedChallenges: string[];
   generators: Record<string, number>;
   upgrades: string[];
   buyAmount: BuyAmount;
