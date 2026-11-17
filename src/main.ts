@@ -7,10 +7,9 @@ import {
   CHAIN_UNLOCK_GENERATORS,
   FIRST_LIGHT_ID,
   GENERATORS,
-  GULL_ROCK_ID,
+  HOLLOW_LIGHT_ID,
   MILESTONE_THRESHOLDS,
   PRESTIGE_RECOMMENDED_EMBERS,
-  TEASER_LIGHTHOUSES,
   chainLighthouseById,
   milestoneMultiplier,
   type ChainNodeId,
@@ -28,10 +27,11 @@ import {
 import {
   buyNodeUpgrade,
   chainStatus,
-  gullRockStatus,
   isLit,
+  lighthouseStatus,
+  nextLighthouseId,
   nextNodeCost,
-  relightGullRock,
+  relightLighthouse,
   totalSupport,
 } from "./game/chain";
 import { EMBER_PERKS, buyPerk, type EmberPerkDef } from "./game/emberShop";
@@ -76,9 +76,19 @@ import {
   startBreeding,
   toggleDuty,
 } from "./game/moths";
+import { legacyMultiplier, startNgPlus } from "./game/ngplus";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
+import { STORY_ACTS, STORY_BEATS, checkStory } from "./game/story";
 import { tideForecast } from "./game/tides";
-import { addLog, createInitialState, loadState, saveState, startBoard } from "./game/state";
+import {
+  addLog,
+  createInitialState,
+  deserializeState,
+  loadState,
+  saveState,
+  serializeState,
+  startBoard,
+} from "./game/state";
 import type { BuyAmount, GameState } from "./game/types";
 import {
   UPGRADES,
@@ -94,13 +104,29 @@ import {
 
 // ── Boot: load (or start) a game, then settle offline earnings ──────────────
 const state: GameState = loadState() ?? createInitialState();
+
+/** All displayed numbers honour the Keeper's Desk notation setting. */
+const fmt = (value: Decimal | number | string): string => formatNumber(value, state.notation);
+
 const offline = applyOfflineEarnings(state);
 if (offline.gain.gt(0)) {
   addLog(
     state,
-    `While you were away (${formatDuration(offline.creditedSeconds)} credited): +${formatNumber(offline.gain)} Lumen.`,
+    `While you were away (${formatDuration(offline.creditedSeconds)} credited): +${fmt(offline.gain)} Lumen.`,
   );
 }
+// Welcome back, in full: the Shore keeps its own time while you're gone.
+if (offline.awaySeconds > 60) {
+  const shoreNotes: string[] = [];
+  if (state.cocoon && cocoonReady(state)) shoreNotes.push("the cocoon is ready to hatch");
+  if (state.expedition && expeditionReady(state)) shoreNotes.push("a bottle has washed back onto the glass");
+  if (shoreNotes.length > 0) {
+    addLog(state, `While you were away: ${shoreNotes.join(", and ")} — see the Shore.`);
+  }
+}
+// Story beats can be earned offline too (a lighthouse of Lumen, a record
+// crossed in the dark) — deliver whatever is due before the first frame.
+checkStory(state);
 saveState(state);
 
 // ── Static shell: persistent header + tab menu (separate views, no long page)
@@ -159,7 +185,8 @@ app.innerHTML = `
 
     <section id="view-lighthouses" class="view">
       <h2>The Seven Lighthouses</h2>
-      <p class="muted">Lit lighthouses stay lit forever — even through a Rekindle. Their supply chains don't: every board is stripped back to its starting levels when the light gutters.</p>
+      <p class="muted">Lit lighthouses stay lit forever — even through a Rekindle. Their supply chains don't: every board is stripped back to its starting levels when the light gutters. They relight in order, and each demands a beam running at its efficiency — tend the chain, then reach.</p>
+      <div id="ending-panel"></div>
       <div id="lighthouse-list" class="card-list"></div>
       <h3 class="section-title">Supply Chain — Wick → Oil → Lens → Beam</h3>
       <div id="chain-area"></div>
@@ -206,8 +233,28 @@ app.innerHTML = `
     </section>
 
     <section id="view-log" class="view">
+      <h2>The Story So Far</h2>
+      <div id="story-area"></div>
       <h2>Keeper's Log</h2>
       <ul id="log-list" class="log-list"></ul>
+      <h3 class="section-title">Keeper's Desk</h3>
+      <div class="card desk">
+        <div class="row"><span>Number notation</span>
+          <span class="buy-toggle desk-toggle">
+            <button class="toggle-btn" id="notation-standard">Standard (1.23M)</button>
+            <button class="toggle-btn" id="notation-scientific">Scientific (1.23e6)</button>
+          </span>
+        </div>
+        <p class="muted">Your save lives in this browser. Export it before clearing site data — or carry it to the Steam build one day (see docs/STEAM.md in the repo).</p>
+        <textarea id="desk-save-text" class="desk-text" rows="6" spellcheck="false" placeholder="Exported save JSON appears here. To import, paste a save here and press Import."></textarea>
+        <div class="shore-actions">
+          <button class="buy" id="desk-export">Export save</button>
+          <button class="buy" id="desk-copy">Copy</button>
+          <button class="buy" id="desk-import">Import save</button>
+        </div>
+        <p class="muted" id="desk-status"></p>
+        <button id="desk-reset" class="danger">Hard reset — erase everything and start over</button>
+      </div>
     </section>
   </main>
 `;
@@ -366,7 +413,7 @@ function rebuildUpgrades(): void {
         </div>
         <div class="gen-buy">
           <button class="buy">Learn</button>
-          <div class="gen-cost">${formatNumber(def.cost)} Lumen</div>
+          <div class="gen-cost">${fmt(def.cost)} Lumen</div>
         </div>`;
       const buy = row.querySelector<HTMLButtonElement>(".buy");
       if (!buy) continue;
@@ -476,7 +523,7 @@ function rebuildChallenges(): void {
     let html = `
       <div class="gen-name">${def.name}</div>
       <p class="muted">${def.ruleText}</p>
-      <p class="muted">Goal: ${formatNumber(def.goalLifetime)} lifetime Lumen in one run · Reward — ${def.rewardName}: ${def.rewardText}</p>`;
+      <p class="muted">Goal: ${fmt(def.goalLifetime)} lifetime Lumen in one run · Reward — ${def.rewardName}: ${def.rewardText}</p>`;
 
     if (completed) {
       html += `<p class="learned">Completed ✓ — ${def.rewardName} banked forever</p>`;
@@ -630,7 +677,7 @@ function rebuildShore(): void {
           </div>
           <div class="gen-buy moth-actions">
             <button class="buy moth-duty">${isDuty ? "Stand down" : "Put on duty"}</button>
-            <button class="buy moth-release">Release (+${formatNumber(releaseValue(moth))})</button>
+            <button class="buy moth-release">Release (+${fmt(releaseValue(moth))})</button>
           </div>`;
         const dutyBtn = card.querySelector<HTMLButtonElement>(".moth-duty");
         dutyBtn?.addEventListener("click", () => {
@@ -750,8 +797,8 @@ function rebuildShore(): void {
       card.innerHTML = `
         <div class="gen-name">${route.name}</div>
         <p class="muted">${route.flavor}</p>
-        <p class="muted">${route.durationMinutes >= 60 ? `${route.durationMinutes / 60} hour${route.durationMinutes > 60 ? "s" : ""}` : `${route.durationMinutes} minutes`} · relic chance ${Math.round(route.relicChance * 100)}% · cache at least ${formatNumber(route.minCache)} Lumen</p>
-        <button class="buy route-send">Send a bottle — ${formatNumber(route.cost)} Lumen</button>
+        <p class="muted">${route.durationMinutes >= 60 ? `${route.durationMinutes / 60} hour${route.durationMinutes > 60 ? "s" : ""}` : `${route.durationMinutes} minutes`} · relic chance ${Math.round(route.relicChance * 100)}% · cache at least ${fmt(route.minCache)} Lumen</p>
+        <button class="buy route-send">Send a bottle — ${fmt(route.cost)} Lumen</button>
         <span class="gen-note muted route-note"></span>`;
       const btn = card.querySelector<HTMLButtonElement>(".route-send");
       const note = card.querySelector<HTMLElement>(".route-note");
@@ -797,7 +844,7 @@ function updateShoreView(now: number): void {
     const affordable = state.lumen.gte(cost);
     shoreRefs.attractBtn.disabled = full || !affordable;
     shoreRefs.attractBtn.classList.toggle("affordable", !full && affordable);
-    shoreRefs.attractBtn.textContent = `Attract a moth — ${formatNumber(cost)} Lumen`;
+    shoreRefs.attractBtn.textContent = `Attract a moth — ${fmt(cost)} Lumen`;
     if (full) {
       shoreRefs.attractNote.textContent = "the roost is full — expand it, release a moth, or make room by hatching later";
     } else if (!affordable) {
@@ -812,7 +859,7 @@ function updateShoreView(now: number): void {
     const affordable = state.lumen.gte(cost);
     shoreRefs.roostBtn.disabled = !affordable;
     shoreRefs.roostBtn.classList.toggle("affordable", affordable);
-    shoreRefs.roostBtn.textContent = `Expand the roost (+2) — ${formatNumber(cost)} Lumen`;
+    shoreRefs.roostBtn.textContent = `Expand the roost (+2) — ${fmt(cost)} Lumen`;
     shoreRefs.roostNote.textContent = affordable ? `room for ${mothCapacity(state) + 2}` : "";
   }
   if (state.cocoon && shoreRefs.cocoonNote) {
@@ -887,12 +934,74 @@ function formatRecovery(minutes: number | null): string {
 // numbers, statuses and affordability refresh in place every frame.
 const lhList = document.querySelector<HTMLDivElement>("#lighthouse-list");
 const chainArea = document.querySelector<HTMLDivElement>("#chain-area");
+const endingPanel = document.querySelector<HTMLDivElement>("#ending-panel");
 let selectedBoardId: string = FIRST_LIGHT_ID;
 let lhStructureKey = "";
 let relightBtn: HTMLButtonElement | null = null;
 let relightNote: HTMLElement | null = null;
+let relightTargetId: string | null = null;
 let lockedChainNote: HTMLElement | null = null;
 let chainSummary: HTMLElement | null = null;
+let endingStats: HTMLElement | null = null;
+
+/** Plain-words summary of what a lit lighthouse grants, from its def. */
+function lighthouseBonusText(def: (typeof CHAIN_LIGHTHOUSES)[number]): string {
+  const parts: string[] = [];
+  if (def.productionBonus > 0) parts.push(`+${Math.round(def.productionBonus * 100)}% production`);
+  if (def.supportBonus > 0) parts.push(`chain support +${Math.round(def.supportBonus * 100)}%`);
+  if (def.emberGainBonus > 0) parts.push(`Ember gain +${Math.round(def.emberGainBonus * 100)}%`);
+  if (def.offlineRateBonus > 0) parts.push(`offline rate +${Math.round(def.offlineRateBonus * 100)} pts`);
+  if (def.offlineCapBonusSeconds > 0) parts.push(`offline cap +${def.offlineCapBonusSeconds / 3600}h`);
+  if (def.triggersEnding) parts.push("the ending");
+  return parts.join(" · ");
+}
+
+/** The ending banner + NG+ action, shown while The Hollow Light burns. */
+function rebuildEndingPanel(): void {
+  endingStats = null;
+  if (!endingPanel) return;
+  endingPanel.innerHTML = "";
+  if (!isLit(state, HOLLOW_LIGHT_ID)) return;
+  const panel = document.createElement("div");
+  panel.className = "card ending";
+  panel.innerHTML = `
+    <div class="gen-name">🌅 The Sea Remembers</div>
+    <p>Seven lights stand in a row across the glass, and the glass has remembered it was water. The ships that are mostly memory are coming home. Whatever comes next is yours to choose, Keeper.</p>
+    <p class="muted ending-stats"></p>
+    <div class="kept-lost">
+      <div><h3>Kept in the Next Keeping</h3><ul>
+        <li>Lantern moths, duty roster, roost &amp; cocoon</li>
+        <li>Relics &amp; story — every beat you've heard</li>
+        <li>Ember perks &amp; challenge rewards</li>
+        <li>Keeper knowledge (Longer Wicks, Ember Resonance)</li>
+        <li>Your settings, stats &amp; all-time Lumen</li>
+      </ul></div>
+      <div><h3>Reset</h3><ul>
+        <li>Lumen, generators &amp; non-permanent upgrades</li>
+        <li>All seven lighthouses go dark (First Light remains)</li>
+        <li>Chain boards, and the Ember ledger — held AND total earned</li>
+      </ul></div>
+    </div>
+    <p class="muted">In exchange: a legacy — production ×${legacyMultiplier(state).toFixed(2)} now, ×${(legacyMultiplier(state) + 0.25).toFixed(2)} in the Next Keeping — and ${5 * (state.ngPlusCount + 1)} inherited Embers in hand at the start.</p>
+    <button class="danger ngplus-button">Begin the Next Keeping (NG+)</button>`;
+  endingStats = panel.querySelector<HTMLElement>(".ending-stats");
+  const btn = panel.querySelector<HTMLButtonElement>(".ngplus-button");
+  let armed = false;
+  btn?.addEventListener("click", () => {
+    if (!armed) {
+      armed = true;
+      btn.textContent = "Are you sure? The shore goes dark — click again to begin the Next Keeping";
+      return;
+    }
+    if (startNgPlus(state)) {
+      selectedBoardId = FIRST_LIGHT_ID;
+      checkStory(state);
+      saveState(state);
+      renderDynamic();
+    }
+  });
+  endingPanel.appendChild(panel);
+}
 
 interface NodeRowRefs {
   box: HTMLDivElement;
@@ -917,45 +1026,48 @@ function lighthouseStructureKey(): string {
 function rebuildLighthouses(): void {
   relightBtn = null;
   relightNote = null;
+  relightTargetId = nextLighthouseId(state);
   lockedChainNote = null;
   chainSummary = null;
   nodeRows = new Map();
   if (!isLit(state, selectedBoardId)) selectedBoardId = state.litLighthouses[0] ?? FIRST_LIGHT_ID;
+  rebuildEndingPanel();
 
-  // ── Cards: the two chain lighthouses, then the five dark teasers ──
+  // ── Cards: all seven lighthouses, in relight order ──
   if (lhList) {
     lhList.innerHTML = "";
     CHAIN_LIGHTHOUSES.forEach((def, i) => {
       const lit = isLit(state, def.id);
       const card = document.createElement("div");
       card.className = `card lighthouse${lit ? " lit" : " locked"}`;
-      const bonus =
-        def.productionBonus > 0 ? ` · +${Math.round(def.productionBonus * 100)}% production while lit` : "";
+      const bonus = lighthouseBonusText(def);
       card.innerHTML = `
         <div class="gen-name">${lit ? "🔥" : "🌑"} ${i + 1}. ${def.name}</div>
         <p class="muted">${def.hint}</p>
-        ${lit ? `<p class="learned">Lit ✓${bonus}</p>` : ""}`;
-      if (!lit && def.relightCost !== null) {
+        ${lit ? `<p class="learned">Lit ✓${bonus ? ` — ${bonus}` : ""}</p>` : ""}`;
+      if (!lit && def.id === relightTargetId) {
         const buyWrap = document.createElement("div");
         buyWrap.className = "relight-row";
-        buyWrap.innerHTML = `<button class="buy">Relight — ${formatNumber(def.relightCost)} Lumen</button><div class="gen-note muted"></div>`;
+        buyWrap.innerHTML = `<button class="buy">Relight — ${fmt(def.relightCost ?? 0)} Lumen</button><div class="gen-note muted"></div>`;
         relightBtn = buyWrap.querySelector<HTMLButtonElement>(".buy");
         relightNote = buyWrap.querySelector<HTMLElement>(".gen-note");
         relightBtn?.addEventListener("click", () => {
-          if (relightGullRock(state)) {
+          if (relightLighthouse(state, def.id)) {
             selectedBoardId = def.id;
+            checkStory(state);
             saveState(state);
             renderDynamic();
           }
         });
         card.appendChild(buyWrap);
+      } else if (!lit && def.relightCost !== null) {
+        const prev = CHAIN_LIGHTHOUSES[i - 1];
+        const gate =
+          def.efficiencyRequirement > 0
+            ? ` · needs beam efficiency ≥ ${def.efficiencyRequirement < 0.01 ? `${(def.efficiencyRequirement * 100).toFixed(1)}%` : `${Math.round(def.efficiencyRequirement * 100)}%`}`
+            : "";
+        card.innerHTML += `<p class="muted">Dark — relight ${prev?.name ?? "the previous light"} first · costs ${fmt(def.relightCost)} Lumen${gate}${bonus ? ` · grants ${bonus}` : ""} · its chain board costs ×${def.boardCostMultiplier}</p>`;
       }
-      lhList.appendChild(card);
-    });
-    TEASER_LIGHTHOUSES.forEach((lh, i) => {
-      const card = document.createElement("div");
-      card.className = "card lighthouse locked";
-      card.innerHTML = `<div class="gen-name">🌑 ${i + 3}. ${lh.name}</div><p class="muted">${lh.hint}</p>`;
       lhList.appendChild(card);
     });
   }
@@ -1059,23 +1171,37 @@ function updateChainView(): void {
     lockedChainNote.textContent = `Own ${CHAIN_UNLOCK_GENERATORS} generators to wake it (you own ${totalGeneratorsOwned(state)}). Until then the beam burns at full strength — after that, wick, oil and lens must keep up with what your generators produce.`;
   }
 
-  // Relight button: enabled only when every gate passes; the note says why not.
-  if (relightBtn && relightNote) {
-    const gr = gullRockStatus(state, Date.now());
-    relightBtn.disabled = !gr.canRelight;
-    relightBtn.classList.toggle("affordable", gr.canRelight);
+  // Relight button (for the next dark lighthouse): enabled only when
+  // every gate passes; the note says why not, in order.
+  if (relightBtn && relightNote && relightTargetId) {
+    const ls = lighthouseStatus(state, relightTargetId, Date.now());
+    const def = chainLighthouseById(relightTargetId);
+    relightBtn.disabled = !ls.canRelight;
+    relightBtn.classList.toggle("affordable", ls.canRelight);
+    relightBtn.textContent = `Relight — ${fmt(ls.cost)} Lumen`;
     const reasons: string[] = [];
-    if (!gr.chainUnlocked) reasons.push(`wake the supply chain first (own ${CHAIN_UNLOCK_GENERATORS} generators)`);
-    if (gr.chainUnlocked && !gr.efficiencyOk) {
-      reasons.push(`needs beam efficiency ≥ ${Math.round(gr.efficiencyRequired * 100)}% — yours is ${Math.round(gr.efficiency * 100)}%`);
+    if (!ls.previousLit && ls.previousId) {
+      reasons.push(`relight ${chainLighthouseById(ls.previousId).name} first`);
     }
-    if (!gr.affordable) {
-      const tta = timeToAffordCost(state, gr.cost);
+    if (!ls.chainUnlocked) reasons.push(`wake the supply chain first (own ${CHAIN_UNLOCK_GENERATORS} generators)`);
+    if (ls.chainUnlocked && !ls.efficiencyOk) {
+      const req =
+        ls.efficiencyRequired < 0.01
+          ? `${(ls.efficiencyRequired * 100).toFixed(1)}%`
+          : `${Math.round(ls.efficiencyRequired * 100)}%`;
+      const yours =
+        ls.efficiency < 0.01 ? `${(ls.efficiency * 100).toFixed(1)}%` : `${Math.round(ls.efficiency * 100)}%`;
+      reasons.push(`needs beam efficiency ≥ ${req} — yours is ${yours} (feed the chain)`);
+    }
+    if (!ls.affordable) {
+      const tta = timeToAffordCost(state, ls.cost);
       reasons.push(
-        Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : `costs ${formatNumber(gr.cost)} Lumen`,
+        Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : `costs ${fmt(ls.cost)} Lumen`,
       );
     }
-    relightNote.textContent = gr.canRelight ? "The rock is within reach of your beam." : reasons.join(" · ");
+    relightNote.textContent = ls.canRelight
+      ? `${def.name} is within reach of your beam.`
+      : reasons.join(" · ");
   }
 
   const board = state.chainBoards[selectedBoardId];
@@ -1084,7 +1210,7 @@ function updateChainView(): void {
     const level = board[nodeId];
     refs.level.textContent = `Level ${level}`;
     const cost = nextNodeCost(state, selectedBoardId, nodeId);
-    refs.cost.textContent = `${formatNumber(cost)} Lumen`;
+    refs.cost.textContent = `${fmt(cost)} Lumen`;
     const affordable = state.lumen.gte(cost);
     refs.buy.disabled = !affordable;
     refs.buy.classList.toggle("affordable", affordable);
@@ -1108,23 +1234,135 @@ function updateChainView(): void {
       const { word, cls } = statusWord(nodeStatus.efficiency);
       refs.status.textContent = word;
       refs.status.className = `node-status ${cls}`;
-      refs.detail.textContent = `Supports ${formatNumber(totalSupport(state, nodeId, Date.now()))}/s of ${formatNumber(status.demand)}/s produced · ${Math.round(nodeStatus.efficiency * 100)}%`;
+      refs.detail.textContent = `Supports ${fmt(totalSupport(state, nodeId, Date.now()))}/s of ${fmt(status.demand)}/s produced · ${Math.round(nodeStatus.efficiency * 100)}%`;
       const isBottleneck = status.bottleneck === nodeId;
       refs.box.classList.toggle("bottleneck", isBottleneck);
       refs.flag.textContent = isBottleneck
-        ? `⚠ BOTTLENECK — short by ${formatNumber(status.shortfall)}/s`
+        ? `⚠ BOTTLENECK — short by ${fmt(status.shortfall)}/s`
         : "";
     }
   }
 
   if (chainSummary) {
     const beamPct = Math.round((status.beamMultiplier.toNumber() - 1) * 100);
+    const boardDef = chainLighthouseById(selectedBoardId);
     chainSummary.textContent =
-      `${chainLighthouseById(selectedBoardId).name} board · Beam efficiency ${Math.round(status.efficiency * 100)}% ` +
+      `${boardDef.name} board · Beam efficiency ${Math.round(status.efficiency * 100)}% ` +
       `(chain factor ×${status.chainFactor.toFixed(2)}${beamPct > 0 ? `, Beam +${beamPct}%` : ""}). ` +
-      `Support sums across every lit lighthouse; node costs on Gull Rock's board are ×8.`;
+      `Support sums across every lit lighthouse; node costs on this board are ×${boardDef.boardCostMultiplier}.`;
   }
 }
+
+// ── The Story section + Keeper's Desk (Log view, Sprint 5) ──────────────────
+const storyArea = document.querySelector<HTMLDivElement>("#story-area");
+let storyStructureKey = "";
+
+function rebuildStory(): void {
+  if (!storyArea) return;
+  storyArea.innerHTML = "";
+  if (state.ngPlusCount > 0) {
+    const keeping = document.createElement("p");
+    keeping.className = "muted";
+    keeping.textContent = `Keeping № ${state.ngPlusCount + 1} — legacy production ×${legacyMultiplier(state).toFixed(2)}. The story below is yours from every Keeping; it is never taken away.`;
+    storyArea.appendChild(keeping);
+  }
+  for (const act of STORY_ACTS) {
+    const title = document.createElement("h3");
+    title.className = "section-title";
+    title.textContent = `Act ${["I", "II", "III"][act.act - 1]} — ${act.name}`;
+    storyArea.appendChild(title);
+    const list = document.createElement("div");
+    list.className = "card-list";
+    for (const beat of STORY_BEATS.filter((b) => b.act === act.act)) {
+      const seen = state.storySeen.includes(beat.id);
+      const card = document.createElement("div");
+      card.className = `card${seen ? " story-beat" : " lighthouse locked"}`;
+      card.innerHTML = seen
+        ? `<div class="gen-name">📖 ${beat.title}</div><p>${beat.text}</p>`
+        : `<div class="gen-name">🌫 A story not yet heard</div><p class="muted">${beat.hint}</p>`;
+      list.appendChild(card);
+    }
+    storyArea.appendChild(list);
+  }
+}
+
+// Keeper's Desk wiring: notation toggle, save export/import, hard reset.
+const deskText = document.querySelector<HTMLTextAreaElement>("#desk-save-text");
+const deskStatus = document.querySelector<HTMLElement>("#desk-status");
+const notationBtns = {
+  standard: document.querySelector<HTMLButtonElement>("#notation-standard"),
+  scientific: document.querySelector<HTMLButtonElement>("#notation-scientific"),
+};
+function deskSay(message: string): void {
+  if (deskStatus) deskStatus.textContent = message;
+}
+notationBtns.standard?.addEventListener("click", () => {
+  state.notation = "standard";
+  saveState(state);
+  renderDynamic();
+});
+notationBtns.scientific?.addEventListener("click", () => {
+  state.notation = "scientific";
+  saveState(state);
+  renderDynamic();
+});
+document.querySelector<HTMLButtonElement>("#desk-export")?.addEventListener("click", () => {
+  if (deskText) deskText.value = JSON.stringify(serializeState(state), null, 2);
+  deskSay("Save exported — copy it somewhere safe.");
+});
+document.querySelector<HTMLButtonElement>("#desk-copy")?.addEventListener("click", () => {
+  if (!deskText) return;
+  deskText.select();
+  const done = () => deskSay("Copied to the clipboard.");
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(deskText.value).then(done, () => {
+      document.execCommand("copy");
+      done();
+    });
+  } else {
+    document.execCommand("copy");
+    done();
+  }
+});
+document.querySelector<HTMLButtonElement>("#desk-import")?.addEventListener("click", () => {
+  if (!deskText) return;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(deskText.value);
+  } catch {
+    deskSay("That isn't valid JSON — nothing was changed.");
+    return;
+  }
+  const imported = deserializeState(parsed);
+  if (!imported) {
+    deskSay("That JSON isn't a Tidelight save — nothing was changed.");
+    return;
+  }
+  // Replace the live state wholesale, then behave like a fresh boot —
+  // except no offline windfall: the imported keeper starts from now.
+  Object.assign(state, imported);
+  state.lastSeen = Date.now();
+  checkStory(state);
+  saveState(state);
+  deskSay("Save imported. Welcome back, Keeper.");
+  renderDynamic();
+});
+const deskReset = document.querySelector<HTMLButtonElement>("#desk-reset");
+let deskResetArmed = false;
+deskReset?.addEventListener("click", () => {
+  if (!deskResetArmed) {
+    deskResetArmed = true;
+    deskReset.textContent = "Are you sure? EVERYTHING goes — moths, relics, story, Keepings. Click again to erase it all";
+    return;
+  }
+  deskResetArmed = false;
+  deskReset.textContent = "Hard reset — erase everything and start over";
+  Object.assign(state, createInitialState());
+  selectedBoardId = FIRST_LIGHT_ID;
+  saveState(state);
+  deskSay("A new keeper arrives at Candlewick Point. The lamp is cold. The sea is glass.");
+  renderDynamic();
+});
 
 // ── Flash the Beam ───────────────────────────────────────────────────────────
 document.querySelector<HTMLButtonElement>("#flash")?.addEventListener("click", () => {
@@ -1172,11 +1410,11 @@ const hud = {
 
 function renderDynamic(): void {
   const nowMs = Date.now();
-  if (hud.lumen) hud.lumen.textContent = formatNumber(state.lumen);
-  if (hud.rate) hud.rate.textContent = `${formatNumber(productionPerSecond(state, nowMs))}/s`;
+  if (hud.lumen) hud.lumen.textContent = fmt(state.lumen);
+  if (hud.rate) hud.rate.textContent = `${fmt(productionPerSecond(state, nowMs))}/s`;
   if (hud.embers) hud.embers.textContent = String(state.embers);
   if (hud.beamHint) {
-    hud.beamHint.textContent = `+${formatNumber(clickValue(state, nowMs))} Lumen per flash. Hire help below and the light keeps itself.`;
+    hud.beamHint.textContent = `+${fmt(clickValue(state, nowMs))} Lumen per flash. Hire help below and the light keeps itself.`;
   }
 
   // Tide strip (Sprint 4): current tide, its effect in words, the turn
@@ -1197,7 +1435,7 @@ function renderDynamic(): void {
   if (challengeBanner) {
     const progress = challengeProgress(state);
     if (progress) {
-      challengeBanner.textContent = `⚔ Challenge: ${progress.def.name} — ${formatNumber(progress.current)} / ${formatNumber(progress.goal)} lifetime Lumen. Tap for details.`;
+      challengeBanner.textContent = `⚔ Challenge: ${progress.def.name} — ${fmt(progress.current)} / ${fmt(progress.goal)} lifetime Lumen. Tap for details.`;
       challengeBanner.classList.remove("hidden");
     } else {
       challengeBanner.classList.add("hidden");
@@ -1217,7 +1455,7 @@ function renderDynamic(): void {
   if (chainBanner) {
     if (chain.unlocked && chain.efficiency < 1 && chain.bottleneck) {
       const bn = chain.nodes.find((n) => n.nodeId === chain.bottleneck);
-      chainBanner.textContent = `⚠ ${CHAIN_NODES[chain.bottleneck].name.toUpperCase()} is limiting your beam to ${Math.round(chain.efficiency * 100)}% — supports ${formatNumber(bn?.support ?? 0)}/s vs ${formatNumber(chain.demand)}/s produced. Tap to see the chain board.`;
+      chainBanner.textContent = `⚠ ${CHAIN_NODES[chain.bottleneck].name.toUpperCase()} is limiting your beam to ${Math.round(chain.efficiency * 100)}% — supports ${fmt(bn?.support ?? 0)}/s vs ${fmt(chain.demand)}/s produced. Tap to see the chain board.`;
       chainBanner.classList.remove("hidden");
     } else {
       chainBanner.classList.add("hidden");
@@ -1245,11 +1483,11 @@ function renderDynamic(): void {
     row.owned.textContent = owned > 0 ? `× ${owned}` : "";
     row.prod.textContent =
       owned > 0
-        ? `${formatNumber(generatorProduction(state, row.def))} Lumen/s`
-        : `${formatNumber(new Decimal(row.def.baseProduction))} Lumen/s each`;
+        ? `${fmt(generatorProduction(state, row.def))} Lumen/s`
+        : `${fmt(new Decimal(row.def.baseProduction))} Lumen/s each`;
     row.milestone.textContent = milestoneHint(owned);
     const displayCount = state.buyAmount === "max" ? quote.count : state.buyAmount;
-    row.cost.textContent = `×${displayCount} · ${formatNumber(quote.cost)} Lumen`;
+    row.cost.textContent = `×${displayCount} · ${fmt(quote.cost)} Lumen`;
     // First Light Only challenge: tiers 4+ are blocked outright.
     const blockedByChallenge = !canBuyGenerator(state, row.def.id);
     row.buy.disabled = !quote.affordable || blockedByChallenge;
@@ -1263,7 +1501,7 @@ function renderDynamic(): void {
     if (blockedByChallenge) {
       row.note.textContent = "Blocked — First Light Only challenge";
     } else if (quote.affordable) {
-      row.note.textContent = quote.productionGain.gt(0) ? `+${formatNumber(quote.productionGain)} Lumen/s` : "";
+      row.note.textContent = quote.productionGain.gt(0) ? `+${fmt(quote.productionGain)} Lumen/s` : "";
     } else {
       const tta = timeToAffordCost(state, quote.cost);
       row.note.textContent = Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : "earn Lumen by flashing";
@@ -1329,7 +1567,13 @@ function renderDynamic(): void {
       const names = state.completedChallenges.map((id) => challengeById(id).rewardName);
       kept.push(`Challenge rewards: ${names.join(", ")}`);
     }
-    if (isLit(state, GULL_ROCK_ID)) kept.push("Gull Rock Light stays lit (+50% production)");
+    const litNames = state.litLighthouses
+      .filter((id) => id !== FIRST_LIGHT_ID)
+      .map((id) => chainLighthouseById(id).name);
+    if (litNames.length > 0) kept.push(`Lighthouses stay lit: ${litNames.join(", ")} (and First Light, always)`);
+    if (state.ngPlusCount > 0) {
+      kept.push(`Legacy of ${state.ngPlusCount} Keeping${state.ngPlusCount === 1 ? "" : "s"}: production ×${legacyMultiplier(state).toFixed(2)}`);
+    }
     const boardsProgressed = state.litLighthouses.some((id) => {
       const start = startBoard(id);
       const board = state.chainBoards[id];
@@ -1387,16 +1631,36 @@ function renderDynamic(): void {
     const progress = challengeProgress(state);
     if (progress) {
       activeChallengeRefs.bar.style.width = `${Math.round(progress.fraction * 100)}%`;
-      activeChallengeRefs.label.textContent = `${formatNumber(progress.current)} / ${formatNumber(progress.goal)} lifetime Lumen (${Math.round(progress.fraction * 100)}%)`;
+      activeChallengeRefs.label.textContent = `${fmt(progress.current)} / ${fmt(progress.goal)} lifetime Lumen (${Math.round(progress.fraction * 100)}%)`;
     }
   }
 
-  // Log view (newest first)
+  // Story section (Log view): rebuilt when a beat lands.
+  const stKey = state.storySeen.join(",");
+  if (stKey !== storyStructureKey) {
+    storyStructureKey = stKey;
+    rebuildStory();
+  }
+  // Notation toggle reflects the setting.
+  notationBtns.standard?.classList.toggle("active", state.notation === "standard");
+  notationBtns.scientific?.classList.toggle("active", state.notation === "scientific");
+  // Ending panel stats, while The Hollow Light burns.
+  if (endingStats) {
+    endingStats.textContent =
+      `This keeping so far: ${fmt(state.allTimeLumen)} all-time Lumen · ${state.totalRekindles} Rekindles · ` +
+      `${state.moths.length} moths in the roost · ${state.relics.length} of 8 relics home · ` +
+      `${state.storySeen.length} of ${STORY_BEATS.length} story beats heard · ${formatDuration(state.playTimeSeconds)} at the lamp.`;
+  }
+
+  // Log view (newest first; story beats get their own styling)
   if (hud.logList) {
     hud.logList.innerHTML = state.log
       .slice()
       .reverse()
-      .map((e) => `<li><span class="log-time">${new Date(e.at).toLocaleTimeString()}</span> ${e.message}</li>`)
+      .map(
+        (e) =>
+          `<li${e.message.startsWith("📖") ? ` class="story-entry"` : ""}><span class="log-time">${new Date(e.at).toLocaleTimeString()}</span> ${e.message}</li>`,
+      )
       .join("");
   }
 }
@@ -1409,6 +1673,8 @@ setInterval(() => {
   lastTick = now;
   tick(state, dt, Date.now()); // the live tide applies to the running game
   state.lastSeen = Date.now();
+  // Story beats fire the moment their moment arrives (cheap predicates).
+  if (checkStory(state).length > 0) saveState(state);
   renderDynamic();
 }, 100);
 
