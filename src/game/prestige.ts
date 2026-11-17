@@ -1,6 +1,7 @@
 import Decimal from "break_infinity.js";
 import { CHAIN_NODE_IDS, PRESTIGE_DIVISOR } from "./config";
 import { headStartLumen, perkById } from "./emberShop";
+import { relicEmberGainMultiplier } from "./expeditions";
 import { addLog, startBoard } from "./state";
 import type { GameState } from "./types";
 import { isPermanentUpgrade, upgradeById } from "./upgrades";
@@ -16,9 +17,12 @@ export function embersForLifetime(lifetime: Decimal | number | string): number {
   return d.div(PRESTIGE_DIVISOR).sqrt().floor().toNumber();
 }
 
-/** Embers a Rekindle right now would grant, based on this run's lifetime. */
+/**
+ * Embers a Rekindle right now would grant, based on this run's lifetime.
+ * The Amber Heart relic (Sprint 4) adds +10%, floored after the bonus.
+ */
 export function rekindleGain(state: GameState): number {
-  return embersForLifetime(state.lifetimeLumen);
+  return Math.floor(embersForLifetime(state.lifetimeLumen) * relicEmberGainMultiplier(state));
 }
 
 export function canRekindle(state: GameState): boolean {
@@ -83,6 +87,9 @@ export function rekindle(state: GameState): number {
   if (state.emberPerks.length > 0) {
     const names = state.emberPerks.map((id) => perkById(id).name).join(", ");
     addLog(state, `Ember perks endure: ${names}.`);
+  }
+  if (state.moths.length > 0) {
+    addLog(state, `The lantern moths roost through the dark, unbothered — all ${state.moths.length} of them, and their relics, wait for the new light.`);
   }
   if (lost > 0) {
     addLog(state, `${lost} upgrade${lost === 1 ? "" : "s"} forgotten in the guttering — they can be learned again.`);
