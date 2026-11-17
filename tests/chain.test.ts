@@ -205,7 +205,7 @@ describe("rekindle and the chain", () => {
   });
 });
 
-describe("save migration (v2 → v3)", () => {
+describe("save migration (v2 → v4)", () => {
   it("a Sprint 1 (v2) save gains First Light lit and its starting board", () => {
     const v2Save = {
       version: 2,
@@ -225,19 +225,19 @@ describe("save migration (v2 → v3)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v2Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(3);
+    expect(restored?.version).toBe(4); // migrated forward (v4 in Sprint 3)
     expect(restored?.litLighthouses).toEqual([FIRST_LIGHT_ID]);
     expect(restored?.chainBoards[FIRST_LIGHT_ID]).toEqual({ wick: 1, oil: 1, lens: 1, beam: 0 });
     expect(restored?.upgrades).toEqual(["click-1"]);
     expect(restored?.buyAmount).toBe(10);
   });
 
-  it("round-trips lit lighthouses and boards at version 3", () => {
+  it("round-trips lit lighthouses and boards at version 4", () => {
     const state = crabState(10, 2_000_000);
     expect(relightGullRock(state)).toBe(true);
     state.chainBoards[GULL_ROCK_ID].wick = 4;
     const saved = serializeState(state);
-    expect(saved.version).toBe(3);
+    expect(saved.version).toBe(4);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.litLighthouses).toEqual([FIRST_LIGHT_ID, GULL_ROCK_ID]);
     expect(restored?.chainBoards[GULL_ROCK_ID].wick).toBe(4);
