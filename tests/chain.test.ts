@@ -225,19 +225,19 @@ describe("save migration (v2 → v4)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v2Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(5); // migrated forward (v5 in Sprint 4)
+    expect(restored?.version).toBe(6); // migrated forward (v6 in Sprint 5)
     expect(restored?.litLighthouses).toEqual([FIRST_LIGHT_ID]);
     expect(restored?.chainBoards[FIRST_LIGHT_ID]).toEqual({ wick: 1, oil: 1, lens: 1, beam: 0 });
     expect(restored?.upgrades).toEqual(["click-1"]);
     expect(restored?.buyAmount).toBe(10);
   });
 
-  it("round-trips lit lighthouses and boards at version 5", () => {
+  it("round-trips lit lighthouses and boards at version 6", () => {
     const state = crabState(10, 2_000_000);
     expect(relightGullRock(state)).toBe(true);
     state.chainBoards[GULL_ROCK_ID].wick = 4;
     const saved = serializeState(state);
-    expect(saved.version).toBe(5);
+    expect(saved.version).toBe(6);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.litLighthouses).toEqual([FIRST_LIGHT_ID, GULL_ROCK_ID]);
     expect(restored?.chainBoards[GULL_ROCK_ID].wick).toBe(4);
