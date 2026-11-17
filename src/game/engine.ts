@@ -3,12 +3,19 @@ import {
   CLICK_LUMEN,
   GENERATORS,
   MILESTONE_THRESHOLDS,
-  OFFLINE_CAP_SECONDS,
   generatorById,
   milestoneMultiplier,
   type GeneratorDef,
 } from "./config";
 import { beamMultiplier, chainFactor, lighthouseMultiplier } from "./chain";
+import {
+  canBuyGenerator,
+  challengeClickMultiplier,
+  challengeProductionMultiplier,
+  challengeTierMultiplier,
+  checkChallengeCompletion,
+} from "./challenges";
+import { emberShopClickMultiplier, emberShopProductionMultiplier, offlineCapSeconds } from "./emberShop";
 import { addLog } from "./state";
 import type { BuyAmount, GameState } from "./types";
 import {
@@ -63,8 +70,11 @@ export function emberMultiplier(state: GameState): Decimal {
 }
 
 /**
- * Lumen/s a generator type would produce at a given ownership count,
- * including milestones, its own upgrades, Keeper's Focus, and Ember bonus.
+ * Lumen/s a generator type would produce at a given ownership count.
+ * Multiplier ordering (kept in one place — see also chain.ts):
+ *   base × owned × milestones × its own upgrades × Humble Mastery (tiers 1–3)
+ *   × Keeper's Focus × Ember bonus (held Embers) × Second Wind (Ember perk)
+ *   × challenge multiplier (Fogbound rule ×0.5, banked challenge rewards)
  */
 export function productionForOwned(state: GameState, def: GeneratorDef, owned: number): Decimal {
   if (owned === 0) return new Decimal(0);
@@ -72,8 +82,11 @@ export function productionForOwned(state: GameState, def: GeneratorDef, owned: n
     .mul(owned)
     .mul(milestoneMultiplier(owned))
     .mul(generatorUpgradeMultiplier(state, def.id))
+    .mul(challengeTierMultiplier(state, def.id))
     .mul(globalProductionMultiplier(state))
-    .mul(emberMultiplier(state));
+    .mul(emberMultiplier(state))
+    .mul(emberShopProductionMultiplier(state))
+    .mul(challengeProductionMultiplier(state));
 }
 
 /** Lumen/s from one generator type at its current ownership. */
@@ -84,8 +97,9 @@ export function generatorProduction(state: GameState, def: GeneratorDef): Decima
 /**
  * Base production: the rate BEFORE the supply chain and beam bonus.
  * Ordering (documented here and in chain.ts):
- *   per-generator (base × owned × milestones × its own upgrades)
- *   × Keeper's Focus × Ember bonus × lighthouse bonuses (Gull Rock ×1.5)
+ *   per-generator (see productionForOwned: milestones, upgrades, Humble
+ *   Mastery, Keeper's Focus, Ember bonus, Second Wind, challenges)
+ *   × lighthouse bonuses (Gull Rock ×1.5)
  * This base rate is the chain's "demand" — what wick/oil/lens must support.
  */
 export function baseProductionPerSecond(state: GameState): Decimal {
@@ -109,11 +123,19 @@ function credit(state: GameState, amount: Decimal): void {
   state.lumen = state.lumen.add(amount);
   state.lifetimeLumen = state.lifetimeLumen.add(amount);
   state.allTimeLumen = state.allTimeLumen.add(amount);
+  // A challenge completes the moment its lifetime goal is reached.
+  if (amount.gt(0)) checkChallengeCompletion(state);
 }
 
-/** Lumen gained per Flash the Beam click, including click upgrades. */
+/**
+ * Lumen gained per Flash the Beam click: click upgrades ×2 each,
+ * Warm Lamp Oil (Ember perk) ×2, and Still Hands (challenge) ×0.
+ */
 export function clickValue(state: GameState): Decimal {
-  return new Decimal(CLICK_LUMEN).mul(clickMultiplier(state));
+  return new Decimal(CLICK_LUMEN)
+    .mul(clickMultiplier(state))
+    .mul(emberShopClickMultiplier(state))
+    .mul(challengeClickMultiplier(state));
 }
 
 /** Flash the Beam: +click value in Lumen. */
@@ -125,6 +147,8 @@ export function clickBeam(state: GameState): void {
 /** Buy `count` copies of a generator. Returns true if the purchase happened. */
 export function buyGenerator(state: GameState, id: string, count = 1): boolean {
   const def = generatorById(id);
+  // Challenge gating (First Light Only): tiers 4+ cannot be bought at all.
+  if (!canBuyGenerator(state, id)) return false;
   const owned = state.generators[id] ?? 0;
   const cost = bulkCost(def, owned, count);
   if (state.lumen.lt(cost)) return false;
@@ -236,11 +260,12 @@ export interface OfflineResult {
 
 /**
  * What the player earned while away: rate × min(away, cap) × offline rate.
- * The offline rate is 50%, or 75% with the Longer Wicks upgrade.
+ * The cap is 8h, or 12h with The Long Night (Ember perk); the rate is
+ * 50%/75% (Longer Wicks) + 10 points with Full Reservoir, capped at 90%.
  */
 export function offlineEarnings(state: GameState, now: number = Date.now()): OfflineResult {
   const awaySeconds = Math.max(0, (now - state.lastSeen) / 1000);
-  const creditedSeconds = Math.min(awaySeconds, OFFLINE_CAP_SECONDS);
+  const creditedSeconds = Math.min(awaySeconds, offlineCapSeconds(state));
   const gain = productionPerSecond(state).mul(creditedSeconds).mul(offlineRateFor(state));
   return { awaySeconds, creditedSeconds, gain };
 }
