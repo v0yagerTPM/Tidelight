@@ -1,0 +1,137 @@
+/* Tidelight — deep navy night, warm amber lamplight. */
+:root {
+  --bg: #0a1122;
+  --bg-2: #0e1830;
+  --card: #13203f;
+  --card-edge: #23355e;
+  --text: #e8e4d8;
+  --muted: #93a0bd;
+  --amber: #f5b942;
+  --amber-soft: #ffd98a;
+  --danger: #b8543e;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 600px at 50% -10%, #16264d 0%, var(--bg) 60%);
+  color: var(--text);
+  font-family: Georgia, "Times New Roman", serif;
+  min-height: 100vh;
+}
+
+#app { max-width: 860px; margin: 0 auto; padding: 0 16px 48px; }
+
+/* ── Persistent header ─────────────────────────────── */
+.hud {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 4px;
+  background: linear-gradient(var(--bg) 75%, transparent);
+}
+.brand { font-size: 1.5rem; letter-spacing: 0.04em; color: var(--amber-soft); }
+.hud-stats { display: flex; gap: 22px; }
+.stat { text-align: right; }
+.stat-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
+.stat strong { font-size: 1.25rem; color: var(--amber); font-variant-numeric: tabular-nums; }
+
+/* ── Tabs: one view at a time, never one long page ─── */
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 20px; }
+.tab {
+  flex: 1 1 auto;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.tab.active { background: var(--card); color: var(--amber); border-color: var(--amber); }
+
+.view { display: none; }
+.view.active { display: block; }
+
+h2 { color: var(--amber-soft); margin: 4px 0 8px; }
+.muted { color: var(--muted); }
+
+/* ── Light view ────────────────────────────────────── */
+.beam-wrap { text-align: center; margin: 10px 0 22px; }
+.beam {
+  font: inherit;
+  font-size: 1.35rem;
+  padding: 18px 34px;
+  border-radius: 999px;
+  border: 1px solid var(--amber);
+  background: radial-gradient(circle at 50% 35%, #ffedb8 0%, var(--amber) 55%, #c07f1a 100%);
+  color: #231600;
+  cursor: pointer;
+  box-shadow: 0 0 34px rgba(245, 185, 66, 0.45);
+  transition: transform 0.05s ease;
+}
+.beam:active { transform: scale(0.97); }
+.beam-hint { color: var(--muted); margin-top: 10px; }
+
+.gen-list { display: flex; flex-direction: column; gap: 10px; }
+.gen, .card {
+  background: var(--card);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.gen { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+.gen-name { font-size: 1.1rem; color: var(--amber-soft); }
+.gen-owned { color: var(--amber); }
+.gen-flavor { color: var(--muted); font-style: italic; font-size: 0.92rem; }
+.gen-prod { font-size: 0.9rem; margin-top: 4px; }
+.gen-buy { text-align: right; flex-shrink: 0; }
+.gen-cost { font-size: 0.9rem; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.gen-note { font-size: 0.82rem; }
+
+button.buy, button.danger {
+  font: inherit;
+  min-height: 48px;
+  padding: 10px 22px;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-edge);
+  background: var(--bg-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+button.buy.affordable { background: var(--amber); border-color: var(--amber); color: #231600; font-weight: bold; }
+button.buy:disabled { opacity: 0.55; cursor: not-allowed; }
+button.danger { background: var(--danger); border-color: var(--danger); color: #fff; width: 100%; margin-top: 14px; }
+button.danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Cards / Rekindle / Log ────────────────────────── */
+.card-list { display: flex; flex-direction: column; gap: 10px; }
+.lighthouse.locked { opacity: 0.72; }
+.row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--card-edge); }
+.row strong { color: var(--amber); }
+.progress-wrap { margin: 16px 0 4px; }
+.progress-label { font-size: 0.9rem; color: var(--muted); margin-bottom: 6px; }
+.progress { height: 12px; background: var(--bg-2); border-radius: 999px; overflow: hidden; }
+.progress-bar { height: 100%; width: 0; background: linear-gradient(90deg, #c07f1a, var(--amber)); transition: width 0.3s ease; }
+.kept-lost { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+.kept-lost h3 { margin: 0 0 6px; color: var(--amber-soft); font-size: 1rem; }
+.kept-lost ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.log-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.log-list li { background: var(--card); border: 1px solid var(--card-edge); border-radius: var(--radius); padding: 10px 14px; }
+.log-time { color: var(--muted); font-size: 0.85rem; margin-right: 8px; }
+
+@media (max-width: 560px) {
+  .hud { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .stat { text-align: left; }
+  .gen { flex-direction: column; align-items: stretch; }
+  .gen-buy { text-align: left; }
+  .kept-lost { grid-template-columns: 1fr; }
+}
