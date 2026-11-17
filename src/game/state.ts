@@ -3,9 +3,9 @@ import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, chainLighthouseById 
 import type { BuyAmount, ChainBoard, GameState, SavedState, StorageLike } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 3;
-/** Older saves (Sprint 0 = v1, Sprint 1 = v2) migrate forward on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2];
+export const SAVE_VERSION = 4;
+/** Older saves (Sprint 0 = v1, Sprint 1 = v2, Sprint 2 = v3) migrate on load. */
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3];
 
 const MAX_LOG_ENTRIES = 60;
 
@@ -61,6 +61,10 @@ export function createInitialState(now: number = Date.now()): GameState {
     lifetimeLumen: new Decimal(0),
     allTimeLumen: new Decimal(0),
     embers: 0,
+    embersTotalEarned: 0,
+    emberPerks: [],
+    activeChallenge: null,
+    completedChallenges: [],
     generators: {},
     upgrades: [],
     buyAmount: 1,
@@ -92,6 +96,10 @@ export function serializeState(state: GameState): SavedState {
     lifetimeLumen: state.lifetimeLumen.toString(),
     allTimeLumen: state.allTimeLumen.toString(),
     embers: state.embers,
+    embersTotalEarned: state.embersTotalEarned,
+    emberPerks: [...state.emberPerks],
+    activeChallenge: state.activeChallenge,
+    completedChallenges: [...state.completedChallenges],
     generators: { ...state.generators },
     upgrades: [...state.upgrades],
     buyAmount: state.buyAmount,
@@ -112,22 +120,39 @@ function validBuyAmount(value: unknown): BuyAmount {
   return value === 10 || value === 100 || value === "max" ? value : 1;
 }
 
+function sanitizeCount(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.floor(value));
+}
+
+function sanitizeIdList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
+}
+
 export function deserializeState(raw: unknown): GameState | null {
   if (typeof raw !== "object" || raw === null) return null;
   const s = raw as Partial<SavedState>;
   // Accept the current version and the legacy shapes. A v1 save has no
-  // upgrades/buyAmount yet; a v2 save has no chain fields — the missing
-  // fields default, which is the migration.
+  // upgrades/buyAmount yet; a v2 save has no chain fields; a v3 save has
+  // no Sprint 3 fields — the missing fields default, which is the migration.
   if (s.version !== SAVE_VERSION && !(s.version !== undefined && LEGACY_SAVE_VERSIONS.includes(s.version))) {
     return null;
   }
   try {
+    const embers = sanitizeCount(s.embers);
     return {
       version: SAVE_VERSION,
       lumen: new Decimal(s.lumen ?? "0"),
       lifetimeLumen: new Decimal(s.lifetimeLumen ?? "0"),
       allTimeLumen: new Decimal(s.allTimeLumen ?? "0"),
-      embers: typeof s.embers === "number" ? s.embers : 0,
+      embers,
+      // Sprint 3 migration: saves before v4 never tracked lifetime Embers,
+      // so the held balance is the best (and only) lower bound for it.
+      embersTotalEarned:
+        typeof s.embersTotalEarned === "number" ? sanitizeCount(s.embersTotalEarned) : embers,
+      emberPerks: sanitizeIdList(s.emberPerks),
+      activeChallenge: typeof s.activeChallenge === "string" ? s.activeChallenge : null,
+      completedChallenges: sanitizeIdList(s.completedChallenges),
       generators: typeof s.generators === "object" && s.generators !== null ? { ...s.generators } : {},
       upgrades: Array.isArray(s.upgrades)
         ? s.upgrades.filter((id): id is string => typeof id === "string")
