@@ -1,4 +1,5 @@
 import Decimal from "break_infinity.js";
+import type { Notation } from "./format";
 
 // ── Core game state ──────────────────────────────────────────────────────────
 // Lumen values are break_infinity Decimals (they outgrow JS numbers fast).
@@ -96,6 +97,17 @@ export interface GameState {
   relics: string[];
   /** How many expedition story fragments have been delivered so far. */
   storyFragmentIndex: number;
+  // Sprint 5 — story, ending, New Game+ and the Keeper's Desk.
+  // Story, endingSeen and ngPlusCount are PERMANENT (they survive even
+  // NG+); notation is a setting and likewise survives everything.
+  /** Ids of story beats already delivered (see story.ts). Fire once, ever. */
+  storySeen: string[];
+  /** True once The Hollow Light has been lit and the ending witnessed. */
+  endingSeen: boolean;
+  /** How many Keepings (NG+ cycles) have been begun. Never resets. */
+  ngPlusCount: number;
+  /** Number-format setting: "standard" (1.23M) or "scientific" (1.23e6). */
+  notation: Notation;
   // Kept stats (survive Rekindle):
   totalClicks: number;
   totalGeneratorsBought: number;
@@ -129,6 +141,10 @@ export interface SavedState {
   expedition: ExpeditionState | null;
   relics: string[];
   storyFragmentIndex: number;
+  storySeen: string[];
+  endingSeen: boolean;
+  ngPlusCount: number;
+  notation: Notation;
   totalClicks: number;
   totalGeneratorsBought: number;
   totalRekindles: number;
