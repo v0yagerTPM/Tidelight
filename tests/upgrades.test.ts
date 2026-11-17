@@ -7,6 +7,7 @@ import {
   buyWithAmount,
   clickBeam,
   clickValue,
+  generatorProduction,
   offlineEarnings,
   productionPerSecond,
 } from "../src/game/engine";
@@ -170,14 +171,17 @@ describe("upgrade effects", () => {
     state.embers = 50; // +100% at +2% each
     state.lumen = new Decimal(10_000);
     expect(buyUpgrade(state, "candle-crab-u1")).toBe(true);
-    // 25 × 0.5 × 2 (milestone) × 2 (upgrade) × 2 (Embers) = 100/s
-    expect(productionPerSecond(state).toNumber()).toBe(100);
+    // 25 × 0.5 × 2 (milestone) × 2 (upgrade) × 2 (Embers) = 100/s of
+    // generator production (the Sprint 2 chain then taxes the total —
+    // that stacking is what this test is about, so it reads the
+    // per-generator rate, which is pre-chain by definition).
+    expect(generatorProduction(state, crab).toNumber()).toBe(100);
     // Second upgrade doubles again:
     state.generators[crab.id] = 30;
     state.lumen = new Decimal(10_000);
     expect(buyUpgrade(state, "candle-crab-u2")).toBe(true);
     // 30 × 0.5 × 2 × 4 (two upgrades) × 2 (Embers) = 240/s
-    expect(productionPerSecond(state).toNumber()).toBe(240);
+    expect(generatorProduction(state, crab).toNumber()).toBe(240);
   });
 
   it("click upgrades double the click value: 1 → 2 → 4 → 8", () => {
@@ -202,9 +206,12 @@ describe("upgrade effects", () => {
     state.generators[crab.id] = 50;
     state.generators[moth.id] = 1; // 51 total — Focus unlocked
     state.lumen = new Decimal(200_000);
-    const base = productionPerSecond(state).toNumber();
+    // Read the per-generator rate: Focus multiplies it by exactly 1.25.
+    // (The final rate also moves the Sprint 2 chain's demand, so its
+    // ratio is 1.25 × a slightly changed chain factor — not exactly 1.25.)
+    const base = generatorProduction(state, crab).toNumber();
     expect(buyUpgrade(state, "keepers-focus")).toBe(true);
-    expect(productionPerSecond(state).toNumber()).toBeCloseTo(base * 1.25, 9);
+    expect(generatorProduction(state, crab).toNumber()).toBeCloseTo(base * 1.25, 9);
   });
 
   it("Longer Wicks raises offline earnings from 50% to 75%", () => {
@@ -279,7 +286,7 @@ describe("save migration (Sprint 0 → Sprint 1)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(sprint0Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(2);
+    expect(restored?.version).toBe(4); // migrated forward (v4 in Sprint 3)
     expect(restored?.lumen.toNumber()).toBe(1234);
     expect(restored?.embers).toBe(3);
     expect(restored?.generators["candle-crab"]).toBe(7);
@@ -287,12 +294,12 @@ describe("save migration (Sprint 0 → Sprint 1)", () => {
     expect(restored?.buyAmount).toBe(1);
   });
 
-  it("round-trips upgrades and buy amount at version 2", () => {
+  it("round-trips upgrades and buy amount at version 4", () => {
     const state = createInitialState();
     state.upgrades = ["candle-crab-u1", "longer-wicks"];
     state.buyAmount = "max";
     const saved = serializeState(state);
-    expect(saved.version).toBe(2);
+    expect(saved.version).toBe(4);
     expect(saved.upgrades).toEqual(["candle-crab-u1", "longer-wicks"]);
     expect(saved.buyAmount).toBe("max");
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
