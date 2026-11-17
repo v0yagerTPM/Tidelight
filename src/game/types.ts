@@ -13,6 +13,14 @@ export interface LogEntry {
 /** Global generator buy-amount setting: a fixed count, or "max affordable". */
 export type BuyAmount = 1 | 10 | 100 | "max";
 
+/** One lighthouse's supply-chain board: node id → level. */
+export interface ChainBoard {
+  wick: number;
+  oil: number;
+  lens: number;
+  beam: number;
+}
+
 export interface GameState {
   /** Save-format version, for future migrations. */
   version: number;
@@ -30,6 +38,10 @@ export interface GameState {
   upgrades: string[];
   /** Global buy-amount setting for generator purchases. */
   buyAmount: BuyAmount;
+  /** Ids of lighthouses that have been lit. Permanent — survives Rekindle. */
+  litLighthouses: string[];
+  /** Lighthouse id → its supply-chain board. Boards reset on Rekindle. */
+  chainBoards: Record<string, ChainBoard>;
   // Kept stats (survive Rekindle):
   totalClicks: number;
   totalGeneratorsBought: number;
@@ -50,6 +62,8 @@ export interface SavedState {
   generators: Record<string, number>;
   upgrades: string[];
   buyAmount: BuyAmount;
+  litLighthouses: string[];
+  chainBoards: Record<string, ChainBoard>;
   totalClicks: number;
   totalGeneratorsBought: number;
   totalRekindles: number;
