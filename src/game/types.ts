@@ -10,6 +10,9 @@ export interface LogEntry {
   message: string;
 }
 
+/** Global generator buy-amount setting: a fixed count, or "max affordable". */
+export type BuyAmount = 1 | 10 | 100 | "max";
+
 export interface GameState {
   /** Save-format version, for future migrations. */
   version: number;
@@ -23,6 +26,10 @@ export interface GameState {
   embers: number;
   /** Generator id → copies owned. */
   generators: Record<string, number>;
+  /** Purchased upgrade ids (see upgrades.ts). Permanent ones survive Rekindle. */
+  upgrades: string[];
+  /** Global buy-amount setting for generator purchases. */
+  buyAmount: BuyAmount;
   // Kept stats (survive Rekindle):
   totalClicks: number;
   totalGeneratorsBought: number;
@@ -41,6 +48,8 @@ export interface SavedState {
   allTimeLumen: string;
   embers: number;
   generators: Record<string, number>;
+  upgrades: string[];
+  buyAmount: BuyAmount;
   totalClicks: number;
   totalGeneratorsBought: number;
   totalRekindles: number;
