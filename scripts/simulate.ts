@@ -13,6 +13,11 @@
 // second. The bot buys NO Ember perks and runs NO challenges — a real
 // player spending Embers will reach the second Rekindle faster than this.
 //
+// Sprint 4: the bot also ignores the Shore entirely — no moths, no bottle
+// expeditions, and no tides (it never passes a time to the engine, so its
+// sea is permanently neutral; live tides average out mildly positive).
+// All three only make a real keeper faster than this baseline.
+//
 // Run with:  npm run sim
 import Decimal from "break_infinity.js";
 import { FIRST_LIGHT_ID, PRESTIGE_RECOMMENDED_EMBERS } from "../src/game/config";
@@ -103,7 +108,7 @@ function main(): void {
     console.log("Time from first to second Rekindle: NOT REACHED within the sim cap.");
   }
   console.log(
-    "Note: the bot buys no Ember perks and runs no challenges — a real player spending Embers will be faster to the second Rekindle.",
+    "Note: the bot buys no Ember perks, runs no challenges, and ignores moths, expeditions and tides — a real player will be faster to the second Rekindle.",
   );
   console.log(`Embers held at stop: ${state.embers} (run-3 gain so far would be ${embers})`);
   console.log(`Final production: ${productionPerSecond(state).toNumber().toFixed(1)} Lumen/s`);
