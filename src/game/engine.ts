@@ -16,7 +16,10 @@ import {
   checkChallengeCompletion,
 } from "./challenges";
 import { emberShopClickMultiplier, emberShopProductionMultiplier, offlineCapSeconds } from "./emberShop";
+import { relicClickMultiplier, relicProductionMultiplier } from "./expeditions";
+import { mothProductionMultiplier } from "./moths";
 import { addLog } from "./state";
+import { tideClickMultiplier, tideProductionMultiplier } from "./tides";
 import type { BuyAmount, GameState } from "./types";
 import {
   clickMultiplier,
@@ -75,6 +78,7 @@ export function emberMultiplier(state: GameState): Decimal {
  *   base × owned × milestones × its own upgrades × Humble Mastery (tiers 1–3)
  *   × Keeper's Focus × Ember bonus (held Embers) × Second Wind (Ember perk)
  *   × challenge multiplier (Fogbound rule ×0.5, banked challenge rewards)
+ *   × moth duty bonus (Sprint 4) × Brass Compass relic (Sprint 4)
  */
 export function productionForOwned(state: GameState, def: GeneratorDef, owned: number): Decimal {
   if (owned === 0) return new Decimal(0);
@@ -86,7 +90,9 @@ export function productionForOwned(state: GameState, def: GeneratorDef, owned: n
     .mul(globalProductionMultiplier(state))
     .mul(emberMultiplier(state))
     .mul(emberShopProductionMultiplier(state))
-    .mul(challengeProductionMultiplier(state));
+    .mul(challengeProductionMultiplier(state))
+    .mul(mothProductionMultiplier(state))
+    .mul(relicProductionMultiplier(state));
 }
 
 /** Lumen/s from one generator type at its current ownership. */
@@ -109,17 +115,30 @@ export function baseProductionPerSecond(state: GameState): Decimal {
 }
 
 /**
- * Final Lumen/s: base production × chain factor × beam bonus.
+ * Final Lumen/s: base production × chain factor × beam bonus × tide.
  * The chain factor is 0.25 + 0.75 × efficiency once the chain is unlocked
  * (1 before that); the beam bonus is +5% per Beam level across all boards.
+ * The tide multiplier (Sprint 4) applies only here, at the very end: the
+ * tide acts on the thrown beam, never on what the keepers produce, so it
+ * cannot inflate the chain's demand. `now` is optional — omit it (as the
+ * sim, the recovery estimate and offline earnings do) and the tide is
+ * neutral; the game loop passes Date.now().
  */
-export function productionPerSecond(state: GameState): Decimal {
-  return baseProductionPerSecond(state).mul(chainFactor(state)).mul(beamMultiplier(state));
+export function productionPerSecond(state: GameState, now?: number): Decimal {
+  return baseProductionPerSecond(state)
+    .mul(chainFactor(state, now))
+    .mul(beamMultiplier(state))
+    .mul(tideProductionMultiplier(state, now));
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
 
-function credit(state: GameState, amount: Decimal): void {
+/**
+ * Credit earned Lumen: purse, run lifetime and all-time total all grow,
+ * and a challenge completes the moment its lifetime goal is reached.
+ * Exported so expeditions can pay their caches through the same path.
+ */
+export function creditLumen(state: GameState, amount: Decimal): void {
   state.lumen = state.lumen.add(amount);
   state.lifetimeLumen = state.lifetimeLumen.add(amount);
   state.allTimeLumen = state.allTimeLumen.add(amount);
@@ -129,18 +148,21 @@ function credit(state: GameState, amount: Decimal): void {
 
 /**
  * Lumen gained per Flash the Beam click: click upgrades ×2 each,
- * Warm Lamp Oil (Ember perk) ×2, and Still Hands (challenge) ×0.
+ * Warm Lamp Oil (Ember perk) ×2, Salt Lens (relic) ×1.5, Glass Calm tide
+ * ×2 (only when `now` is passed), and Still Hands (challenge) ×0.
  */
-export function clickValue(state: GameState): Decimal {
+export function clickValue(state: GameState, now?: number): Decimal {
   return new Decimal(CLICK_LUMEN)
     .mul(clickMultiplier(state))
     .mul(emberShopClickMultiplier(state))
-    .mul(challengeClickMultiplier(state));
+    .mul(challengeClickMultiplier(state))
+    .mul(relicClickMultiplier(state))
+    .mul(tideClickMultiplier(now));
 }
 
 /** Flash the Beam: +click value in Lumen. */
-export function clickBeam(state: GameState): void {
-  credit(state, clickValue(state));
+export function clickBeam(state: GameState, now?: number): void {
+  creditLumen(state, clickValue(state, now));
   state.totalClicks++;
 }
 
@@ -243,11 +265,15 @@ export function timeToAfford(state: GameState, def: GeneratorDef): number {
 
 // ── Ticking & offline ────────────────────────────────────────────────────────
 
-/** Advance the game by dt seconds. Returns the Lumen gained. */
-export function tick(state: GameState, dtSeconds: number): Decimal {
+/**
+ * Advance the game by dt seconds. Returns the Lumen gained.
+ * `now` (ms) is optional: the game loop passes Date.now() so the live
+ * tide applies; the sim and tests omit it and play tide-neutral.
+ */
+export function tick(state: GameState, dtSeconds: number, now?: number): Decimal {
   if (dtSeconds <= 0) return new Decimal(0);
-  const gain = productionPerSecond(state).mul(dtSeconds);
-  if (gain.gt(0)) credit(state, gain);
+  const gain = productionPerSecond(state, now).mul(dtSeconds);
+  if (gain.gt(0)) creditLumen(state, gain);
   state.playTimeSeconds += dtSeconds;
   return gain;
 }
@@ -261,7 +287,9 @@ export interface OfflineResult {
 /**
  * What the player earned while away: rate × min(away, cap) × offline rate.
  * The cap is 8h, or 12h with The Long Night (Ember perk); the rate is
- * 50%/75% (Longer Wicks) + 10 points with Full Reservoir, capped at 90%.
+ * 50%/75% (Longer Wicks) + 10 points with Full Reservoir + 5 points with
+ * the Keeper's Coat relic, capped at 90%. The rate used is the
+ * tide-NEUTRAL production: over hours away, tides average out (Sprint 4).
  */
 export function offlineEarnings(state: GameState, now: number = Date.now()): OfflineResult {
   const awaySeconds = Math.max(0, (now - state.lastSeen) / 1000);
@@ -273,7 +301,7 @@ export function offlineEarnings(state: GameState, now: number = Date.now()): Off
 /** Apply offline earnings (call once, right after loading a save). */
 export function applyOfflineEarnings(state: GameState, now: number = Date.now()): OfflineResult {
   const result = offlineEarnings(state, now);
-  if (result.gain.gt(0)) credit(state, result.gain);
+  if (result.gain.gt(0)) creditLumen(state, result.gain);
   state.lastSeen = now;
   return result;
 }
