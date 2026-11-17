@@ -18,7 +18,9 @@ import {
 // baseProductionPerSecond itself never calls back into the chain.
 import { chainSupportMultiplier, gullRockRelightCost } from "./emberShop";
 import { baseProductionPerSecond } from "./engine";
+import { relicNodeCostMultiplier, relicSupportMultiplier } from "./expeditions";
 import { addLog, startBoard } from "./state";
+import { tideSupportMultiplier } from "./tides";
 import type { ChainBoard, GameState } from "./types";
 import { totalGeneratorsOwned } from "./upgrades";
 
@@ -26,13 +28,17 @@ import { totalGeneratorsOwned } from "./upgrades";
 // Production ordering (see engine.ts):
 //   generators (milestones, upgrades, challenge tier reward) × Keeper's
 //   Focus × Ember bonus × Second Wind × challenge rule/rewards
+//   × moth duty bonus × Brass Compass (Sprint 4)
 //   × lighthouse bonuses  =  BASE production — this is the chain's "demand"
 //   × chain factor (0.25 + 0.75 × efficiency, or 1 while the chain is locked)
 //   × beam bonus (1 + 5% × total Beam levels)
+//   × tide production multiplier (Sprint 4; only when a time is passed)
 //   =  final production.
 //
 // Each supply node's efficiency is min(1, totalSupport / demand), where
-// totalSupport sums that node's levels across every lit lighthouse's board.
+// totalSupport sums that node's levels across every lit lighthouse's board
+// and is scaled by Deep Wicks (×1.25), the Tide Chart relic (×1.15) and
+// the tide (Low Tide ×1.2, Stormfront ×0.8 — only when a time is passed).
 // The chain is only as strong as its weakest supply node.
 
 export function isLit(state: GameState, lighthouseId: string): boolean {
@@ -59,32 +65,38 @@ export function totalNodeLevels(state: GameState, nodeId: ChainNodeId): number {
 
 /**
  * Total Lumen/s a supply node supports across all boards.
- * Deep Wicks (Ember perk, Sprint 3) raises every node's support by +25%.
+ * Deep Wicks (Ember perk, Sprint 3) raises every node's support by +25%;
+ * the Tide Chart relic (Sprint 4) adds +15%; the tide scales support when
+ * a time is passed (Low Tide ×1.2, Stormfront ×0.8).
  */
-export function totalSupport(state: GameState, nodeId: SupplyNodeId): Decimal {
+export function totalSupport(state: GameState, nodeId: SupplyNodeId, now?: number): Decimal {
   return new Decimal(CHAIN_NODES[nodeId].supportPerLevel)
     .mul(totalNodeLevels(state, nodeId))
-    .mul(chainSupportMultiplier(state));
+    .mul(chainSupportMultiplier(state))
+    .mul(relicSupportMultiplier(state))
+    .mul(tideSupportMultiplier(now));
 }
 
 /**
  * Cost of raising a node from `level` to `level + 1` on a given board:
  * ceil(baseCost × growth^level × boardCostMultiplier). The second
- * lighthouse's board costs ×8.
+ * lighthouse's board costs ×8. When the keeper's state is passed, the
+ * Gull Feather relic (Sprint 4) takes 20% off.
  */
-export function nodeCost(lighthouseId: string, nodeId: ChainNodeId, level: number): Decimal {
+export function nodeCost(lighthouseId: string, nodeId: ChainNodeId, level: number, state?: GameState): Decimal {
   const def = CHAIN_NODES[nodeId];
   const lh = chainLighthouseById(lighthouseId);
   return new Decimal(def.baseCost)
     .mul(new Decimal(def.growth).pow(level))
     .mul(lh.boardCostMultiplier)
+    .mul(state ? relicNodeCostMultiplier(state) : 1)
     .ceil();
 }
 
 /** Cost of the next level of a node on a board, at its current level. */
 export function nextNodeCost(state: GameState, lighthouseId: string, nodeId: ChainNodeId): Decimal {
   const level = state.chainBoards[lighthouseId]?.[nodeId] ?? 0;
-  return nodeCost(lighthouseId, nodeId, level);
+  return nodeCost(lighthouseId, nodeId, level, state);
 }
 
 // ── Lighthouse & beam bonuses ────────────────────────────────────────────────
@@ -136,10 +148,10 @@ export interface ChainStatus {
   beamMultiplier: Decimal;
 }
 
-export function chainStatus(state: GameState): ChainStatus {
+export function chainStatus(state: GameState, now?: number): ChainStatus {
   const demand = baseProductionPerSecond(state);
   const nodes: SupplyNodeStatus[] = SUPPLY_NODE_IDS.map((nodeId) => {
-    const support = totalSupport(state, nodeId);
+    const support = totalSupport(state, nodeId, now);
     const efficiency = demand.lte(0) ? 1 : Math.min(1, support.div(demand).toNumber());
     return { nodeId, levels: totalNodeLevels(state, nodeId), support, efficiency };
   });
@@ -168,8 +180,8 @@ export function chainStatus(state: GameState): ChainStatus {
 }
 
 /** The chain's production factor on its own (1 while the chain is locked). */
-export function chainFactor(state: GameState): number {
-  return chainStatus(state).chainFactor;
+export function chainFactor(state: GameState, now?: number): number {
+  return chainStatus(state, now).chainFactor;
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
@@ -183,7 +195,7 @@ export function buyNodeUpgrade(state: GameState, lighthouseId: string, nodeId: C
   if (!chainUnlocked(state)) return false;
   const board = state.chainBoards[lighthouseId];
   if (!isLit(state, lighthouseId) || !board) return false;
-  const cost = nodeCost(lighthouseId, nodeId, board[nodeId]);
+  const cost = nodeCost(lighthouseId, nodeId, board[nodeId], state);
   if (state.lumen.lt(cost)) return false;
   state.lumen = state.lumen.sub(cost);
   board[nodeId] += 1;
@@ -207,8 +219,8 @@ export interface GullRockStatus {
   canRelight: boolean;
 }
 
-export function gullRockStatus(state: GameState): GullRockStatus {
-  const status = chainStatus(state);
+export function gullRockStatus(state: GameState, now?: number): GullRockStatus {
+  const status = chainStatus(state, now);
   // Friend of Gulls (Ember perk, Sprint 3) halves the relight cost.
   const cost = gullRockRelightCost(state);
   const affordable = state.lumen.gte(cost);
