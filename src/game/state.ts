@@ -1,11 +1,20 @@
 import Decimal from "break_infinity.js";
 import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, chainLighthouseById } from "./config";
-import type { BuyAmount, ChainBoard, GameState, SavedState, StorageLike } from "./types";
+import type {
+  BuyAmount,
+  ChainBoard,
+  Cocoon,
+  ExpeditionState,
+  GameState,
+  Moth,
+  SavedState,
+  StorageLike,
+} from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 4;
-/** Older saves (Sprint 0 = v1, Sprint 1 = v2, Sprint 2 = v3) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3];
+export const SAVE_VERSION = 5;
+/** Older saves (Sprint 0 = v1 … Sprint 3 = v4) migrate on load. */
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4];
 
 const MAX_LOG_ENTRIES = 60;
 
@@ -54,6 +63,83 @@ function sanitizeChain(
   return { litLighthouses: lit, chainBoards };
 }
 
+// ── Sprint 4 (Shore) field sanitizing ────────────────────────────────────────
+
+const MAX_DUTY_MOTHS = 3;
+
+function sanitizeMoth(raw: unknown): Moth | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const m = raw as Partial<Moth>;
+  if (typeof m.id !== "string" || m.id.length === 0) return null;
+  return {
+    id: m.id,
+    name: typeof m.name === "string" && m.name.length > 0 ? m.name : "Nameless",
+    pattern: typeof m.pattern === "string" ? m.pattern : "plain",
+    glow:
+      typeof m.glow === "number" && Number.isFinite(m.glow)
+        ? Math.max(1, Math.min(100, Math.floor(m.glow)))
+        : 1,
+    generation:
+      typeof m.generation === "number" && Number.isFinite(m.generation)
+        ? Math.max(1, Math.floor(m.generation))
+        : 1,
+  };
+}
+
+function sanitizeCocoon(raw: unknown, moths: Moth[]): Cocoon | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const c = raw as Partial<Cocoon>;
+  if (!Array.isArray(c.parentIds) || c.parentIds.length !== 2) return null;
+  const [a, b] = c.parentIds;
+  if (typeof a !== "string" || typeof b !== "string" || a === b) return null;
+  if (typeof c.readyAt !== "number" || !Number.isFinite(c.readyAt)) return null;
+  // A cocoon whose parents are gone can never hatch — drop it.
+  if (!moths.some((m) => m.id === a) || !moths.some((m) => m.id === b)) return null;
+  return { parentIds: [a, b], readyAt: c.readyAt };
+}
+
+function sanitizeExpedition(raw: unknown): ExpeditionState | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const e = raw as Partial<ExpeditionState>;
+  if (typeof e.routeId !== "string") return null;
+  if (typeof e.startedAt !== "number" || !Number.isFinite(e.startedAt)) return null;
+  if (typeof e.returnsAt !== "number" || !Number.isFinite(e.returnsAt)) return null;
+  return { routeId: e.routeId, startedAt: e.startedAt, returnsAt: e.returnsAt };
+}
+
+/**
+ * Normalize the Sprint 4 fields of a loaded save: moths are structurally
+ * validated, the duty roster is filtered to moths that actually exist
+ * (and capped at 3), and a cocoon survives only while both parents do.
+ * Saves before v5 simply have none of these fields — they default empty.
+ */
+function sanitizeShore(s: Partial<SavedState>): {
+  moths: Moth[];
+  mothDuty: string[];
+  roostExpansions: number;
+  cocoon: Cocoon | null;
+  expedition: ExpeditionState | null;
+  relics: string[];
+  storyFragmentIndex: number;
+} {
+  const moths: Moth[] = Array.isArray(s.moths)
+    ? s.moths.map(sanitizeMoth).filter((m): m is Moth => m !== null)
+    : [];
+  const mothIds = new Set(moths.map((m) => m.id));
+  const mothDuty = sanitizeIdList(s.mothDuty)
+    .filter((id) => mothIds.has(id))
+    .slice(0, MAX_DUTY_MOTHS);
+  return {
+    moths,
+    mothDuty,
+    roostExpansions: sanitizeCount(s.roostExpansions),
+    cocoon: sanitizeCocoon(s.cocoon, moths),
+    expedition: sanitizeExpedition(s.expedition),
+    relics: sanitizeIdList(s.relics),
+    storyFragmentIndex: sanitizeCount(s.storyFragmentIndex),
+  };
+}
+
 export function createInitialState(now: number = Date.now()): GameState {
   return {
     version: SAVE_VERSION,
@@ -70,6 +156,13 @@ export function createInitialState(now: number = Date.now()): GameState {
     buyAmount: 1,
     litLighthouses: [FIRST_LIGHT_ID],
     chainBoards: defaultChainBoards(),
+    moths: [],
+    mothDuty: [],
+    roostExpansions: 0,
+    cocoon: null,
+    expedition: null,
+    relics: [],
+    storyFragmentIndex: 0,
     totalClicks: 0,
     totalGeneratorsBought: 0,
     totalRekindles: 0,
@@ -107,6 +200,13 @@ export function serializeState(state: GameState): SavedState {
     chainBoards: Object.fromEntries(
       Object.entries(state.chainBoards).map(([id, board]) => [id, { ...board }]),
     ),
+    moths: state.moths.map((m) => ({ ...m })),
+    mothDuty: [...state.mothDuty],
+    roostExpansions: state.roostExpansions,
+    cocoon: state.cocoon ? { parentIds: [...state.cocoon.parentIds], readyAt: state.cocoon.readyAt } : null,
+    expedition: state.expedition ? { ...state.expedition } : null,
+    relics: [...state.relics],
+    storyFragmentIndex: state.storyFragmentIndex,
     totalClicks: state.totalClicks,
     totalGeneratorsBought: state.totalGeneratorsBought,
     totalRekindles: state.totalRekindles,
@@ -134,7 +234,8 @@ export function deserializeState(raw: unknown): GameState | null {
   const s = raw as Partial<SavedState>;
   // Accept the current version and the legacy shapes. A v1 save has no
   // upgrades/buyAmount yet; a v2 save has no chain fields; a v3 save has
-  // no Sprint 3 fields — the missing fields default, which is the migration.
+  // no Sprint 3 fields; a v4 save has no Sprint 4 (Shore) fields — the
+  // missing fields default, which is the migration.
   if (s.version !== SAVE_VERSION && !(s.version !== undefined && LEGACY_SAVE_VERSIONS.includes(s.version))) {
     return null;
   }
@@ -159,6 +260,7 @@ export function deserializeState(raw: unknown): GameState | null {
         : [],
       buyAmount: validBuyAmount(s.buyAmount),
       ...sanitizeChain(s.litLighthouses, s.chainBoards),
+      ...sanitizeShore(s),
       totalClicks: s.totalClicks ?? 0,
       totalGeneratorsBought: s.totalGeneratorsBought ?? 0,
       totalRekindles: s.totalRekindles ?? 0,
