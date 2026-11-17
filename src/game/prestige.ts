@@ -1,6 +1,6 @@
 import Decimal from "break_infinity.js";
-import { PRESTIGE_DIVISOR } from "./config";
-import { addLog } from "./state";
+import { CHAIN_NODE_IDS, PRESTIGE_DIVISOR } from "./config";
+import { addLog, startBoard } from "./state";
 import type { GameState } from "./types";
 import { isPermanentUpgrade, upgradeById } from "./upgrades";
 
@@ -26,9 +26,11 @@ export function canRekindle(state: GameState): boolean {
 
 /**
  * Rekindle: bank this run's Embers and start the light over.
- * Resets Lumen, this run's lifetime, all generators, and all upgrades
- * EXCEPT permanent ones (keeper knowledge: Longer Wicks, Ember Resonance).
- * Keeps Embers, the buy-amount setting, and every lifetime stat.
+ * Resets Lumen, this run's lifetime, all generators, all upgrades
+ * EXCEPT permanent ones (keeper knowledge: Longer Wicks, Ember Resonance),
+ * and every chain board back to its starting levels. Keeps Embers, the
+ * buy-amount setting, every lifetime stat, and every lit lighthouse
+ * (lighthouses — and their production bonuses — are permanent).
  * Returns the Embers gained (0 = no-op).
  */
 export function rekindle(state: GameState): number {
@@ -39,6 +41,19 @@ export function rekindle(state: GameState): number {
   state.lumen = new Decimal(0);
   state.lifetimeLumen = new Decimal(0);
   state.generators = {};
+  // Chain boards reset to their starting levels; lit lighthouses stay lit.
+  let boardsHadProgress = false;
+  for (const id of state.litLighthouses) {
+    const start = startBoard(id);
+    const board = state.chainBoards[id];
+    if (board && CHAIN_NODE_IDS.some((nodeId) => board[nodeId] !== start[nodeId])) {
+      boardsHadProgress = true;
+    }
+    state.chainBoards[id] = start;
+  }
+  if (boardsHadProgress) {
+    addLog(state, "The supply chains gutter with the flame — every board is stripped back to its starting levels, though every lit lighthouse stays lit.");
+  }
   const kept = state.upgrades.filter((id) => isPermanentUpgrade(id));
   const lost = state.upgrades.length - kept.length;
   state.upgrades = kept;
