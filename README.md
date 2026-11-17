@@ -13,12 +13,13 @@ Embers that make every future flame burn brighter.
 
 ## Status
 
-**Sprint 4 — the Shore is alive.** Lantern moths to collect and breed,
-bottle expeditions that bring home permanent relics and story
-fragments, and a deterministic tide that turns every half hour and
-bends production, clicking and the supply chain. The full design lives
-in [docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
-[docs/SPRINTS.md](docs/SPRINTS.md).
+**Sprint 5 — complete. All five sprints shipped.** All seven
+lighthouses relightable in order, a 21-beat story in three acts, the
+ending, New Game+ ("the Next Keeping"), and the Keeper's Desk with
+save export/import. The full design lives in
+[docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
+[docs/SPRINTS.md](docs/SPRINTS.md); the Steam wrapper guide is
+[docs/STEAM.md](docs/STEAM.md).
 
 ## What's playable
 
@@ -36,10 +37,30 @@ in [docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
   Lighthouses tab names the bottleneck and its shortfall; Beam levels
   add +5% production each. A banner in the Light view warns you when a
   node is starving the beam.
-- **Gull Rock Light** — relight the second lighthouse for 2,000,000
-  Lumen (your beam must be running at 50% efficiency or better) for a
-  permanent +50% production and a second, pricier chain board.
-  Lighthouses stay lit through Rekindle; chain boards reset.
+- **All seven lighthouses** — they relight in order, each gated on the
+  last, on the chain being awake, on a beam-efficiency requirement, and
+  on its cost — and each grants something different: Gull Rock (+50%
+  production), Cormorant Roost (+75%), Widow's Walk (chain support
+  +50%), The Bellwether (Ember gain +25%), Siren's Rest (better offline
+  earnings, +4h cap), and The Hollow Light (+150% — and the ending).
+  Every lit lighthouse adds its own pricier chain board. Lighthouses
+  stay lit through Rekindle; chain boards reset.
+- **The story** — 21 beats in three acts ("The Dark Shore", "The Hollow
+  Sea", "The Relighting") that arrive as you play: the first moth, the
+  first relic, each lighthouse, the ending itself. Collected beats live
+  at the top of the Log, readable in full; the ones you haven't reached
+  show as silhouettes with hints.
+- **The ending, and the Next Keeping** — light The Hollow Light and the
+  sea remembers it was water. Then, if you choose, begin the Next
+  Keeping (NG+): the shore goes dark and the Ember ledger starts fresh,
+  but your moths, relics, story, perks and challenge rewards come with
+  you — plus a legacy bonus of +25% production per Keeping, forever,
+  and a handful of inherited Embers to start with.
+- **The Keeper's Desk** — at the bottom of the Log: switch number
+  notation between standard (1.23M) and scientific (1.23e6), export
+  your save as JSON (with Copy) or import one back — handy for backups
+  and for carrying a save to the Steam build one day — and a two-step
+  hard reset for keepers who truly want a cold lamp.
 - **Rekindle, honestly priced** — gain preview, the recommended-40 marker,
   a recovery-time estimate ("~X min to recover your current Lumen/s",
   simulated by the same greedy bot the balance checks use), and kept/lost
@@ -75,13 +96,17 @@ in [docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
   current tide and the forecast, so you can plan around the storm.
 - **Offline earnings** — 50% of your rate for up to 8 hours (75% once you
   learn Longer Wicks; up to 12 hours and 90% with the right Ember perks
-  and relics), reported when you return. Cocoons hatch and bottles wash
-  back while you're away, too.
-- Balance-checked: a greedy-bot simulation that also feeds the chain
-  reaches the first Rekindle in ~115 minutes and the second ~76 minutes
-  later (`npm run sim`) — without buying perks, running challenges,
-  keeping moths, sending bottles or minding the tides, so real keepers
-  will be faster.
+  and relics; Siren's Rest adds +10 points and +4 hours more), reported
+  when you return — the welcome-back line also mentions a cocoon ready
+  to hatch or a bottle waiting on the glass. Cocoons hatch and bottles
+  wash back while you're away, too.
+- Balance-checked end to end: the greedy-bot simulation (`npm run sim`)
+  reaches the first Rekindle in ~103 minutes, the second ~69 minutes
+  later, and — playing whole save-and-relight campaigns up the coast —
+  lights The Hollow Light and reaches the ending in ~201 simulated
+  hours, without buying perks, running challenges, keeping moths,
+  sending bottles or minding the tides. Real keepers will be far
+  faster; the bot is the pessimistic bound.
 
 ## Run it
 
@@ -98,12 +123,16 @@ npm run build      # typecheck + production build to dist/
 - **Buy** — hire generators at the selected buy amount (×1/×10/×100/Max).
   Unaffordable buttons show how long until you can afford the batch.
 - **Upgrades tab** — spend Lumen on one-time upgrades as they unlock.
-- **Lighthouses tab** — relight Gull Rock, switch chain boards, and
-  upgrade Wick / Oil / Lens / Beam nodes to keep the beam fed.
+- **Lighthouses tab** — relight the seven in order, switch chain
+  boards, upgrade Wick / Oil / Lens / Beam nodes to keep the beam fed —
+  and, once The Hollow Light burns, find the ending panel and the Next
+  Keeping there.
 - **Rekindle tab** — Rekindle for Embers (with a recovery-time preview),
   spend held Embers in the Ember Shop, and start or abandon challenges.
 - **Shore tab** — attract, roster and breed lantern moths; send and
   claim bottle expeditions; admire the relic shelf.
+- **Log tab** — the story so far, the Keeper's Log, and the Keeper's
+  Desk (notation, save export/import, hard reset).
 - **Tabs** — Light · Upgrades · Lighthouses · Shore · Rekindle · Log.
   One view at a time.
 - Progress saves automatically to your browser (localStorage,
@@ -116,5 +145,6 @@ npm run build      # typecheck + production build to dist/
 - **Vite** for dev/build, **Vitest** for tests.
 - **break_infinity.js** `Decimal` for all Lumen values, so numbers stay
   exact long past where plain JS numbers give up (~9 quadrillion).
-- Steam release later ships the *same code* in a Tauri/Electron wrapper.
-  Python and Unity/Godot were considered and ruled out.
+- Steam release later ships the *same code* in a Tauri wrapper — see
+  [docs/STEAM.md](docs/STEAM.md). Python and Unity/Godot were considered
+  and ruled out.
