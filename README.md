@@ -13,11 +13,29 @@ Embers that make every future flame burn brighter.
 
 ## Status
 
-**Sprint 0 — foundation + playable seed.** The core loop runs: click for
-Lumen, buy 8 tiers of generators, watch milestones double them, preview and
-perform a Rekindle, and come back to offline earnings. The full design lives
-in [docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
+**Sprint 1 — full generator economy + upgrades.** Sprint 0's foundation
+(click, buy, Rekindle, offline earnings) is now a complete economy: bulk
+buying and a 22-upgrade system on top of the 8 generator tiers. The full
+design lives in [docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
 [docs/SPRINTS.md](docs/SPRINTS.md).
+
+## What's playable
+
+- **The full early loop** — Flash the Beam, hire all 8 generator tiers,
+  and watch milestones double production at 25/50/100 owned (progress to
+  the next one is shown on every row).
+- **Buy amounts** — a ×1 / ×10 / ×100 / Max toggle prices the whole batch
+  (cost + production gain on every row) and remembers your choice.
+- **22 upgrades** in their own tab — per-generator ×2s, click tiers that
+  take the beam from +1 to +8, and keeper-wide globals. Locked upgrades
+  appear as silhouettes with their unlock conditions.
+- **Rekindle, honestly priced** — gain preview, the recommended-40 marker,
+  and kept/lost lists that name your upgrades. Two of them (Longer Wicks,
+  Ember Resonance) are keeper knowledge and survive the reset.
+- **Offline earnings** — 50% of your rate for up to 8 hours (75% once you
+  learn Longer Wicks), reported when you return.
+- Balance-checked: a greedy-bot simulation reaches the first Rekindle in
+  ~41 minutes (`npm run sim`).
 
 ## Run it
 
@@ -30,12 +48,14 @@ npm run build      # typecheck + production build to dist/
 
 ## Controls
 
-- **Flash the Beam** — +1 Lumen per click.
-- **Buy** — hire generators (×1 in Sprint 0; ×10/×100/Max arrive in Sprint 1).
-  Unaffordable buttons show how long until you can afford them.
-- **Tabs** — Light · Lighthouses · Rekindle · Log. One view at a time.
+- **Flash the Beam** — +1 Lumen per click (upgradable to +8).
+- **Buy** — hire generators at the selected buy amount (×1/×10/×100/Max).
+  Unaffordable buttons show how long until you can afford the batch.
+- **Upgrades tab** — spend Lumen on one-time upgrades as they unlock.
+- **Tabs** — Light · Upgrades · Lighthouses · Rekindle · Log. One view
+  at a time.
 - Progress saves automatically to your browser (localStorage,
-  `tidelight-save-v1`), including offline earnings at 50% for up to 8 hours.
+  `tidelight-save-v1`), including offline earnings for up to 8 hours.
 
 ## Tech stack (locked decision, 2026-11-17)
 
