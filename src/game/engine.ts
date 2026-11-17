@@ -2,15 +2,21 @@ import Decimal from "break_infinity.js";
 import {
   CLICK_LUMEN,
   GENERATORS,
+  MILESTONE_THRESHOLDS,
   OFFLINE_CAP_SECONDS,
-  OFFLINE_RATE,
-  EMBER_PRODUCTION_BONUS,
   generatorById,
   milestoneMultiplier,
   type GeneratorDef,
 } from "./config";
 import { addLog } from "./state";
-import type { GameState } from "./types";
+import type { BuyAmount, GameState } from "./types";
+import {
+  clickMultiplier,
+  emberBonusPerEmber,
+  generatorUpgradeMultiplier,
+  globalProductionMultiplier,
+  offlineRateFor,
+} from "./upgrades";
 
 // ── Costs ────────────────────────────────────────────────────────────────────
 
@@ -50,19 +56,28 @@ export function maxAffordable(def: GeneratorDef, owned: number, budget: Decimal)
 
 // ── Production ───────────────────────────────────────────────────────────────
 
-/** Global multiplier from held Embers: +2% each. */
+/** Global multiplier from held Embers: +2% each (+3% with Ember Resonance). */
 export function emberMultiplier(state: GameState): Decimal {
-  return new Decimal(1 + state.embers * EMBER_PRODUCTION_BONUS);
+  return new Decimal(1 + state.embers * emberBonusPerEmber(state));
 }
 
-/** Lumen/s from one generator type, including milestones and Ember bonus. */
-export function generatorProduction(state: GameState, def: GeneratorDef): Decimal {
-  const owned = state.generators[def.id] ?? 0;
+/**
+ * Lumen/s a generator type would produce at a given ownership count,
+ * including milestones, its own upgrades, Keeper's Focus, and Ember bonus.
+ */
+export function productionForOwned(state: GameState, def: GeneratorDef, owned: number): Decimal {
   if (owned === 0) return new Decimal(0);
   return new Decimal(def.baseProduction)
     .mul(owned)
     .mul(milestoneMultiplier(owned))
+    .mul(generatorUpgradeMultiplier(state, def.id))
+    .mul(globalProductionMultiplier(state))
     .mul(emberMultiplier(state));
+}
+
+/** Lumen/s from one generator type at its current ownership. */
+export function generatorProduction(state: GameState, def: GeneratorDef): Decimal {
+  return productionForOwned(state, def, state.generators[def.id] ?? 0);
 }
 
 /** Total Lumen/s across all generators. */
@@ -80,9 +95,14 @@ function credit(state: GameState, amount: Decimal): void {
   state.allTimeLumen = state.allTimeLumen.add(amount);
 }
 
-/** Flash the Beam: +1 Lumen per click (Sprint 0 value). */
+/** Lumen gained per Flash the Beam click, including click upgrades. */
+export function clickValue(state: GameState): Decimal {
+  return new Decimal(CLICK_LUMEN).mul(clickMultiplier(state));
+}
+
+/** Flash the Beam: +click value in Lumen. */
 export function clickBeam(state: GameState): void {
-  credit(state, new Decimal(CLICK_LUMEN));
+  credit(state, clickValue(state));
   state.totalClicks++;
 }
 
@@ -98,17 +118,87 @@ export function buyGenerator(state: GameState, id: string, count = 1): boolean {
   if (count === 1 && (owned + 1 === 1 || (owned + 1) % 25 === 0)) {
     addLog(state, `${def.name} joins the light. (${owned + 1} owned)`);
   }
+  for (const threshold of MILESTONE_THRESHOLDS) {
+    if (owned < threshold && owned + count >= threshold) {
+      addLog(state, `Milestone: ${threshold} × ${def.name} — its production doubles.`);
+    }
+  }
   return true;
+}
+
+// ── Buy amounts (×1 / ×10 / ×100 / Max) ─────────────────────────────────────
+
+export interface BuyQuote {
+  /** Copies this purchase would buy (for Max: how many are affordable). */
+  count: number;
+  /** Total Lumen cost of those copies. */
+  cost: Decimal;
+  /** True when the player can pay `cost` right now. */
+  affordable: boolean;
+  /** Extra Lumen/s the purchase would add. */
+  productionGain: Decimal;
+}
+
+/**
+ * What a buy at the given amount setting would do right now.
+ * Fixed amounts quote the full amount (cost of all ×10/×100, affordable only
+ * when the whole batch is payable). Max quotes maxAffordable copies — or,
+ * when even one copy is out of reach, the next single copy as the target.
+ */
+export function buyQuote(state: GameState, def: GeneratorDef, amount: BuyAmount): BuyQuote {
+  const owned = state.generators[def.id] ?? 0;
+  const current = productionForOwned(state, def, owned);
+  if (amount === "max") {
+    const count = maxAffordable(def, owned, state.lumen);
+    if (count === 0) {
+      return {
+        count: 0,
+        cost: costFor(def, owned),
+        affordable: false,
+        productionGain: productionForOwned(state, def, owned + 1).sub(current),
+      };
+    }
+    return {
+      count,
+      cost: bulkCost(def, owned, count),
+      affordable: true,
+      productionGain: productionForOwned(state, def, owned + count).sub(current),
+    };
+  }
+  const cost = bulkCost(def, owned, amount);
+  return {
+    count: amount,
+    cost,
+    affordable: state.lumen.gte(cost),
+    productionGain: productionForOwned(state, def, owned + amount).sub(current),
+  };
+}
+
+/**
+ * Buy using a buy-amount setting. Fixed amounts buy exactly that many and
+ * fail cleanly when the full batch is unaffordable; Max buys maxAffordable.
+ */
+export function buyWithAmount(state: GameState, id: string, amount: BuyAmount): boolean {
+  const def = generatorById(id);
+  const owned = state.generators[id] ?? 0;
+  const count = amount === "max" ? maxAffordable(def, owned, state.lumen) : amount;
+  if (count <= 0) return false;
+  return buyGenerator(state, id, count);
+}
+
+/** Seconds until an arbitrary cost is affordable at current production. */
+export function timeToAffordCost(state: GameState, cost: Decimal): number {
+  const missing = cost.sub(state.lumen);
+  if (missing.lte(0)) return 0;
+  const rate = productionPerSecond(state);
+  if (rate.lte(0)) return Infinity;
+  return missing.div(rate).toNumber();
 }
 
 /** Seconds until a generator's next copy is affordable at current production. */
 export function timeToAfford(state: GameState, def: GeneratorDef): number {
   const owned = state.generators[def.id] ?? 0;
-  const missing = costFor(def, owned).sub(state.lumen);
-  if (missing.lte(0)) return 0;
-  const rate = productionPerSecond(state);
-  if (rate.lte(0)) return Infinity;
-  return missing.div(rate).toNumber();
+  return timeToAffordCost(state, costFor(def, owned));
 }
 
 // ── Ticking & offline ────────────────────────────────────────────────────────
@@ -128,11 +218,14 @@ export interface OfflineResult {
   gain: Decimal;
 }
 
-/** What the player earned while away: rate × min(away, cap) × offline rate. */
+/**
+ * What the player earned while away: rate × min(away, cap) × offline rate.
+ * The offline rate is 50%, or 75% with the Longer Wicks upgrade.
+ */
 export function offlineEarnings(state: GameState, now: number = Date.now()): OfflineResult {
   const awaySeconds = Math.max(0, (now - state.lastSeen) / 1000);
   const creditedSeconds = Math.min(awaySeconds, OFFLINE_CAP_SECONDS);
-  const gain = productionPerSecond(state).mul(creditedSeconds).mul(OFFLINE_RATE);
+  const gain = productionPerSecond(state).mul(creditedSeconds).mul(offlineRateFor(state));
   return { awaySeconds, creditedSeconds, gain };
 }
 
