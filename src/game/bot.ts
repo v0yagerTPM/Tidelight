@@ -1,7 +1,13 @@
 import Decimal from "break_infinity.js";
-import { FIRST_LIGHT_ID, GENERATORS } from "./config";
-import { buyNodeUpgrade, chainStatus, relightGullRock } from "./chain";
-import { buyGenerator, clickValue, costFor, productionPerSecond } from "./engine";
+import { CHAIN_NODE_IDS, GENERATORS, type ChainNodeId } from "./config";
+import {
+  buyNodeUpgrade,
+  chainStatus,
+  nextLighthouseId,
+  nodeCost,
+  relightLighthouse,
+} from "./chain";
+import { baseProductionPerSecond, buyGenerator, clickValue, costFor, productionPerSecond } from "./engine";
 import type { GameState } from "./types";
 import { UPGRADES, buyUpgrade, isUnlocked } from "./upgrades";
 
@@ -10,11 +16,15 @@ import { UPGRADES, buyUpgrade, isUnlocked } from "./upgrades";
 // reports) and estimate.ts (the Rekindle recovery preview), so both always
 // agree on what "greedy play" means:
 //   • every step, buy whichever affordable action has the best payback
-//     (cost ÷ production gain) — a generator copy or an upgrade;
+//     (cost ÷ production gain) — a generator copy, an upgrade, or a chain
+//     node level on any lit board;
 //   • once the supply chain is unlocked, keep it fed first: whenever
 //     efficiency drops under 95%, buy the bottleneck node's next level
-//     on the First Light board before generator purchases that step;
-//   • relight Gull Rock the moment it is eligible;
+//     on the CHEAPEST lit board before other purchases that step
+//     (support sums across boards, so the cheap board is the smart one);
+//   • relight the next lighthouse (in order) the moment it is eligible;
+//   • in "savings mode" (used by the endgame sim) it buys nothing but
+//     chain feeding — the caller is saving for a lighthouse;
 //   • click the beam once per 2 seconds for the first 10 minutes of a
 //     run, like an engaged player who then goes idle (the clicking itself
 //     is applied by the caller — this module only values it).
@@ -45,8 +55,35 @@ function clickWithUpgrade(state: GameState, id: string): Decimal {
   return v;
 }
 
+function productionWithNodeUpgrade(state: GameState, lighthouseId: string, nodeId: ChainNodeId): Decimal {
+  const board = state.chainBoards[lighthouseId];
+  if (!board) return productionPerSecond(state);
+  board[nodeId] += 1;
+  const p = productionPerSecond(state);
+  board[nodeId] -= 1;
+  return p;
+}
+
+/** The lit board where raising `nodeId` costs the least right now. */
+export function cheapestBoardFor(state: GameState, nodeId: ChainNodeId): string | null {
+  let best: string | null = null;
+  let bestCost: Decimal | null = null;
+  for (const id of state.litLighthouses) {
+    const board = state.chainBoards[id];
+    if (!board) continue;
+    const cost = nodeCost(id, nodeId, board[nodeId], state);
+    if (bestCost === null || cost.lt(bestCost)) {
+      best = id;
+      bestCost = cost;
+    }
+  }
+  return best;
+}
+
 export interface BotAction {
   payback: number;
+  /** The Lumen cost of the purchase (for reserve checks in savings mode). */
+  cost: Decimal;
   run: () => boolean;
   label: string;
 }
@@ -56,9 +93,9 @@ export function bestBotAction(state: GameState, tSeconds: number): BotAction | n
   const production = productionPerSecond(state);
   const clickRate = tSeconds < BOT_CLICK_WINDOW_SECONDS ? BOT_CLICK_RATE : 0;
   let best: BotAction | null = null;
-  const consider = (payback: number, run: () => boolean, label: string) => {
+  const consider = (payback: number, run: () => boolean, label: string, cost: Decimal) => {
     if (Number.isFinite(payback) && payback >= 0 && (best === null || payback < best.payback)) {
-      best = { payback, run, label };
+      best = { payback, cost, run, label };
     }
   };
 
@@ -68,7 +105,7 @@ export function bestBotAction(state: GameState, tSeconds: number): BotAction | n
     if (state.lumen.lt(cost)) continue;
     const gain = productionWithGenerator(state, def.id).sub(production);
     if (gain.lte(0)) continue;
-    consider(cost.div(gain).toNumber(), () => buyGenerator(state, def.id, 1), `buy ${def.name}`);
+    consider(cost.div(gain).toNumber(), () => buyGenerator(state, def.id, 1), `buy ${def.name}`, cost);
   }
 
   for (const def of UPGRADES) {
@@ -80,7 +117,29 @@ export function bestBotAction(state: GameState, tSeconds: number): BotAction | n
     const clickGain = clickWithUpgrade(state, def.id).sub(clickValue(state)).mul(clickRate);
     const gain = prodGain.add(clickGain);
     if (gain.lte(0)) continue; // e.g. Longer Wicks: no value to an always-online bot
-    consider(cost.div(gain).toNumber(), () => buyUpgrade(state, def.id), `buy upgrade ${def.name}`);
+    consider(cost.div(gain).toNumber(), () => buyUpgrade(state, def.id), `buy upgrade ${def.name}`, cost);
+  }
+
+  // Chain node levels on any lit board (Sprint 5). A supply node only
+  // pays while it is (jointly) the bottleneck — otherwise its measured
+  // gain is 0 and it is skipped naturally; Beam levels always pay.
+  if (chainStatus(state).unlocked) {
+    for (const lighthouseId of state.litLighthouses) {
+      const board = state.chainBoards[lighthouseId];
+      if (!board) continue;
+      for (const nodeId of CHAIN_NODE_IDS) {
+        const cost = nodeCost(lighthouseId, nodeId, board[nodeId], state);
+        if (state.lumen.lt(cost)) continue;
+        const gain = productionWithNodeUpgrade(state, lighthouseId, nodeId).sub(production);
+        if (gain.lte(0)) continue;
+        consider(
+          cost.div(gain).toNumber(),
+          () => buyNodeUpgrade(state, lighthouseId, nodeId),
+          `raise ${nodeId} at ${lighthouseId}`,
+          cost,
+        );
+      }
+    }
   }
 
   return best;
@@ -89,26 +148,99 @@ export function bestBotAction(state: GameState, tSeconds: number): BotAction | n
 export interface BotHooks {
   /** Called with the upgrade id whenever the bot buys an upgrade. */
   onUpgradeBought?: (id: string) => void;
-  /** Called with the sim-time when the bot relights Gull Rock. */
-  onGullRockLit?: (tSeconds: number) => void;
+  /** Called with the lighthouse id whenever the bot relights one. */
+  onLighthouseLit?: (id: string, tSeconds: number) => void;
+}
+
+export interface BotBuyOptions {
+  /**
+   * Savings mode: bank Lumen for the next lighthouse. Generator/upgrade
+   * purchases stop (except, optionally, very cheap growth — see
+   * growthPaybackCapSeconds); chain feeding continues, but only up to
+   * feedUntilEfficiency and only out of Lumen above reserveLumen, so the
+   * relight cost itself is never spent on wicks. The endgame sim's
+   * lighthouse campaigns use this.
+   */
+  saveForLighthouse?: boolean;
+  /** Stop feeding once chain efficiency reaches this (default 0.95). */
+  feedUntilEfficiency?: number;
+  /**
+   * Feeding discipline (growth mode): never buy a bottleneck level whose
+   * payback (cost ÷ production gain) exceeds this many seconds. Without
+   * it, the late-game bot pours billions into levels that pay back over
+   * geological time while demand outruns support anyway.
+   */
+  feedPaybackCapSeconds?: number;
+  /**
+   * Savings mode only: allow best-payback purchases whose payback is at
+   * most this many seconds (cheap growth that barely moves demand).
+   */
+  growthPaybackCapSeconds?: number;
+  /** Savings mode only: never let a purchase drop the purse below this. */
+  reserveLumen?: Decimal;
+  /**
+   * Savings mode only: stop all growth purchases once base production
+   * (the chain's demand) reaches this. A lighthouse campaign lives or
+   * dies by its demand: support grows linearly and costs geometrically,
+   * so past a point every extra generator makes the efficiency gate
+   * LESS reachable, not more.
+   */
+  maxBaseProduction?: Decimal;
 }
 
 /**
- * One buy phase: Gull Rock first, then chain feeding, then best-payback
- * purchases until nothing affordable is worth buying.
+ * One buy phase: the next lighthouse first (when eligible), then chain
+ * feeding, then best-payback purchases until nothing affordable is worth
+ * buying. In savings mode the last step is gated by the options above.
  */
-export function botBuyPhase(state: GameState, tSeconds: number, hooks: BotHooks = {}): void {
+export function botBuyPhase(
+  state: GameState,
+  tSeconds: number,
+  hooks: BotHooks = {},
+  options: BotBuyOptions = {},
+): void {
+  const feedUntil = options.feedUntilEfficiency ?? 0.95;
+  const reserve = options.reserveLumen ?? new Decimal(0);
   for (let guard = 0; guard < 10_000; guard++) {
-    if (!state.litLighthouses.includes("gull-rock") && relightGullRock(state)) {
-      hooks.onGullRockLit?.(tSeconds);
+    const nextId = nextLighthouseId(state);
+    if (nextId && relightLighthouse(state, nextId)) {
+      hooks.onLighthouseLit?.(nextId, tSeconds);
       continue;
     }
+    // Chain feeding: bottleneck first, cheapest board, up to the feed
+    // target — and, when a discipline is set, only at a sane payback.
     const status = chainStatus(state);
-    if (status.unlocked && status.efficiency < 0.95 && status.bottleneck) {
-      if (buyNodeUpgrade(state, FIRST_LIGHT_ID, status.bottleneck)) continue;
+    if (status.unlocked && status.efficiency < feedUntil && status.bottleneck) {
+      const boardId = cheapestBoardFor(state, status.bottleneck);
+      const board = boardId ? state.chainBoards[boardId] : undefined;
+      if (boardId && board) {
+        const cost = nodeCost(boardId, status.bottleneck, board[status.bottleneck], state);
+        let worthIt = state.lumen.sub(cost).gte(reserve);
+        if (worthIt && options.feedPaybackCapSeconds !== undefined) {
+          const gain = productionWithNodeUpgrade(state, boardId, status.bottleneck).sub(
+            productionPerSecond(state),
+          );
+          worthIt = gain.gt(0) && cost.div(gain).toNumber() <= options.feedPaybackCapSeconds;
+        }
+        if (worthIt && buyNodeUpgrade(state, boardId, status.bottleneck)) continue;
+      }
+    }
+    // Purchases.
+    if (
+      options.maxBaseProduction !== undefined &&
+      baseProductionPerSecond(state).gte(options.maxBaseProduction)
+    ) {
+      break; // demand cap reached: feed and save only
     }
     const action = bestBotAction(state, tSeconds);
     if (!action) break;
+    if (options.saveForLighthouse) {
+      // In savings mode only very cheap growth is allowed, and never out
+      // of the reserve (the relight cost stays banked once reached).
+      if (options.growthPaybackCapSeconds === undefined) break;
+      if (action.payback > options.growthPaybackCapSeconds) break;
+      if (state.lumen.sub(action.cost).lt(reserve)) break;
+    }
     const before = state.upgrades.length;
     if (!action.run()) break;
     if (state.upgrades.length > before) {
