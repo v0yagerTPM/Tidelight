@@ -1,5 +1,6 @@
 import Decimal from "break_infinity.js";
 import { CHAIN_NODE_IDS, PRESTIGE_DIVISOR } from "./config";
+import { headStartLumen, perkById } from "./emberShop";
 import { addLog, startBoard } from "./state";
 import type { GameState } from "./types";
 import { isPermanentUpgrade, upgradeById } from "./upgrades";
@@ -21,24 +22,22 @@ export function rekindleGain(state: GameState): number {
 }
 
 export function canRekindle(state: GameState): boolean {
-  return rekindleGain(state) >= 1;
+  // Normal Rekindle is disabled while a challenge run is active (Sprint 3).
+  return state.activeChallenge === null && rekindleGain(state) >= 1;
 }
 
 /**
- * Rekindle: bank this run's Embers and start the light over.
- * Resets Lumen, this run's lifetime, all generators, all upgrades
+ * The run reset shared by Rekindle and challenge start/abandon (Sprint 3):
+ * Lumen back to the Head Start purse (1,000 with the perk, else 0), this
+ * run's lifetime zeroed, all generators gone, all upgrades forgotten
  * EXCEPT permanent ones (keeper knowledge: Longer Wicks, Ember Resonance),
- * and every chain board back to its starting levels. Keeps Embers, the
- * buy-amount setting, every lifetime stat, and every lit lighthouse
- * (lighthouses — and their production bonuses — are permanent).
- * Returns the Embers gained (0 = no-op).
+ * and every chain board back to its starting levels. Lit lighthouses,
+ * Embers, Ember perks, challenge records, and every lifetime stat are
+ * kept — this function never touches them.
  */
-export function rekindle(state: GameState): number {
-  const gain = rekindleGain(state);
-  if (gain < 1) return 0;
-  state.embers += gain;
-  state.totalRekindles++;
-  state.lumen = new Decimal(0);
+export function resetRun(state: GameState): void {
+  const purse = headStartLumen(state);
+  state.lumen = new Decimal(purse);
   state.lifetimeLumen = new Decimal(0);
   state.generators = {};
   // Chain boards reset to their starting levels; lit lighthouses stay lit.
@@ -54,13 +53,36 @@ export function rekindle(state: GameState): number {
   if (boardsHadProgress) {
     addLog(state, "The supply chains gutter with the flame — every board is stripped back to its starting levels, though every lit lighthouse stays lit.");
   }
+  state.upgrades = state.upgrades.filter((id) => isPermanentUpgrade(id));
+  if (purse > 0) {
+    addLog(state, `A keeper's purse of ${purse} Lumen waits by the lamp (Head Start).`);
+  }
+}
+
+/**
+ * Rekindle: bank this run's Embers and start the light over (see resetRun
+ * for what resets and what is kept). Gained Embers are added to both the
+ * held balance and the lifetime total earned. Disabled while a challenge
+ * is active. Returns the Embers gained (0 = no-op).
+ */
+export function rekindle(state: GameState): number {
+  if (state.activeChallenge !== null) return 0;
+  const gain = rekindleGain(state);
+  if (gain < 1) return 0;
   const kept = state.upgrades.filter((id) => isPermanentUpgrade(id));
   const lost = state.upgrades.length - kept.length;
-  state.upgrades = kept;
-  addLog(state, `The light gutters, and is lit again — stronger. +${gain} Embers (total ${state.embers}).`);
+  state.embers += gain;
+  state.embersTotalEarned += gain;
+  state.totalRekindles++;
+  resetRun(state);
+  addLog(state, `The light gutters, and is lit again — stronger. +${gain} Embers (${state.embers} held, ${state.embersTotalEarned} earned all-time).`);
   if (kept.length > 0) {
     const names = kept.map((id) => upgradeById(id).name).join(", ");
     addLog(state, `Keeper knowledge survives the dark: ${names}.`);
+  }
+  if (state.emberPerks.length > 0) {
+    const names = state.emberPerks.map((id) => perkById(id).name).join(", ");
+    addLog(state, `Ember perks endure: ${names}.`);
   }
   if (lost > 0) {
     addLog(state, `${lost} upgrade${lost === 1 ? "" : "s"} forgotten in the guttering — they can be learned again.`);
