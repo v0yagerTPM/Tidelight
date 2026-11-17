@@ -17,13 +17,40 @@
       kept/lost), Log
 - [x] Tests: cost growth, bulk cost, milestones, prestige, offline cap, formatting
 
-## Sprint 1 — Full generator economy
+## ✅ Sprint 1 — Full generator economy + upgrades
 
-- Buy ×10 / ×100 / Max, buy-until-milestone
-- One-time upgrades per tier (multiplicative, staggered so tiers rotate dominance)
-- Achievements that feed a real production multiplier
-- Payback + time-to-afford tooltips everywhere; notation setting in UI
-- Balance pass against the pacing spreadsheet (first Rekindle 45–90 min)
+- [x] Buy amounts ×1 / ×10 / ×100 / Max — global toggle in the Light view,
+      persisted in the save. Fixed amounts buy the full batch or nothing
+      (the button prices the whole batch); Max buys maxAffordable.
+      Closed-form bulk-cost math throughout.
+- [x] Upgrades system (data-driven, `src/game/upgrades.ts`): 22 one-time
+      upgrades — 16 per-generator (production ×2, unlocked at 10 owned;
+      ×2 again at 30 owned), 3 click tiers (beam value 1 → 2 → 4 → 8),
+      3 globals: Keeper's Focus (+25% all production), Longer Wicks
+      (offline rate 50% → 75%), Ember Resonance (Ember bonus +2% → +3%)
+- [x] Permanent upgrades: Longer Wicks and Ember Resonance are keeper
+      knowledge — they survive Rekindle; all other upgrades reset. The
+      Rekindle view's kept/lost lists name them.
+- [x] Upgrades tab (Light · Upgrades · Lighthouses · Rekindle · Log):
+      Available with cost + plain-words effect, locked upgrades as
+      silhouettes showing their unlock condition, Learned section.
+      Generator rows show milestone progress ("Next ×2 at 25 — 18/25")
+      and the selected amount's cost + production gain.
+- [x] Save format v2 (same `tidelight-save-v1` key): purchased upgrade ids
+      and the buy-amount setting persisted. Sprint 0 (v1) saves migrate
+      on load — missing fields default (no upgrades, buy ×1).
+- [x] Balance pass — greedy-bot sim (`npm run sim`, scripts/simulate.ts;
+      best-payback purchases, clicking 1/2s for the first 10 min only):
+      **first Rekindle (40 Embers) in 41.0 simulated minutes**
+      (target band 40–120; a human plays slower than the bot, which keeps
+      the 45–90 min engaged-session target in reach).
+      Tuning applied — upgrade numbers only, generator base costs/growth
+      untouched: per-generator upgrade costs 25×/150× → **40×/240×** base
+      cost, Keeper's Focus 50,000 → **100,000**. Before tuning the sim
+      landed at 36.8 min, just under the floor.
+- Deferred from the original Sprint 1 sketch (not in this sprint's scope):
+  buy-until-milestone, achievements feeding a production multiplier,
+  notation setting in the UI.
 
 ## Sprint 2 — Bottleneck chain + second lighthouse
 
