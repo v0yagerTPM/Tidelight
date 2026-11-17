@@ -2,12 +2,16 @@ import Decimal from "break_infinity.js";
 import {
   BEAM_BONUS_PER_LEVEL,
   CHAIN_FLOOR,
+  CHAIN_LIGHTHOUSES,
   CHAIN_NODES,
   CHAIN_UNLOCK_GENERATORS,
-  GULL_ROCK_EFFICIENCY_REQUIREMENT,
   GULL_ROCK_ID,
+  HOLLOW_LIGHT_ID,
   SUPPLY_NODE_IDS,
   chainLighthouseById,
+  litProductionMultiplier,
+  litSupportMultiplier,
+  previousLighthouseId,
   type ChainNodeId,
   type SupplyNodeId,
 } from "./config";
@@ -28,8 +32,9 @@ import { totalGeneratorsOwned } from "./upgrades";
 // Production ordering (see engine.ts):
 //   generators (milestones, upgrades, challenge tier reward) × Keeper's
 //   Focus × Ember bonus × Second Wind × challenge rule/rewards
-//   × moth duty bonus × Brass Compass (Sprint 4)
-//   × lighthouse bonuses  =  BASE production — this is the chain's "demand"
+//   × moth duty bonus × Brass Compass (Sprint 4) × legacy bonus (Sprint 5)
+//   × lighthouse production bonuses, multiplied together (Sprint 5)
+//   =  BASE production — this is the chain's "demand"
 //   × chain factor (0.25 + 0.75 × efficiency, or 1 while the chain is locked)
 //   × beam bonus (1 + 5% × total Beam levels)
 //   × tide production multiplier (Sprint 4; only when a time is passed)
@@ -37,8 +42,9 @@ import { totalGeneratorsOwned } from "./upgrades";
 //
 // Each supply node's efficiency is min(1, totalSupport / demand), where
 // totalSupport sums that node's levels across every lit lighthouse's board
-// and is scaled by Deep Wicks (×1.25), the Tide Chart relic (×1.15) and
-// the tide (Low Tide ×1.2, Stormfront ×0.8 — only when a time is passed).
+// and is scaled by Deep Wicks (×1.25), the Tide Chart relic (×1.15),
+// Widow's Walk lit (×1.5, Sprint 5) and the tide (Low Tide ×1.2,
+// Stormfront ×0.8 — only when a time is passed).
 // The chain is only as strong as its weakest supply node.
 
 export function isLit(state: GameState, lighthouseId: string): boolean {
@@ -66,15 +72,22 @@ export function totalNodeLevels(state: GameState, nodeId: ChainNodeId): number {
 /**
  * Total Lumen/s a supply node supports across all boards.
  * Deep Wicks (Ember perk, Sprint 3) raises every node's support by +25%;
- * the Tide Chart relic (Sprint 4) adds +15%; the tide scales support when
- * a time is passed (Low Tide ×1.2, Stormfront ×0.8).
+ * the Tide Chart relic (Sprint 4) adds +15%; Widow's Walk lit (Sprint 5)
+ * adds +50%; the tide scales support when a time is passed (Low Tide
+ * ×1.2, Stormfront ×0.8).
  */
 export function totalSupport(state: GameState, nodeId: SupplyNodeId, now?: number): Decimal {
   return new Decimal(CHAIN_NODES[nodeId].supportPerLevel)
     .mul(totalNodeLevels(state, nodeId))
     .mul(chainSupportMultiplier(state))
     .mul(relicSupportMultiplier(state))
+    .mul(lighthouseSupportMultiplier(state))
     .mul(tideSupportMultiplier(now));
+}
+
+/** Multiplicative support bonus from lit lighthouses (Widow's Walk ×1.5). */
+export function lighthouseSupportMultiplier(state: GameState): number {
+  return litSupportMultiplier(state.litLighthouses);
 }
 
 /**
@@ -101,13 +114,13 @@ export function nextNodeCost(state: GameState, lighthouseId: string, nodeId: Cha
 
 // ── Lighthouse & beam bonuses ────────────────────────────────────────────────
 
-/** Multiplicative production bonus from lit lighthouses (Gull Rock: ×1.5). */
+/**
+ * Multiplicative production bonus from lit lighthouses — the bonuses
+ * multiply together: Gull Rock ×1.5, Cormorant Roost ×1.75, The Hollow
+ * Light ×2.5 (all seven lit: ×6.5625 before anything else).
+ */
 export function lighthouseMultiplier(state: GameState): Decimal {
-  let mult = new Decimal(1);
-  for (const id of state.litLighthouses) {
-    mult = mult.mul(1 + chainLighthouseById(id).productionBonus);
-  }
-  return mult;
+  return new Decimal(litProductionMultiplier(state.litLighthouses));
 }
 
 export function totalBeamLevels(state: GameState): number {
@@ -204,14 +217,26 @@ export function buyNodeUpgrade(state: GameState, lighthouseId: string, nodeId: C
   return true;
 }
 
-// ── Gull Rock Light ──────────────────────────────────────────────────────────
+// ── Relighting the seven lighthouses (generalized in Sprint 5) ──────────────
+// Lighthouses relight IN ORDER: LH(n) requires LH(n−1) lit, the chain
+// awake, beam efficiency at or above the lighthouse's own requirement,
+// and its Lumen cost. Lighting one is PERMANENT (it survives Rekindle;
+// only New Game+ darkens the shore again) and starts a fresh, empty chain
+// board — an empty board adds no support, so it can never drag efficiency
+// down. Lighting The Hollow Light sets state.endingSeen (the ending).
 
-export interface GullRockStatus {
+export interface LighthouseStatus {
+  lighthouseId: string;
   lit: boolean;
+  /** Relight cost for this keeper (Friend of Gulls halves Gull Rock only). */
   cost: Decimal;
+  /** The previous lighthouse in the order is lit (always true for LH1). */
+  previousLit: boolean;
+  /** Id of the previous lighthouse, or null for First Light. */
+  previousId: string | null;
   /** Chain must be unlocked first. */
   chainUnlocked: boolean;
-  /** Current chain efficiency, and the 50% Gull Rock demands. */
+  /** Current chain efficiency, and what this lighthouse demands. */
   efficiency: number;
   efficiencyRequired: number;
   efficiencyOk: boolean;
@@ -219,37 +244,82 @@ export interface GullRockStatus {
   canRelight: boolean;
 }
 
-export function gullRockStatus(state: GameState, now?: number): GullRockStatus {
+/** The relight cost of a lighthouse for this keeper. */
+export function relightCost(state: GameState, lighthouseId: string): Decimal {
+  // Friend of Gulls (Ember perk, Sprint 3) halves Gull Rock's cost — and
+  // only Gull Rock's; the gulls have no cousins further out.
+  if (lighthouseId === GULL_ROCK_ID) return gullRockRelightCost(state);
+  return new Decimal(chainLighthouseById(lighthouseId).relightCost ?? 0);
+}
+
+export function lighthouseStatus(state: GameState, lighthouseId: string, now?: number): LighthouseStatus {
+  const def = chainLighthouseById(lighthouseId);
   const status = chainStatus(state, now);
-  // Friend of Gulls (Ember perk, Sprint 3) halves the relight cost.
-  const cost = gullRockRelightCost(state);
+  const cost = relightCost(state, lighthouseId);
+  const previousId = previousLighthouseId(lighthouseId);
+  const previousLit = previousId === null || isLit(state, previousId);
   const affordable = state.lumen.gte(cost);
-  const efficiencyOk = status.efficiency >= GULL_ROCK_EFFICIENCY_REQUIREMENT;
-  const lit = isLit(state, GULL_ROCK_ID);
+  const efficiencyOk = status.efficiency >= def.efficiencyRequirement;
+  const lit = isLit(state, lighthouseId);
   return {
+    lighthouseId,
     lit,
     cost,
+    previousLit,
+    previousId,
     chainUnlocked: status.unlocked,
     efficiency: status.efficiency,
-    efficiencyRequired: GULL_ROCK_EFFICIENCY_REQUIREMENT,
+    efficiencyRequired: def.efficiencyRequirement,
     efficiencyOk,
     affordable,
-    canRelight: !lit && status.unlocked && efficiencyOk && affordable,
+    canRelight: !lit && previousLit && status.unlocked && efficiencyOk && affordable,
   };
 }
 
+/** The first dark lighthouse in relight order, or null when all seven burn. */
+export function nextLighthouseId(state: GameState): string | null {
+  for (const def of CHAIN_LIGHTHOUSES) {
+    if (def.relightCost !== null && !isLit(state, def.id)) return def.id;
+  }
+  return null;
+}
+
+const RELIGHT_LOG_LINES: Record<string, string> = {
+  [GULL_ROCK_ID]: "Gull Rock Light burns again — every flame you tend burns half again as bright. (+50% production)",
+  "cormorant-roost": "Cormorant Roost burns again — the cormorants approve, in their hundreds, all facing the light. (+75% production)",
+  "widows-walk": "The Widow's Walk burns again — and in its store-rooms, a century of careful keeping: every supply chain you tend runs half again as strong. (chain support +50%)",
+  bellwether: "The Bellwether burns again — somewhere across the glass, its bell rings once, and every ember you bank from now on weighs more. (Ember gain +25%)",
+  "sirens-rest": "Siren's Rest burns again — the sirens stir, stretch, and go back to sleep, mollified. The night itself works harder for you now. (offline rate +10 pts, offline cap +4h)",
+  [HOLLOW_LIGHT_ID]: "THE HOLLOW LIGHT BURNS. From Candlewick Point to the heart of the sea, seven lights stand in a row across the glass — and the glass, all at once, remembers it was water. (+150% production)",
+};
+
 /**
- * Relight Gull Rock Light: a permanent +50% production bonus and a second
- * chain board (starting empty — an empty board adds no support, so it can
- * never drag efficiency down). Requires the chain unlocked, current chain
- * efficiency ≥ 50%, and the Lumen cost. Returns true on success.
+ * Relight a lighthouse: permanent bonuses and a fresh chain board.
+ * Enforces the full gate — order, chain awake, efficiency, cost — and
+ * returns true on success. Lighting The Hollow Light also sets
+ * state.endingSeen: the ending has been witnessed.
  */
-export function relightGullRock(state: GameState): boolean {
-  const status = gullRockStatus(state);
+export function relightLighthouse(state: GameState, lighthouseId: string): boolean {
+  const status = lighthouseStatus(state, lighthouseId);
   if (!status.canRelight) return false;
   state.lumen = state.lumen.sub(status.cost);
-  state.litLighthouses.push(GULL_ROCK_ID);
-  state.chainBoards[GULL_ROCK_ID] = startBoard(GULL_ROCK_ID);
-  addLog(state, "Gull Rock Light burns again — every flame you tend burns half again as bright. (+50% production)");
+  state.litLighthouses.push(lighthouseId);
+  state.chainBoards[lighthouseId] = startBoard(lighthouseId);
+  const def = chainLighthouseById(lighthouseId);
+  addLog(state, RELIGHT_LOG_LINES[lighthouseId] ?? `${def.name} burns again.`);
+  if (def.triggersEnding) state.endingSeen = true;
   return true;
+}
+
+// ── Gull Rock Light (Sprint 2 API, kept as a thin wrapper) ──────────────────
+
+export type GullRockStatus = LighthouseStatus;
+
+export function gullRockStatus(state: GameState, now?: number): GullRockStatus {
+  return lighthouseStatus(state, GULL_ROCK_ID, now);
+}
+
+/** Relight Gull Rock Light (see relightLighthouse for the general case). */
+export function relightGullRock(state: GameState): boolean {
+  return relightLighthouse(state, GULL_ROCK_ID);
 }
