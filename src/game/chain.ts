@@ -16,6 +16,7 @@ import {
 // this module's chainStatus reads engine's baseProductionPerSecond as the
 // chain's demand. Neither module calls the other at load time, and
 // baseProductionPerSecond itself never calls back into the chain.
+import { chainSupportMultiplier, gullRockRelightCost } from "./emberShop";
 import { baseProductionPerSecond } from "./engine";
 import { addLog, startBoard } from "./state";
 import type { ChainBoard, GameState } from "./types";
@@ -23,7 +24,8 @@ import { totalGeneratorsOwned } from "./upgrades";
 
 // ── The supply chain: wick → oil → lens → beam ───────────────────────────────
 // Production ordering (see engine.ts):
-//   generators (milestones, upgrades) × Keeper's Focus × Ember bonus
+//   generators (milestones, upgrades, challenge tier reward) × Keeper's
+//   Focus × Ember bonus × Second Wind × challenge rule/rewards
 //   × lighthouse bonuses  =  BASE production — this is the chain's "demand"
 //   × chain factor (0.25 + 0.75 × efficiency, or 1 while the chain is locked)
 //   × beam bonus (1 + 5% × total Beam levels)
@@ -55,9 +57,14 @@ export function totalNodeLevels(state: GameState, nodeId: ChainNodeId): number {
   return total;
 }
 
-/** Total Lumen/s a supply node supports across all boards. */
+/**
+ * Total Lumen/s a supply node supports across all boards.
+ * Deep Wicks (Ember perk, Sprint 3) raises every node's support by +25%.
+ */
 export function totalSupport(state: GameState, nodeId: SupplyNodeId): Decimal {
-  return new Decimal(CHAIN_NODES[nodeId].supportPerLevel).mul(totalNodeLevels(state, nodeId));
+  return new Decimal(CHAIN_NODES[nodeId].supportPerLevel)
+    .mul(totalNodeLevels(state, nodeId))
+    .mul(chainSupportMultiplier(state));
 }
 
 /**
@@ -201,9 +208,9 @@ export interface GullRockStatus {
 }
 
 export function gullRockStatus(state: GameState): GullRockStatus {
-  const def = chainLighthouseById(GULL_ROCK_ID);
   const status = chainStatus(state);
-  const cost = new Decimal(def.relightCost ?? 0);
+  // Friend of Gulls (Ember perk, Sprint 3) halves the relight cost.
+  const cost = gullRockRelightCost(state);
   const affordable = state.lumen.gte(cost);
   const efficiencyOk = status.efficiency >= GULL_ROCK_EFFICIENCY_REQUIREMENT;
   const lit = isLit(state, GULL_ROCK_ID);
