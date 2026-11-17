@@ -2,6 +2,7 @@ import Decimal from "break_infinity.js";
 import { PRESTIGE_DIVISOR } from "./config";
 import { addLog } from "./state";
 import type { GameState } from "./types";
+import { isPermanentUpgrade, upgradeById } from "./upgrades";
 
 /**
  * Embers a run is worth: floor(sqrt(lifetimeLumen / 5000)).
@@ -25,8 +26,10 @@ export function canRekindle(state: GameState): boolean {
 
 /**
  * Rekindle: bank this run's Embers and start the light over.
- * Resets Lumen, this run's lifetime, and all generators.
- * Keeps Embers and every lifetime stat. Returns the Embers gained (0 = no-op).
+ * Resets Lumen, this run's lifetime, all generators, and all upgrades
+ * EXCEPT permanent ones (keeper knowledge: Longer Wicks, Ember Resonance).
+ * Keeps Embers, the buy-amount setting, and every lifetime stat.
+ * Returns the Embers gained (0 = no-op).
  */
 export function rekindle(state: GameState): number {
   const gain = rekindleGain(state);
@@ -36,6 +39,16 @@ export function rekindle(state: GameState): number {
   state.lumen = new Decimal(0);
   state.lifetimeLumen = new Decimal(0);
   state.generators = {};
+  const kept = state.upgrades.filter((id) => isPermanentUpgrade(id));
+  const lost = state.upgrades.length - kept.length;
+  state.upgrades = kept;
   addLog(state, `The light gutters, and is lit again — stronger. +${gain} Embers (total ${state.embers}).`);
+  if (kept.length > 0) {
+    const names = kept.map((id) => upgradeById(id).name).join(", ");
+    addLog(state, `Keeper knowledge survives the dark: ${names}.`);
+  }
+  if (lost > 0) {
+    addLog(state, `${lost} upgrade${lost === 1 ? "" : "s"} forgotten in the guttering — they can be learned again.`);
+  }
   return gain;
 }
