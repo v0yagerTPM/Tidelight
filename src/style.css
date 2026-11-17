@@ -96,6 +96,29 @@ h2 { color: var(--amber-soft); margin: 4px 0 8px; }
 .gen-buy { text-align: right; flex-shrink: 0; }
 .gen-cost { font-size: 0.9rem; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .gen-note { font-size: 0.82rem; }
+.gen-milestone { font-size: 0.82rem; margin-top: 2px; }
+
+/* ── Buy-amount toggle ─────────────────────────────── */
+.buy-toggle { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; }
+.buy-toggle-label { color: var(--muted); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.14em; }
+.toggle-btn {
+  font: inherit;
+  min-height: 48px;
+  padding: 8px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-edge);
+  background: var(--bg-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+.toggle-btn.active { background: var(--card); color: var(--amber); border-color: var(--amber); font-weight: bold; }
+
+/* ── Upgrades view ─────────────────────────────────── */
+.section-title { color: var(--amber-soft); margin: 22px 0 10px; font-size: 1.05rem; }
+.upgrade.locked { opacity: 0.6; }
+.upgrade.purchased { opacity: 0.85; }
+.perm { color: var(--amber); font-size: 0.8rem; white-space: nowrap; }
+.learned { color: var(--amber); font-weight: bold; white-space: nowrap; }
 
 button.buy, button.danger {
   font: inherit;
