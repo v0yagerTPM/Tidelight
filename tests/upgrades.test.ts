@@ -286,7 +286,7 @@ describe("save migration (Sprint 0 → Sprint 1)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(sprint0Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(4); // migrated forward (v4 in Sprint 3)
+    expect(restored?.version).toBe(5); // migrated forward (v5 in Sprint 4)
     expect(restored?.lumen.toNumber()).toBe(1234);
     expect(restored?.embers).toBe(3);
     expect(restored?.generators["candle-crab"]).toBe(7);
@@ -294,12 +294,12 @@ describe("save migration (Sprint 0 → Sprint 1)", () => {
     expect(restored?.buyAmount).toBe(1);
   });
 
-  it("round-trips upgrades and buy amount at version 4", () => {
+  it("round-trips upgrades and buy amount at version 5", () => {
     const state = createInitialState();
     state.upgrades = ["candle-crab-u1", "longer-wicks"];
     state.buyAmount = "max";
     const saved = serializeState(state);
-    expect(saved.version).toBe(4);
+    expect(saved.version).toBe(5);
     expect(saved.upgrades).toEqual(["candle-crab-u1", "longer-wicks"]);
     expect(saved.buyAmount).toBe("max");
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
