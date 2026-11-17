@@ -1,5 +1,5 @@
 import Decimal from "break_infinity.js";
-import { GULL_ROCK_ID, OFFLINE_CAP_SECONDS, chainLighthouseById } from "./config";
+import { GULL_ROCK_ID, OFFLINE_CAP_SECONDS, chainLighthouseById, litOfflineCapBonusSeconds } from "./config";
 import { addLog } from "./state";
 import type { GameState } from "./types";
 
@@ -98,9 +98,13 @@ export function chainSupportMultiplier(state: GameState): number {
   return hasPerk(state, "deep-wicks") ? DEEP_WICKS_SUPPORT_MULTIPLIER : 1;
 }
 
-/** Offline earnings cap in seconds: 12h with The Long Night, else 8h. */
+/**
+ * Offline earnings cap in seconds: 12h with The Long Night, else 8h —
+ * plus Siren's Rest lit (Sprint 5) adds a further 4 hours either way.
+ */
 export function offlineCapSeconds(state: GameState): number {
-  return hasPerk(state, "long-night") ? LONG_NIGHT_CAP_SECONDS : OFFLINE_CAP_SECONDS;
+  const base = hasPerk(state, "long-night") ? LONG_NIGHT_CAP_SECONDS : OFFLINE_CAP_SECONDS;
+  return base + litOfflineCapBonusSeconds(state.litLighthouses);
 }
 
 /** Offline rate bonus from Full Reservoir (+0.10), else 0. */
