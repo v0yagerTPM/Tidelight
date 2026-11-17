@@ -371,7 +371,7 @@ describe("save migration (v3 → v4)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v3Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(5);
+    expect(restored?.version).toBe(6);
     expect(restored?.embers).toBe(12);
     expect(restored?.embersTotalEarned).toBe(12); // := embers, per the migration spec
     expect(restored?.emberPerks).toEqual([]);
@@ -380,12 +380,12 @@ describe("save migration (v3 → v4)", () => {
     expect(restored?.chainBoards["first-light"].wick).toBe(2); // v3 fields intact
   });
 
-  it("round-trips the Sprint 3 fields at version 5, sanitizing junk", () => {
+  it("round-trips the Sprint 3 fields at version 6, sanitizing junk", () => {
     const state = emberState(33);
     state.emberPerks = ["head-start", "deep-wicks"];
     state.completedChallenges = ["fogbound"];
     const saved = serializeState(state);
-    expect(saved.version).toBe(5);
+    expect(saved.version).toBe(6);
     expect(saved.embersTotalEarned).toBe(33);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.emberPerks).toEqual(["head-start", "deep-wicks"]);
