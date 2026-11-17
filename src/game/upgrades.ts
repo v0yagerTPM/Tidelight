@@ -1,5 +1,6 @@
 import Decimal from "break_infinity.js";
 import { EMBER_PRODUCTION_BONUS, GENERATORS, OFFLINE_RATE } from "./config";
+import { OFFLINE_RATE_HARD_CAP, emberHeartBonus, offlineRateBonus } from "./emberShop";
 import { formatNumber } from "./format";
 import { addLog } from "./state";
 import type { GameState } from "./types";
@@ -233,14 +234,24 @@ export function globalProductionMultiplier(state: GameState): number {
   return hasUpgrade(state, "keepers-focus") ? KEEPERS_FOCUS_MULTIPLIER : 1;
 }
 
-/** Production bonus per Ember held: +3% with Ember Resonance, else +2%. */
+/**
+ * Production bonus per Ember held: +2% base, +3% with Ember Resonance,
+ * and the Ember Heart perk (Sprint 3) adds a further +1% either way
+ * (so 3% base, 4% with Resonance).
+ */
 export function emberBonusPerEmber(state: GameState): number {
-  return hasUpgrade(state, "ember-resonance") ? EMBER_RESONANCE_BONUS : EMBER_PRODUCTION_BONUS;
+  const base = hasUpgrade(state, "ember-resonance") ? EMBER_RESONANCE_BONUS : EMBER_PRODUCTION_BONUS;
+  return base + emberHeartBonus(state);
 }
 
-/** Offline earnings rate: 75% with Longer Wicks, else the base 50%. */
+/**
+ * Offline earnings rate: 75% with Longer Wicks, else the base 50%; the
+ * Full Reservoir perk (Sprint 3) adds +10 percentage points on top
+ * (60% / 85%), hard-capped at 90%.
+ */
 export function offlineRateFor(state: GameState): number {
-  return hasUpgrade(state, "longer-wicks") ? LONGER_WICKS_OFFLINE_RATE : OFFLINE_RATE;
+  const base = hasUpgrade(state, "longer-wicks") ? LONGER_WICKS_OFFLINE_RATE : OFFLINE_RATE;
+  return Math.min(OFFLINE_RATE_HARD_CAP, base + offlineRateBonus(state));
 }
 
 // ── Buying ───────────────────────────────────────────────────────────────────
