@@ -244,6 +244,35 @@ button.danger:disabled { opacity: 0.5; cursor: not-allowed; }
 .log-list li { background: var(--card); border: 1px solid var(--card-edge); border-radius: var(--radius); padding: 10px 14px; }
 .log-time { color: var(--muted); font-size: 0.85rem; margin-right: 8px; }
 
+/* ── Story, ending & the Keeper's Desk (Sprint 5) ── */
+.log-list li.story-entry {
+  border-color: var(--amber);
+  background: linear-gradient(180deg, #1a2a52, var(--card));
+  color: var(--amber-soft);
+}
+.card.story-beat { border-color: var(--amber); }
+.card.story-beat p { color: var(--text); line-height: 1.55; margin: 6px 0 2px; }
+.card.ending {
+  border: 2px solid var(--amber);
+  background: linear-gradient(180deg, #23355e, var(--card));
+  margin-bottom: 14px;
+}
+.card.ending p { line-height: 1.55; }
+.desk .row { align-items: center; }
+.desk-toggle { margin: 0; }
+.desk-text {
+  width: 100%;
+  margin: 12px 0 4px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.82rem;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-edge);
+  background: var(--bg-2);
+  color: var(--text);
+  resize: vertical;
+}
+
 @media (max-width: 560px) {
   .hud { flex-direction: column; align-items: flex-start; gap: 6px; }
   .stat { text-align: left; }
