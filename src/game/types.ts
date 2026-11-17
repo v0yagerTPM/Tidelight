@@ -21,6 +21,36 @@ export interface ChainBoard {
   beam: number;
 }
 
+// ── Sprint 4: moths, expeditions ─────────────────────────────────────────────
+
+/** A collected lantern moth (see moths.ts). Permanent — survives Rekindle. */
+export interface Moth {
+  id: string;
+  name: string;
+  /** Wing pattern id (see MOTH_PATTERNS in moths.ts). */
+  pattern: string;
+  /** Glow rating, an integer 1–100. Brighter moths work harder on duty. */
+  glow: number;
+  /** 1 for attracted moths; max(parents) + 1 for bred ones. */
+  generation: number;
+}
+
+/** A breeding in progress: two parents, ready to hatch at `readyAt` (ms). */
+export interface Cocoon {
+  parentIds: [string, string];
+  /** Unix timestamp (ms) when the cocoon can be hatched. */
+  readyAt: number;
+}
+
+/** A bottle expedition out at sea (see expeditions.ts). Timestamp-based. */
+export interface ExpeditionState {
+  routeId: string;
+  /** Unix timestamp (ms) the bottle was sent. */
+  startedAt: number;
+  /** Unix timestamp (ms) it washes back. */
+  returnsAt: number;
+}
+
 export interface GameState {
   /** Save-format version, for future migrations. */
   version: number;
@@ -50,6 +80,22 @@ export interface GameState {
   litLighthouses: string[];
   /** Lighthouse id → its supply-chain board. Boards reset on Rekindle. */
   chainBoards: Record<string, ChainBoard>;
+  // Sprint 4 — the Shore. Moths, relics and expeditions are PERMANENT:
+  // none of these fields are touched by Rekindle or challenge resets.
+  /** The lantern-moth collection. */
+  moths: Moth[];
+  /** Ids of moths currently on duty (max 3). */
+  mothDuty: string[];
+  /** Roost expansions bought (each adds 2 collection capacity). */
+  roostExpansions: number;
+  /** The breeding cocoon in progress, or null. */
+  cocoon: Cocoon | null;
+  /** The bottle expedition currently out, or null. */
+  expedition: ExpeditionState | null;
+  /** Relic ids claimed from expeditions (unique, permanent). */
+  relics: string[];
+  /** How many expedition story fragments have been delivered so far. */
+  storyFragmentIndex: number;
   // Kept stats (survive Rekindle):
   totalClicks: number;
   totalGeneratorsBought: number;
@@ -76,6 +122,13 @@ export interface SavedState {
   buyAmount: BuyAmount;
   litLighthouses: string[];
   chainBoards: Record<string, ChainBoard>;
+  moths: Moth[];
+  mothDuty: string[];
+  roostExpansions: number;
+  cocoon: Cocoon | null;
+  expedition: ExpeditionState | null;
+  relics: string[];
+  storyFragmentIndex: number;
   totalClicks: number;
   totalGeneratorsBought: number;
   totalRekindles: number;
