@@ -1,5 +1,5 @@
 import Decimal from "break_infinity.js";
-import { CHAIN_NODE_IDS, PRESTIGE_DIVISOR } from "./config";
+import { CHAIN_NODE_IDS, PRESTIGE_DIVISOR, litEmberGainMultiplier } from "./config";
 import { headStartLumen, perkById } from "./emberShop";
 import { relicEmberGainMultiplier } from "./expeditions";
 import { addLog, startBoard } from "./state";
@@ -19,10 +19,13 @@ export function embersForLifetime(lifetime: Decimal | number | string): number {
 
 /**
  * Embers a Rekindle right now would grant, based on this run's lifetime.
- * The Amber Heart relic (Sprint 4) adds +10%, floored after the bonus.
+ * The Amber Heart relic (Sprint 4) adds +10% and The Bellwether lit
+ * (Sprint 5) a further +25% — both applied to the base gain, floored once
+ * at the end.
  */
 export function rekindleGain(state: GameState): number {
-  return Math.floor(embersForLifetime(state.lifetimeLumen) * relicEmberGainMultiplier(state));
+  const mult = relicEmberGainMultiplier(state) * litEmberGainMultiplier(state.litLighthouses);
+  return Math.floor(embersForLifetime(state.lifetimeLumen) * mult);
 }
 
 export function canRekindle(state: GameState): boolean {
