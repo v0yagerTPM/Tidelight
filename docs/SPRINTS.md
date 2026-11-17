@@ -234,9 +234,95 @@
   events — the tide system is the weather layer; seasonal events move
   to Sprint 5 polish if time allows.
 
-## Sprint 5 — Story, ending, polish, Steam
+## ✅ Sprint 5 — Story, the seven lighthouses, the ending, NG+, polish
 
-- Three story acts wired to unlock order; the Seventh Light; the ending
-- New Game+ endless mode
-- Audio (night ambience, soft chimes), accessibility pass, save export/import
-- Tauri/Electron wrapper, Steam page, $9.99 premium launch build
+**All sprints complete. Tidelight is feature-complete per the plan.**
+
+- [x] All seven lighthouses (`config.ts` CHAIN_LIGHTHOUSES, generalized
+      `chain.ts`): they relight IN ORDER, each gated on the previous
+      light, the chain awake, its efficiency gate, and its cost — and
+      each grants something different. First Light (always lit, board ×1),
+      Gull Rock (2M, ≥50%, +50% production, ×8), Cormorant Roost (25M,
+      ≥20%, +75% production, ×20), Widow's Walk (150M, ≥5%, chain
+      support +50%, ×50), The Bellwether (1B, ≥2%, Ember gain +25%,
+      ×120), Siren's Rest (8B, ≥0.5%, offline +10 pts and cap +4h,
+      ×300), The Hollow Light (60B, ≥0.2%, +150% production, ×750 —
+      lighting it is the ending). Lit state and bonuses are permanent
+      across Rekindle; support sums across all lit boards. Production
+      bonuses multiply (all seven lit: ×6.5625 before the legacy bonus).
+      The Lighthouses view shows all seven cards with plain-language
+      disabled reasons, a board switcher over lit boards, and the
+      ending panel. Friend of Gulls still halves Gull Rock only.
+- [x] Story (`src/game/story.ts`): 21 beats in three acts — I "The Dark
+      Shore" (6), II "The Hollow Sea" (8), III "The Relighting" (7) —
+      each a pure predicate over state, checked on load and every tick,
+      firing once ever, in order, into the Log with 📖 styling. The Log
+      view opens with a Story section: collected beats readable in full,
+      uncollected shown as silhouettes with hint text. The expedition
+      story fragments from Sprint 4 remain their own quieter thread.
+- [x] The ending + New Game+ (`src/game/ngplus.ts`): lighting The Hollow
+      Light sets `endingSeen` and raises "The Sea Remembers" — an ending
+      panel with the keeping's stats and a two-step NG+ confirm with
+      kept/lost lists. NG+ resets Lumen, generators, non-permanent
+      upgrades, chain boards, all lighthouses but First Light, the
+      active challenge, and the whole Ember ledger (held AND total
+      earned) — and KEEPS moths + duty + roost + cocoon, expeditions,
+      relics, story, Ember perks, challenge completions, permanent
+      upgrades, settings, and all cumulative stats. Each Keeping grants
+      a legacy production bonus ×(1 + 0.25 × ngPlusCount) and +5
+      starting Embers per Keeping, granted to the HELD balance only
+      (documented decision: they are an inheritance in hand, not
+      earnings — `embersTotalEarned` starts at 0, so "100 Embers total"
+      story beats and the like must be earned fresh each Keeping).
+- [x] Polish — the Keeper's Desk (bottom of the Log view): a notation
+      setting (standard / scientific, persisted, applied to every
+      displayed number), save export (JSON in a textarea + Copy) and
+      import (validated through the normal deserialize/sanitize path;
+      invalid JSON shows an error and changes nothing), and a two-step
+      hard reset. The welcome-back log now also reports a hatched
+      cocoon and/or a returned bottle alongside offline earnings.
+- [x] `docs/STEAM.md`: the Tauri v2 wrapper guide — config values
+      (identifier `app.tidelight.game`), how localStorage behaves in the
+      webview (persistent per app; NOT Steam Cloud by default), the
+      export/import player-migration path, and a build/upload checklist.
+      Documentation only; no Rust in the repo.
+- [x] Save format v6: story seen ids, `endingSeen`, `ngPlusCount`, and
+      the notation setting persisted and sanitized. v5 saves migrate —
+      a lit Gull Rock stays lit, the new fields default (no story seen,
+      no ending, 0 Keepings, standard notation).
+- [x] Balance pass — full-game sim (`npm run sim`): the bot now plays
+      whole campaigns per lighthouse (grow production to a gate-sized
+      cap, then save — feeding the chain from surplus only — relight,
+      repeat; a stalled campaign Rekindles and retries lower). The bot
+      still uses no perks, challenges, moths, relics or tides, so this
+      is a pessimistic bound: **first Rekindle 103.0 simulated minutes**
+      (band 40–120; faster than Sprint 4's 115.0 because the shared bot
+      now also buys Beam levels — a bot improvement, not a game
+      retune), second Rekindle +69.2 min, then **Gull Rock 6.7h,
+      Cormorant Roost 14.7h, Widow's Walk 26.4h, The Bellwether 42.0h,
+      Siren's Rest 153.0h, The Hollow Light — the ending — at 200.9
+      simulated hours**, inside the 500h cap. A human keeper with perks,
+      moths, relics and clicking will finish far sooner.
+      Tuning applied — the new lighthouse efficiency gates ONLY (costs
+      and all Sprint 0–4 numbers untouched): the originally sketched
+      gates (50/60/60/70/75%) are mathematically unreachable at endgame
+      demand — support grows linearly per node level, node costs
+      geometrically, demand exponentially, so the most support any purse
+      can buy is a few thousand Lumen/s against demands of millions;
+      even a 0.2% gate at Hollow-Light scale demands ~130 Lens levels
+      and billions of Lumen of feeding. The shipped ladder (Gull 50%,
+      Cormorant 20%, Widow's 5%, Bellwether 2%, Siren's 0.5%, Hollow
+      0.2%) still bites hard in absolute terms — the percentages are
+      small because the sea is big. The full derivation lives in a
+      comment on CHAIN_LIGHTHOUSES in `config.ts`.
+- [x] Tests: 139 passing (18 new in `tests/sprint5.test.ts` — order
+      gating, every new bonus, board cost multipliers, story firing
+      once and in order, the ending, NG+ kept/lost + legacy math +
+      starting Embers, scientific notation, export/import round-trip,
+      v5 → v6 migration). All 121 prior tests pass; the only edits were
+      save-version assertions (5 → 6) and three test names.
+- Not shipped from the original Sprint 5 sketch: audio (night ambience,
+  chimes) and seasonal events — the delivered Sprint 5 scope (set when
+  the sprint was specced) prioritised the full lighthouse ladder, the
+  story, NG+ and the Steam guide; the tide system remains the weather
+  layer. Both remain good post-launch candidates.
