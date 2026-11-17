@@ -103,15 +103,51 @@ export const CHAIN_FLOOR = 0.25;
 /** Each Beam level, across all boards, adds this much final production. */
 export const BEAM_BONUS_PER_LEVEL = 0.05;
 
-// ── Lighthouses with chain boards ────────────────────────────────────────────
+// ── The seven lighthouses (Sprint 2 system, generalized in Sprint 5) ───────
+// Every lighthouse has a supply-chain board. They relight IN ORDER — each
+// one demands the previous one lit, the chain awake, a minimum beam
+// efficiency (a dark shore can only be reached by a well-fed beam), and a
+// Lumen cost. Lit state and bonuses are PERMANENT (they survive Rekindle;
+// only New Game+ darkens them again).
+//
+// GATE TUNING (Sprint 5 balance pass — see docs/SPRINTS.md): the gates
+// below LH2 descend steeply (20% → 5% → 2% → 0.5% → 0.2%) because of the
+// chain's physics, unchanged since Sprint 2: support grows LINEARLY per
+// node level, node costs grow GEOMETRICALLY, and demand (base production)
+// grows EXPONENTIALLY — so at endgame demand (millions of Lumen/s) the
+// most support any purse can buy is a few thousand Lumen/s, and even a
+// 0.2% gate demands ~130 Lens levels and billions of Lumen of feeding.
+// The gates still bite hard in absolute terms; the percentages are small
+// because the sea is big. The full-game bot sim verifies every gate is
+// reachable in order. Bonuses come in several flavours:
+//   productionBonus        ×(1 + bonus) to all production, multiplicative
+//   supportBonus           ×(1 + bonus) to every supply node's support
+//   emberGainBonus         ×(1 + bonus) to Embers gained at Rekindle
+//   offlineRateBonus       +points to the offline earnings rate (90% cap)
+//   offlineCapBonusSeconds +seconds on the offline earnings cap
+// The aggregator helpers below take the lit-id list (not the whole state)
+// so config.ts stays dependency-free; chain.ts / engine.ts / upgrades.ts /
+// emberShop.ts / prestige.ts wrap them for their own systems.
 export interface ChainLighthouseDef {
   id: string;
   name: string;
   hint: string;
   /** Lumen cost to relight (null = lit from the start of the game). */
   relightCost: number | null;
+  /** Chain efficiency (0–1) the beam must be running at to relight. */
+  efficiencyRequirement: number;
   /** Permanent production bonus while lit (0.5 = +50%), multiplicative. */
   productionBonus: number;
+  /** Permanent chain-support bonus while lit (0.5 = +50%), multiplicative. */
+  supportBonus: number;
+  /** Permanent Rekindle Ember-gain bonus while lit (0.25 = +25%). */
+  emberGainBonus: number;
+  /** Permanent offline-rate bonus while lit, in points (0.10 = +10 pts). */
+  offlineRateBonus: number;
+  /** Permanent offline-cap bonus while lit, in seconds. */
+  offlineCapBonusSeconds: number;
+  /** Lighting this lighthouse triggers the ending (The Hollow Light). */
+  triggersEnding: boolean;
   /** Node levels a fresh board starts at (and Rekindle resets to). */
   startLevels: Record<ChainNodeId, number>;
   /** Node upgrade costs on this board are multiplied by this. */
@@ -120,14 +156,30 @@ export interface ChainLighthouseDef {
 
 export const FIRST_LIGHT_ID = "first-light";
 export const GULL_ROCK_ID = "gull-rock";
+export const CORMORANT_ROOST_ID = "cormorant-roost";
+export const WIDOWS_WALK_ID = "widows-walk";
+export const BELLWETHER_ID = "bellwether";
+export const SIRENS_REST_ID = "sirens-rest";
+export const HOLLOW_LIGHT_ID = "hollow-light";
+
+const NO_BONUS = {
+  supportBonus: 0,
+  emberGainBonus: 0,
+  offlineRateBonus: 0,
+  offlineCapBonusSeconds: 0,
+  triggersEnding: false,
+} as const;
+const EMPTY_BOARD = { wick: 0, oil: 0, lens: 0, beam: 0 } as const;
 
 export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
   {
     id: FIRST_LIGHT_ID,
     name: "First Light",
-    hint: "Your first light. Already burning — barely.",
+    hint: "Your first light, at Candlewick Point. Already burning — barely.",
     relightCost: null,
+    efficiencyRequirement: 0,
     productionBonus: 0,
+    ...NO_BONUS,
     startLevels: { wick: 1, oil: 1, lens: 1, beam: 0 },
     boardCostMultiplier: 1,
   },
@@ -136,9 +188,71 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     name: "Gull Rock Light",
     hint: "A squat tower on a rock the gulls never left. Relight it for +50% production — but only a beam running at 50% efficiency or better can reach it.",
     relightCost: 2_000_000,
+    efficiencyRequirement: 0.5,
     productionBonus: 0.5,
-    startLevels: { wick: 0, oil: 0, lens: 0, beam: 0 },
+    ...NO_BONUS,
+    startLevels: { ...EMPTY_BOARD },
     boardCostMultiplier: 8,
+  },
+  {
+    id: CORMORANT_ROOST_ID,
+    name: "Cormorant Roost",
+    hint: "A tall, narrow tower the cormorants adopted as a cliff. They have been keeping the lens clean for a century, out of habit. Relight it for +75% production.",
+    relightCost: 25_000_000,
+    efficiencyRequirement: 0.2,
+    productionBonus: 0.75,
+    ...NO_BONUS,
+    startLevels: { ...EMPTY_BOARD },
+    boardCostMultiplier: 20,
+  },
+  {
+    id: WIDOWS_WALK_ID,
+    name: "Widow's Walk",
+    hint: "A railed platform above a keeper's cottage, worn smooth by pacing. Whoever waited here kept meticulous stores — relight it and every supply chain you tend runs +50% stronger.",
+    relightCost: 150_000_000,
+    efficiencyRequirement: 0.05,
+    productionBonus: 0,
+    ...NO_BONUS,
+    supportBonus: 0.5,
+    startLevels: { ...EMPTY_BOARD },
+    boardCostMultiplier: 50,
+  },
+  {
+    id: BELLWETHER_ID,
+    name: "The Bellwether",
+    hint: "The lead light — the one the others were lit from, in the old order of things. Its bell still knows the way home. Relight it and every Rekindle banks +25% more Embers.",
+    relightCost: 1_000_000_000,
+    efficiencyRequirement: 0.02,
+    productionBonus: 0,
+    ...NO_BONUS,
+    emberGainBonus: 0.25,
+    startLevels: { ...EMPTY_BOARD },
+    boardCostMultiplier: 120,
+  },
+  {
+    id: SIRENS_REST_ID,
+    name: "Siren's Rest",
+    hint: "A low, lovely tower on the last rock before the deep glass. The sirens sleep here now, retired and harmless. Relight it and the night works harder for you: offline rate +10 points and the offline cap grows by 4 hours.",
+    relightCost: 8_000_000_000,
+    efficiencyRequirement: 0.005,
+    productionBonus: 0,
+    ...NO_BONUS,
+    offlineRateBonus: 0.1,
+    offlineCapBonusSeconds: 4 * 60 * 60,
+    startLevels: { ...EMPTY_BOARD },
+    boardCostMultiplier: 300,
+  },
+  {
+    id: HOLLOW_LIGHT_ID,
+    name: "The Hollow Light",
+    hint: "The last tower, at the heart of the Hollow Sea — the light the sea itself was named for. No keeper has relit it. No keeper has come back from trying. Yet. +150% production, and whatever waits beyond it.",
+    relightCost: 60_000_000_000,
+    efficiencyRequirement: 0.002,
+    productionBonus: 1.5,
+    ...NO_BONUS,
+    triggersEnding: true,
+    startLevels: { ...EMPTY_BOARD },
+    boardCostMultiplier: 750,
   },
 ];
 
@@ -148,30 +262,58 @@ export function chainLighthouseById(id: string): ChainLighthouseDef {
   return def;
 }
 
+/** The lighthouse that must be lit before this one (null for First Light). */
+export function previousLighthouseId(id: string): string | null {
+  const idx = CHAIN_LIGHTHOUSES.findIndex((l) => l.id === id);
+  return idx > 0 ? CHAIN_LIGHTHOUSES[idx - 1].id : null;
+}
+
 /** Chain efficiency Gull Rock demands before it can be relit. */
 export const GULL_ROCK_EFFICIENCY_REQUIREMENT = 0.5;
 
-/** The five lighthouses still dark (teasers until later sprints). */
-export const TEASER_LIGHTHOUSES: readonly LighthouseDef[] = [
-  { name: "Bell Shoal", hint: "Somewhere out there, a bell is still ringing. Reach it in a later sprint." },
-  { name: "Oilhaven", hint: "The keepers' harbour. Its lamps went dark mid-sentence." },
-  { name: "Lensmere", hint: "A tower of polished glass on a sea of glass. Bring light." },
-  { name: "Stormwatch", hint: "The last light ships saw before the sea stilled." },
-  { name: "The Seventh Light", hint: "No keeper has relit it. No keeper has come back from trying. Yet." },
-];
+// ── Lit-lighthouse bonus aggregators (pure, over the lit-id list) ───────────
 
-// ── The seven lighthouses (teaser data for Sprint 0) ────────────────────────
-export interface LighthouseDef {
-  name: string;
-  hint: string;
+/** Multiplicative production bonus from lit lighthouses: ∏(1 + bonus). */
+export function litProductionMultiplier(lit: readonly string[]): number {
+  let mult = 1;
+  for (const def of CHAIN_LIGHTHOUSES) {
+    if (lit.includes(def.id)) mult *= 1 + def.productionBonus;
+  }
+  return mult;
 }
 
-export const LIGHTHOUSES: readonly LighthouseDef[] = [
-  { name: "Candlewick Point", hint: "Your first light. Already burning — barely." },
-  { name: "Tidemere", hint: "Unlocks when the first lighthouse burns bright enough to be seen across the glass." },
-  { name: "Bell Shoal", hint: "Somewhere out there, a bell is still ringing. Reach it in a later sprint." },
-  { name: "Oilhaven", hint: "The keepers' harbour. Its lamps went dark mid-sentence." },
-  { name: "Lensmere", hint: "A tower of polished glass on a sea of glass. Bring light." },
-  { name: "Stormwatch", hint: "The last light ships saw before the sea stilled." },
-  { name: "The Seventh Light", hint: "No keeper has relit it. No keeper has come back from trying. Yet." },
-];
+/** Multiplicative chain-support bonus from lit lighthouses (Widow's Walk). */
+export function litSupportMultiplier(lit: readonly string[]): number {
+  let mult = 1;
+  for (const def of CHAIN_LIGHTHOUSES) {
+    if (lit.includes(def.id)) mult *= 1 + def.supportBonus;
+  }
+  return mult;
+}
+
+/** Multiplicative Rekindle Ember-gain bonus from lit lighthouses (Bellwether). */
+export function litEmberGainMultiplier(lit: readonly string[]): number {
+  let mult = 1;
+  for (const def of CHAIN_LIGHTHOUSES) {
+    if (lit.includes(def.id)) mult *= 1 + def.emberGainBonus;
+  }
+  return mult;
+}
+
+/** Offline-rate bonus in points from lit lighthouses (Siren's Rest: +0.10). */
+export function litOfflineRateBonus(lit: readonly string[]): number {
+  let bonus = 0;
+  for (const def of CHAIN_LIGHTHOUSES) {
+    if (lit.includes(def.id)) bonus += def.offlineRateBonus;
+  }
+  return bonus;
+}
+
+/** Offline-cap bonus in seconds from lit lighthouses (Siren's Rest: +4h). */
+export function litOfflineCapBonusSeconds(lit: readonly string[]): number {
+  let bonus = 0;
+  for (const def of CHAIN_LIGHTHOUSES) {
+    if (lit.includes(def.id)) bonus += def.offlineCapBonusSeconds;
+  }
+  return bonus;
+}
