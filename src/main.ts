@@ -17,6 +17,15 @@ import {
   type GeneratorDef,
 } from "./game/config";
 import {
+  abandonChallenge,
+  activeChallenge,
+  canBuyGenerator,
+  challengeById,
+  challengeProgress,
+  startChallenge,
+  CHALLENGES,
+} from "./game/challenges";
+import {
   buyNodeUpgrade,
   chainStatus,
   gullRockStatus,
@@ -25,6 +34,7 @@ import {
   relightGullRock,
   totalSupport,
 } from "./game/chain";
+import { EMBER_PERKS, buyPerk, type EmberPerkDef } from "./game/emberShop";
 import {
   applyOfflineEarnings,
   buyQuote,
@@ -36,6 +46,7 @@ import {
   tick,
   timeToAffordCost,
 } from "./game/engine";
+import { estimateRecoveryMinutes } from "./game/estimate";
 import { formatDuration, formatNumber } from "./game/format";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
 import { addLog, createInitialState, loadState, saveState, startBoard } from "./game/state";
@@ -87,6 +98,7 @@ app.innerHTML = `
 
   <main>
     <section id="view-light" class="view active">
+      <div id="challenge-banner" class="challenge-banner hidden" role="button" tabindex="0"></div>
       <div id="chain-banner" class="chain-banner hidden" role="button" tabindex="0"></div>
       <div class="beam-wrap">
         <button id="flash" class="beam">✦ Flash the Beam ✦</button>
@@ -128,7 +140,9 @@ app.innerHTML = `
       <div class="card">
         <div class="row"><span>Embers on Rekindle now</span><strong id="rk-gain">0</strong></div>
         <div class="row"><span id="rk-held-label">Embers held</span><strong id="rk-held">0</strong></div>
+        <div class="row"><span>Embers earned all-time</span><strong id="rk-total">0</strong></div>
         <div class="row"><span>Production bonus now</span><strong id="rk-bonus">+0%</strong></div>
+        <div class="row"><span>Time to recover your current Lumen/s</span><strong id="rk-recovery">—</strong></div>
         <div class="progress-wrap">
           <div class="progress-label" id="rk-progress-label"></div>
           <div class="progress"><div id="rk-progress-bar" class="progress-bar"></div></div>
@@ -139,6 +153,14 @@ app.innerHTML = `
         </div>
         <button id="rk-button" class="danger">Rekindle the Light</button>
       </div>
+
+      <h3 class="section-title">Ember Shop</h3>
+      <p class="muted">Spend held Embers on permanent perks. Every Ember spent lowers your held-Ember production bonus — that's the trade. <span id="shop-held"></span></p>
+      <div id="ember-shop" class="card-list"></div>
+
+      <h3 class="section-title">Challenges</h3>
+      <p class="muted">Opt-in rule-changing runs. Starting one resets your run like a Rekindle — but grants no Embers. Reach the goal to bank a permanent reward; the run then continues. Abandoning resets the run with no reward.</p>
+      <div id="challenges" class="card-list"></div>
     </section>
 
     <section id="view-log" class="view">
@@ -154,6 +176,8 @@ function activateTab(name: string): void {
   tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.querySelector(`#view-${name}`)?.classList.add("active");
+  // Opening the Rekindle view always gets a fresh recovery estimate.
+  if (name === "rekindle") recoveryCacheKey = "";
   renderDynamic();
 }
 for (const tab of tabs) {
@@ -161,6 +185,13 @@ for (const tab of tabs) {
     if (tab.dataset.tab) activateTab(tab.dataset.tab);
   });
 }
+
+// The challenge banner in the Light view jumps to the Rekindle view.
+const challengeBanner = document.querySelector<HTMLDivElement>("#challenge-banner");
+challengeBanner?.addEventListener("click", () => activateTab("rekindle"));
+challengeBanner?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") activateTab("rekindle");
+});
 
 // The bottleneck banner in the Light view jumps straight to the chain board.
 const chainBanner = document.querySelector<HTMLDivElement>("#chain-banner");
@@ -322,6 +353,163 @@ function rebuildUpgrades(): void {
   if (upgradeContainers.purchased && purchasedCount === 0) {
     upgradeContainers.purchased.innerHTML = `<p class="muted">No upgrades learned yet.</p>`;
   }
+}
+
+// ── Ember Shop (rows rebuilt when ownership changes; affordability in place)
+interface PerkRow {
+  def: EmberPerkDef;
+  buy: HTMLButtonElement;
+  warning: HTMLElement;
+}
+const shopContainer = document.querySelector<HTMLDivElement>("#ember-shop");
+let shopRows: PerkRow[] = [];
+let shopStructureKey = "";
+
+function rebuildEmberShop(): void {
+  shopRows = [];
+  if (!shopContainer) return;
+  shopContainer.innerHTML = "";
+  for (const def of EMBER_PERKS) {
+    const owned = state.emberPerks.includes(def.id);
+    const row = document.createElement("div");
+    if (owned) {
+      row.className = "gen upgrade purchased";
+      row.innerHTML = `
+        <div class="gen-main">
+          <div class="gen-name">${def.name} <span class="perm">♾ permanent</span></div>
+          <div class="gen-flavor">${def.effect}</div>
+        </div>
+        <div class="gen-buy"><span class="learned">Kindled ✓</span></div>`;
+    } else {
+      row.className = "gen upgrade";
+      row.innerHTML = `
+        <div class="gen-main">
+          <div class="gen-name">${def.name} <span class="perm">♾ permanent</span></div>
+          <div class="gen-flavor">${def.effect}</div>
+          <div class="perk-warning"></div>
+        </div>
+        <div class="gen-buy">
+          <button class="buy">Kindle</button>
+          <div class="gen-cost">${def.costEmbers} Embers</div>
+        </div>`;
+      const buy = row.querySelector<HTMLButtonElement>(".buy");
+      const warning = row.querySelector<HTMLElement>(".perk-warning");
+      if (!buy || !warning) continue;
+      buy.addEventListener("click", () => {
+        if (buyPerk(state, def.id)) {
+          saveState(state);
+          renderDynamic();
+        }
+      });
+      shopRows.push({ def, buy, warning });
+    }
+    shopContainer.appendChild(row);
+  }
+}
+
+// ── Challenges (cards rebuilt when active/completed state changes) ─────────
+const challengeContainer = document.querySelector<HTMLDivElement>("#challenges");
+let challengeStructureKey = "";
+interface ActiveChallengeRefs {
+  bar: HTMLElement;
+  label: HTMLElement;
+}
+let activeChallengeRefs: ActiveChallengeRefs | null = null;
+
+function challengesStructureKey(): string {
+  return `${state.activeChallenge ?? "-"}|${state.completedChallenges.join(",")}`;
+}
+
+function rebuildChallenges(): void {
+  activeChallengeRefs = null;
+  if (!challengeContainer) return;
+  challengeContainer.innerHTML = "";
+  const active = activeChallenge(state);
+
+  for (const def of CHALLENGES) {
+    const completed = state.completedChallenges.includes(def.id);
+    const isActive = active?.id === def.id;
+    const card = document.createElement("div");
+    card.className = `card challenge${completed ? " completed" : ""}${isActive ? " active" : ""}`;
+    let html = `
+      <div class="gen-name">${def.name}</div>
+      <p class="muted">${def.ruleText}</p>
+      <p class="muted">Goal: ${formatNumber(def.goalLifetime)} lifetime Lumen in one run · Reward — ${def.rewardName}: ${def.rewardText}</p>`;
+
+    if (completed) {
+      html += `<p class="learned">Completed ✓ — ${def.rewardName} banked forever</p>`;
+      card.innerHTML = html;
+    } else if (isActive) {
+      html += `
+        <div class="progress-wrap">
+          <div class="progress-label challenge-progress-label"></div>
+          <div class="progress"><div class="progress-bar challenge-progress-bar"></div></div>
+        </div>
+        <button class="danger challenge-abandon">Abandon challenge</button>`;
+      card.innerHTML = html;
+      const bar = card.querySelector<HTMLElement>(".challenge-progress-bar");
+      const label = card.querySelector<HTMLElement>(".challenge-progress-label");
+      if (bar && label) activeChallengeRefs = { bar, label };
+      const abandon = card.querySelector<HTMLButtonElement>(".challenge-abandon");
+      let armed = false;
+      abandon?.addEventListener("click", () => {
+        if (!armed) {
+          armed = true;
+          abandon.textContent = "Are you sure? Click again to abandon — the run resets, no reward";
+          return;
+        }
+        if (abandonChallenge(state)) {
+          saveState(state);
+          renderDynamic();
+        }
+      });
+    } else {
+      html += `<button class="buy challenge-start" ${active ? "disabled" : ""}>Start challenge — resets your run, no Embers</button>
+        ${active ? `<div class="gen-note muted">Finish or abandon ${active.name} first.</div>` : ""}`;
+      card.innerHTML = html;
+      const start = card.querySelector<HTMLButtonElement>(".challenge-start");
+      let armed = false;
+      start?.addEventListener("click", () => {
+        if (!armed) {
+          armed = true;
+          start.textContent = `Are you sure? Click again — your run resets and no Embers are granted`;
+          start.classList.add("affordable");
+          return;
+        }
+        if (startChallenge(state, def.id)) {
+          saveState(state);
+          renderDynamic();
+        }
+      });
+    }
+    challengeContainer.appendChild(card);
+  }
+}
+
+// ── Recovery estimate (cached: it runs a bounded bot sim, not per-frame) ────
+let recoveryCacheKey = "";
+let recoveryCache: number | null = null;
+
+function recoveryEstimate(): number | null {
+  const key = [
+    rekindleGain(state),
+    state.embers,
+    state.totalRekindles,
+    state.emberPerks.join(","),
+    state.litLighthouses.join(","),
+    state.activeChallenge ?? "",
+  ].join("|");
+  if (key !== recoveryCacheKey) {
+    recoveryCacheKey = key;
+    recoveryCache = estimateRecoveryMinutes(state);
+  }
+  return recoveryCache;
+}
+
+function formatRecovery(minutes: number | null): string {
+  if (minutes === null) return "over 10 hours";
+  if (minutes < 90) return `~${Math.max(1, Math.round(minutes))} min`;
+  return `~${(minutes / 60).toFixed(1)} h`;
 }
 
 // ── Lighthouses & the supply chain ───────────────────────────────────────────
@@ -601,7 +789,10 @@ const hud = {
   rkGain: document.querySelector<HTMLElement>("#rk-gain"),
   rkHeld: document.querySelector<HTMLElement>("#rk-held"),
   rkHeldLabel: document.querySelector<HTMLElement>("#rk-held-label"),
+  rkTotal: document.querySelector<HTMLElement>("#rk-total"),
   rkBonus: document.querySelector<HTMLElement>("#rk-bonus"),
+  rkRecovery: document.querySelector<HTMLElement>("#rk-recovery"),
+  shopHeld: document.querySelector<HTMLElement>("#shop-held"),
   rkLabel: document.querySelector<HTMLElement>("#rk-progress-label"),
   rkBar: document.querySelector<HTMLElement>("#rk-progress-bar"),
   rkKept: document.querySelector<HTMLUListElement>("#rk-kept"),
@@ -615,6 +806,17 @@ function renderDynamic(): void {
   if (hud.embers) hud.embers.textContent = String(state.embers);
   if (hud.beamHint) {
     hud.beamHint.textContent = `+${formatNumber(clickValue(state))} Lumen per flash. Hire help below and the light keeps itself.`;
+  }
+
+  // Challenge banner in the Light view while a challenge run is active.
+  if (challengeBanner) {
+    const progress = challengeProgress(state);
+    if (progress) {
+      challengeBanner.textContent = `⚔ Challenge: ${progress.def.name} — ${formatNumber(progress.current)} / ${formatNumber(progress.goal)} lifetime Lumen. Tap for details.`;
+      challengeBanner.classList.remove("hidden");
+    } else {
+      challengeBanner.classList.add("hidden");
+    }
   }
 
   // Supply chain: efficiency line in the Light view + bottleneck banner.
@@ -663,15 +865,19 @@ function renderDynamic(): void {
     row.milestone.textContent = milestoneHint(owned);
     const displayCount = state.buyAmount === "max" ? quote.count : state.buyAmount;
     row.cost.textContent = `×${displayCount} · ${formatNumber(quote.cost)} Lumen`;
-    row.buy.disabled = !quote.affordable;
-    row.buy.classList.toggle("affordable", quote.affordable);
+    // First Light Only challenge: tiers 4+ are blocked outright.
+    const blockedByChallenge = !canBuyGenerator(state, row.def.id);
+    row.buy.disabled = !quote.affordable || blockedByChallenge;
+    row.buy.classList.toggle("affordable", quote.affordable && !blockedByChallenge);
     row.buy.textContent =
       state.buyAmount === "max"
         ? quote.count > 0
           ? `Buy Max (×${quote.count})`
           : "Buy Max"
         : `Buy ×${state.buyAmount}`;
-    if (quote.affordable) {
+    if (blockedByChallenge) {
+      row.note.textContent = "Blocked — First Light Only challenge";
+    } else if (quote.affordable) {
       row.note.textContent = quote.productionGain.gt(0) ? `+${formatNumber(quote.productionGain)} Lumen/s` : "";
     } else {
       const tta = timeToAffordCost(state, quote.cost);
@@ -697,7 +903,16 @@ function renderDynamic(): void {
   if (hud.rkGain) hud.rkGain.textContent = String(gain);
   if (hud.rkHeld) hud.rkHeld.textContent = String(state.embers);
   if (hud.rkHeldLabel) hud.rkHeldLabel.textContent = `Embers held (each: +${perEmberPct}% production)`;
+  if (hud.rkTotal) hud.rkTotal.textContent = String(state.embersTotalEarned);
   if (hud.rkBonus) hud.rkBonus.textContent = `+${state.embers * perEmberPct}%`;
+  if (hud.rkRecovery) {
+    hud.rkRecovery.textContent =
+      state.activeChallenge !== null
+        ? "— (finish or abandon your challenge first)"
+        : gain >= 1
+          ? formatRecovery(recoveryEstimate())
+          : "— (earn 5,000 lifetime Lumen for your first Ember)";
+  }
   if (hud.rkLabel) {
     hud.rkLabel.textContent =
       gain >= PRESTIGE_RECOMMENDED_EMBERS
@@ -714,6 +929,14 @@ function renderDynamic(): void {
     const lostUps = state.upgrades.filter((id) => !isPermanentUpgrade(id)).map((id) => upgradeById(id).name);
     if (keptUps.length > 0) kept.push(`Keeper knowledge: ${keptUps.join(", ")}`);
     if (lostUps.length > 0) lost.push(`Upgrades: ${lostUps.join(", ")}`);
+    if (state.emberPerks.length > 0) {
+      const names = state.emberPerks.map((id) => EMBER_PERKS.find((p) => p.id === id)?.name ?? id);
+      kept.push(`Ember perks: ${names.join(", ")}`);
+    }
+    if (state.completedChallenges.length > 0) {
+      const names = state.completedChallenges.map((id) => challengeById(id).rewardName);
+      kept.push(`Challenge rewards: ${names.join(", ")}`);
+    }
     if (isLit(state, GULL_ROCK_ID)) kept.push("Gull Rock Light stays lit (+50% production)");
     const boardsProgressed = state.litLighthouses.some((id) => {
       const start = startBoard(id);
@@ -727,9 +950,44 @@ function renderDynamic(): void {
   if (rkButton) {
     rkButton.disabled = !canRekindle(state);
     if (!rekindleArmed) {
-      rkButton.textContent = canRekindle(state)
-        ? `Rekindle the Light (+${gain} Embers)`
-        : "Rekindle the Light (earn 5,000 lifetime Lumen for your first Ember)";
+      if (state.activeChallenge !== null) {
+        rkButton.textContent = `Rekindle unavailable — the ${activeChallenge(state)?.name} challenge is in progress (finish or abandon it first)`;
+      } else {
+        rkButton.textContent = canRekindle(state)
+          ? `Rekindle the Light (+${gain} Embers)`
+          : "Rekindle the Light (earn 5,000 lifetime Lumen for your first Ember)";
+      }
+    }
+  }
+
+  // Ember Shop: rebuild on ownership change, refresh affordability in place.
+  const shopKey = state.emberPerks.join(",");
+  if (shopKey !== shopStructureKey) {
+    shopStructureKey = shopKey;
+    rebuildEmberShop();
+  }
+  if (hud.shopHeld) {
+    hud.shopHeld.textContent = `You hold ${state.embers} Embers (${state.embersTotalEarned} earned all-time).`;
+  }
+  for (const row of shopRows) {
+    const affordable = state.embers >= row.def.costEmbers;
+    row.buy.disabled = !affordable;
+    row.buy.classList.toggle("affordable", affordable);
+    const bonusLoss = row.def.costEmbers * perEmberPct;
+    row.warning.textContent = `Spending ${row.def.costEmbers} Embers lowers your held bonus by ${bonusLoss}% (from +${state.embers * perEmberPct}% to +${(state.embers - row.def.costEmbers) * perEmberPct}%).`;
+  }
+
+  // Challenges: rebuild on active/completed change, refresh progress in place.
+  const chKey = challengesStructureKey();
+  if (chKey !== challengeStructureKey) {
+    challengeStructureKey = chKey;
+    rebuildChallenges();
+  }
+  if (activeChallengeRefs) {
+    const progress = challengeProgress(state);
+    if (progress) {
+      activeChallengeRefs.bar.style.width = `${Math.round(progress.fraction * 100)}%`;
+      activeChallengeRefs.label.textContent = `${formatNumber(progress.current)} / ${formatNumber(progress.goal)} lifetime Lumen (${Math.round(progress.fraction * 100)}%)`;
     }
   }
 
