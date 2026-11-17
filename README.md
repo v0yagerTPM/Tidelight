@@ -13,12 +13,12 @@ Embers that make every future flame burn brighter.
 
 ## Status
 
-**Sprint 3 — the Rekindle layer, complete.** Embers are now spendable:
-an eight-perk Ember Shop trades held-Ember bonus for permanent perks,
-the Rekindle view previews your recovery time before you commit, and
-three opt-in challenge runs bend the rules for permanent rewards. The
-full design lives in [docs/DESIGN.md](docs/DESIGN.md); the build roadmap
-is in [docs/SPRINTS.md](docs/SPRINTS.md).
+**Sprint 4 — the Shore is alive.** Lantern moths to collect and breed,
+bottle expeditions that bring home permanent relics and story
+fragments, and a deterministic tide that turns every half hour and
+bends production, clicking and the supply chain. The full design lives
+in [docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
+[docs/SPRINTS.md](docs/SPRINTS.md).
 
 ## What's playable
 
@@ -57,13 +57,31 @@ is in [docs/SPRINTS.md](docs/SPRINTS.md).
   Fogbound (half production), Still Hands (no clicking), First Light
   Only (tiers 1–3 only). Starting resets your run with no Embers;
   finishing banks the reward and the run continues.
+- **Lantern moths** — hire a Lantern Moth and the wild ones follow your
+  light home (Shore tab). Six wing patterns from Plain to Prismatic,
+  each with its own glow; put up to 3 on duty for +(glow × 0.2)%
+  production each. Breed two moths and the child inherits their wings —
+  usually the rarer parent's pattern, the average of their glows, and a
+  little chaos. Moths are permanent: Rekindle can't touch the roost.
+- **Bottle expeditions** — send a bottle out on the glass sea (10
+  minutes to 6 hours) and claim what washes back: a Lumen cache, a
+  story fragment for the Log, and maybe one of eight permanent RELICS —
+  a Brass Compass (+10% production), a Storm in a Bottle, a Gull
+  Feather that trims chain costs, and five more.
+- **Tide & weather** — the sea turns every 30 minutes, the same for
+  every keeper: Low Tide eases the supply chain, High Tide lifts
+  production, Glass Calm doubles your clicking, and Stormfront pays
+  +30% production while starving the chain. The Light view shows the
+  current tide and the forecast, so you can plan around the storm.
 - **Offline earnings** — 50% of your rate for up to 8 hours (75% once you
-  learn Longer Wicks; up to 12 hours and 85% with the right Ember perks),
-  reported when you return.
+  learn Longer Wicks; up to 12 hours and 90% with the right Ember perks
+  and relics), reported when you return. Cocoons hatch and bottles wash
+  back while you're away, too.
 - Balance-checked: a greedy-bot simulation that also feeds the chain
   reaches the first Rekindle in ~115 minutes and the second ~76 minutes
-  later (`npm run sim`) — without buying perks or running challenges, so
-  real keepers will be faster.
+  later (`npm run sim`) — without buying perks, running challenges,
+  keeping moths, sending bottles or minding the tides, so real keepers
+  will be faster.
 
 ## Run it
 
@@ -84,8 +102,10 @@ npm run build      # typecheck + production build to dist/
   upgrade Wick / Oil / Lens / Beam nodes to keep the beam fed.
 - **Rekindle tab** — Rekindle for Embers (with a recovery-time preview),
   spend held Embers in the Ember Shop, and start or abandon challenges.
-- **Tabs** — Light · Upgrades · Lighthouses · Rekindle · Log. One view
-  at a time.
+- **Shore tab** — attract, roster and breed lantern moths; send and
+  claim bottle expeditions; admire the relic shelf.
+- **Tabs** — Light · Upgrades · Lighthouses · Shore · Rekindle · Log.
+  One view at a time.
 - Progress saves automatically to your browser (localStorage,
   `tidelight-save-v1`), including offline earnings for up to 8 hours.
 
