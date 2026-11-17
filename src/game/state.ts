@@ -12,9 +12,9 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 5;
-/** Older saves (Sprint 0 = v1 … Sprint 3 = v4) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4];
+export const SAVE_VERSION = 6;
+/** Older saves (Sprint 0 = v1 … Sprint 4 = v5) migrate on load. */
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5];
 
 const MAX_LOG_ENTRIES = 60;
 
@@ -163,6 +163,10 @@ export function createInitialState(now: number = Date.now()): GameState {
     expedition: null,
     relics: [],
     storyFragmentIndex: 0,
+    storySeen: [],
+    endingSeen: false,
+    ngPlusCount: 0,
+    notation: "standard",
     totalClicks: 0,
     totalGeneratorsBought: 0,
     totalRekindles: 0,
@@ -207,6 +211,10 @@ export function serializeState(state: GameState): SavedState {
     expedition: state.expedition ? { ...state.expedition } : null,
     relics: [...state.relics],
     storyFragmentIndex: state.storyFragmentIndex,
+    storySeen: [...state.storySeen],
+    endingSeen: state.endingSeen,
+    ngPlusCount: state.ngPlusCount,
+    notation: state.notation,
     totalClicks: state.totalClicks,
     totalGeneratorsBought: state.totalGeneratorsBought,
     totalRekindles: state.totalRekindles,
@@ -234,8 +242,10 @@ export function deserializeState(raw: unknown): GameState | null {
   const s = raw as Partial<SavedState>;
   // Accept the current version and the legacy shapes. A v1 save has no
   // upgrades/buyAmount yet; a v2 save has no chain fields; a v3 save has
-  // no Sprint 3 fields; a v4 save has no Sprint 4 (Shore) fields — the
-  // missing fields default, which is the migration.
+  // no Sprint 3 fields; a v4 save has no Sprint 4 (Shore) fields; a v5
+  // save has no Sprint 5 fields (story/ending/NG+/notation) — the missing
+  // fields default, which is the migration. Lit lighthouses generalize
+  // through sanitizeChain: a v5 keeper's Gull Rock simply stays lit.
   if (s.version !== SAVE_VERSION && !(s.version !== undefined && LEGACY_SAVE_VERSIONS.includes(s.version))) {
     return null;
   }
@@ -261,6 +271,12 @@ export function deserializeState(raw: unknown): GameState | null {
       buyAmount: validBuyAmount(s.buyAmount),
       ...sanitizeChain(s.litLighthouses, s.chainBoards),
       ...sanitizeShore(s),
+      // Sprint 5 migration: story unseen, ending unwitnessed, no Keepings
+      // yet, standard notation — unless the save says otherwise.
+      storySeen: sanitizeIdList(s.storySeen),
+      endingSeen: s.endingSeen === true,
+      ngPlusCount: sanitizeCount(s.ngPlusCount),
+      notation: s.notation === "scientific" ? "scientific" : "standard",
       totalClicks: s.totalClicks ?? 0,
       totalGeneratorsBought: s.totalGeneratorsBought ?? 0,
       totalRekindles: s.totalRekindles ?? 0,
