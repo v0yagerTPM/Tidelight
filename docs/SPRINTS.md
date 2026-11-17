@@ -172,11 +172,67 @@
 - Deferred from the original Sprint 3 sketch (not in this sprint's
   scope): second prestige layer, Ember respec, prestige automation.
 
-## Sprint 4 — Moths, bottles, weather
+## ✅ Sprint 4 — Moths, bottles, weather
 
-- Lantern-moth breeding: inherited wing patterns, collection multiplier
-- Bottle expeditions: loadout-and-wait missions with permanent loot + story
-- Tide & weather system: forecast, stockpile decisions, seasonal events
+- [x] Seeded RNG (`src/game/rng.ts`): mulberry32 + a bucket-hash mixer.
+      Every random system takes an `rng: () => number` — game code passes
+      Math.random, tests pass seeded functions — and consumes it in a
+      fixed, documented order, so outcomes are reproducible.
+- [x] Lantern moths (`src/game/moths.ts`): the Moth Garden (new Shore tab)
+      unlocks with the first Lantern Moth generator (and stays open once
+      you keep moths). Six wing patterns in rarity tiers 0–5 (Plain →
+      Prismatic, attract weights 40/25/16/10/6/3) and generated cozy names.
+      Attract costs 500 × 2.2^(moths owned); the roost holds 6, +2 per
+      expansion (10,000 × 6^expansions). Up to 3 moths on duty, each
+      granting +(glow × 0.2)% production through the engine. Breeding:
+      a 5-minute timestamped cocoon (progresses offline); the child takes
+      a parent's pattern tier (weighted 65% to the rarer parent, then a
+      10%/10% ±1 tier shift, clamped), glow = parental average −15..+15
+      with a 5% bright mutation (+20..+35), generation = max(parents)+1,
+      parents kept. Release pays 100 × glow × (tier+1) to the purse.
+      Moths, duty, roost and cocoon are PERMANENT — Rekindle's kept list
+      and log say so.
+- [x] Bottle expeditions (`src/game/expeditions.ts`): one bottle at a
+      time on three routes — The Drift (10 min, 1,000 Lumen, 10% relic),
+      Coastal Run (1h, 25,000, 35%), Deep Glass Crossing (6h, 500,000,
+      80%). Timestamp-based, so bottles wash back while you're away. The
+      cache is max(route minimum, production/s × duration × 0.5). Eight
+      unique permanent RELICS, each wired into its system: Brass Compass
+      (production +10%), Tide Chart (chain support +15%), Salt Lens
+      (click ×1.5), Keeper's Coat (offline rate +5 pts, 90% cap), Gull
+      Feather (node costs −20%), Amber Heart (Ember gain +10%), Driftwood
+      Cradle (new moths +10 glow), Storm in a Bottle (Stormfront ×1.45).
+      Once all eight are home, a successful relic roll pays +50% of the
+      cache in bonus Lumen instead. Every claim also brings home one of
+      eight story fragments for the Log — rotating, no repeats until the
+      set is exhausted; these seed Sprint 5's story acts.
+- [x] Tide & weather (`src/game/tides.ts`): deterministic 30-minute
+      buckets (seeded hash of the bucket index — every keeper sees the
+      same sea, and the forecast is exact). Low Tide (support ×1.2),
+      High Tide (production ×1.15), Glass Calm (click ×2), Stormfront
+      (production ×1.30, ×1.45 with the relic, but support ×0.8), drawn
+      at weights 30/30/25/15. Engine and chain functions take an optional
+      `now`: the game loop passes Date.now(), so the header rate, the
+      flow board and the Gull Rock gate all read the live tide, while
+      the sim, the recovery estimate and offline earnings stay neutral
+      (over hours away, tides average out). The tide multiplier lands on
+      final production only — it never inflates chain demand. The Light
+      view gains a tide strip: current tide, effect in words, countdown
+      to the turn, and the next tide ("Next: Stormfront — shore up your
+      chain").
+- [x] Save format v5: moths, duty roster, roost expansions, cocoon,
+      active expedition, relics and story-fragment index persisted and
+      sanitized on load (duty ids filtered to moths that exist, a cocoon
+      survives only while both parents do). v4 (and v1–v3) saves migrate
+      with an empty Shore.
+- [x] Balance pass — the sim bot ignores moths, expeditions and tides
+      entirely (see scripts/simulate.ts), so its numbers are a floor:
+      **first Rekindle in 115.0 simulated minutes** (unchanged, band
+      40–120), second Rekindle 76.4 minutes after the first. No tuning
+      was needed and no numbers moved this sprint.
+- Not in this sprint (from the original Sprint 4 sketch): seasonal
+  events — the tide system is the weather layer; seasonal events move
+  to Sprint 5 polish if time allows.
 
 ## Sprint 5 — Story, ending, polish, Steam
 
