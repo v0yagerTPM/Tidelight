@@ -18,6 +18,7 @@ import {
 import { emberShopClickMultiplier, emberShopProductionMultiplier, offlineCapSeconds } from "./emberShop";
 import { relicClickMultiplier, relicProductionMultiplier } from "./expeditions";
 import { mothProductionMultiplier } from "./moths";
+import { legacyMultiplier } from "./ngplus";
 import { addLog } from "./state";
 import { tideClickMultiplier, tideProductionMultiplier } from "./tides";
 import type { BuyAmount, GameState } from "./types";
@@ -79,6 +80,7 @@ export function emberMultiplier(state: GameState): Decimal {
  *   × Keeper's Focus × Ember bonus (held Embers) × Second Wind (Ember perk)
  *   × challenge multiplier (Fogbound rule ×0.5, banked challenge rewards)
  *   × moth duty bonus (Sprint 4) × Brass Compass relic (Sprint 4)
+ *   × legacy bonus (Sprint 5: ×(1 + 0.25 × Keepings begun))
  */
 export function productionForOwned(state: GameState, def: GeneratorDef, owned: number): Decimal {
   if (owned === 0) return new Decimal(0);
@@ -92,7 +94,8 @@ export function productionForOwned(state: GameState, def: GeneratorDef, owned: n
     .mul(emberShopProductionMultiplier(state))
     .mul(challengeProductionMultiplier(state))
     .mul(mothProductionMultiplier(state))
-    .mul(relicProductionMultiplier(state));
+    .mul(relicProductionMultiplier(state))
+    .mul(legacyMultiplier(state));
 }
 
 /** Lumen/s from one generator type at its current ownership. */
@@ -104,9 +107,13 @@ export function generatorProduction(state: GameState, def: GeneratorDef): Decima
  * Base production: the rate BEFORE the supply chain and beam bonus.
  * Ordering (documented here and in chain.ts):
  *   per-generator (see productionForOwned: milestones, upgrades, Humble
- *   Mastery, Keeper's Focus, Ember bonus, Second Wind, challenges)
- *   × lighthouse bonuses (Gull Rock ×1.5)
+ *   Mastery, Keeper's Focus, Ember bonus, Second Wind, challenges, moth
+ *   duty, Brass Compass, legacy bonus)
+ *   × lighthouse production bonuses, multiplied together (Gull Rock ×1.5,
+ *   Cormorant Roost ×1.75, The Hollow Light ×2.5 — ×6.5625 with all seven)
  * This base rate is the chain's "demand" — what wick/oil/lens must support.
+ * The FULL final ordering is: base (above) × chain factor (0.25 + 0.75 ×
+ * efficiency) × beam bonus (1 + 5% × Beam levels) × tide = final rate.
  */
 export function baseProductionPerSecond(state: GameState): Decimal {
   let total = new Decimal(0);
@@ -286,9 +293,10 @@ export interface OfflineResult {
 
 /**
  * What the player earned while away: rate × min(away, cap) × offline rate.
- * The cap is 8h, or 12h with The Long Night (Ember perk); the rate is
- * 50%/75% (Longer Wicks) + 10 points with Full Reservoir + 5 points with
- * the Keeper's Coat relic, capped at 90%. The rate used is the
+ * The cap is 8h, or 12h with The Long Night (Ember perk), plus 4h more
+ * with Siren's Rest lit (Sprint 5); the rate is 50%/75% (Longer Wicks)
+ * + 10 points with Full Reservoir + 5 points with the Keeper's Coat relic
+ * + 10 points with Siren's Rest lit, capped at 90%. The rate used is the
  * tide-NEUTRAL production: over hours away, tides average out (Sprint 4).
  */
 export function offlineEarnings(state: GameState, now: number = Date.now()): OfflineResult {
