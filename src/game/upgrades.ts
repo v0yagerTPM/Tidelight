@@ -1,5 +1,5 @@
 import Decimal from "break_infinity.js";
-import { EMBER_PRODUCTION_BONUS, GENERATORS, OFFLINE_RATE } from "./config";
+import { EMBER_PRODUCTION_BONUS, GENERATORS, OFFLINE_RATE, litOfflineRateBonus } from "./config";
 import { OFFLINE_RATE_HARD_CAP, emberHeartBonus, offlineRateBonus } from "./emberShop";
 import { relicOfflineRateBonus } from "./expeditions";
 import { formatNumber } from "./format";
@@ -247,12 +247,16 @@ export function emberBonusPerEmber(state: GameState): number {
 
 /**
  * Offline earnings rate: 75% with Longer Wicks, else the base 50%; the
- * Full Reservoir perk (Sprint 3) adds +10 percentage points and the
- * Keeper's Coat relic (Sprint 4) +5 more, hard-capped at 90%.
+ * Full Reservoir perk (Sprint 3) adds +10 percentage points, the Keeper's
+ * Coat relic (Sprint 4) +5 more, and Siren's Rest lit (Sprint 5) +10
+ * more — all hard-capped at 90%.
  */
 export function offlineRateFor(state: GameState): number {
   const base = hasUpgrade(state, "longer-wicks") ? LONGER_WICKS_OFFLINE_RATE : OFFLINE_RATE;
-  return Math.min(OFFLINE_RATE_HARD_CAP, base + offlineRateBonus(state) + relicOfflineRateBonus(state));
+  return Math.min(
+    OFFLINE_RATE_HARD_CAP,
+    base + offlineRateBonus(state) + relicOfflineRateBonus(state) + litOfflineRateBonus(state.litLighthouses),
+  );
 }
 
 // ── Buying ───────────────────────────────────────────────────────────────────
