@@ -5,8 +5,10 @@ import Decimal from "break_infinity.js";
 // chain, upgrades and prestige read this module's pure relic helpers.
 // Nothing here runs at load time.
 import { creditLumen, productionPerSecond } from "./engine";
+import { recordAlmanac } from "./almanac";
 import { formatNumber } from "./format";
-import { mothRelicChanceBonus } from "./mothTraits";
+import { CROSSING_TRAIT_CHANCE, MOTH_TRAITS, mothRelicChanceBonus, riderOf, riderRelicBonus } from "./mothTraits";
+import type { Moth } from "./types";
 import { addLog } from "./state";
 import type { GameState } from "./types";
 
@@ -48,9 +50,13 @@ export const EXPEDITION_ROUTES: readonly ExpeditionRouteDef[] = [
   { id: "crossing", name: "Deep Glass Crossing", flavor: "All the way to where the sea is darkest and the glass rings like a bell.", durationMinutes: 360, cost: 500_000, relicChance: 0.8, minCache: 50_000 },
 ];
 
-/** A route's relic chance, plus 5 points per Seeker moth on duty. */
-export function relicChanceFor(state: GameState, route: ExpeditionRouteDef): number {
-  return Math.min(1, route.relicChance + mothRelicChanceBonus(state));
+/**
+ * A route's relic chance: its own, +5 points per Seeker moth on duty, and
+ * a riding moth's glow ÷ 10 points (+10 more for a Seeker). `rider`
+ * defaults to the moth on the bottle at sea; pass one to preview a send.
+ */
+export function relicChanceFor(state: GameState, route: ExpeditionRouteDef, rider: Moth | null = riderOf(state)): number {
+  return Math.min(1, route.relicChance + mothRelicChanceBonus(state) + riderRelicBonus(rider));
 }
 
 export function routeById(id: string): ExpeditionRouteDef | undefined {
@@ -152,10 +158,12 @@ export const STORY_FRAGMENTS: readonly string[] = [
  * no charge) while one is already out, the route is unknown, or the
  * keeper can't pay.
  */
-export function sendExpedition(state: GameState, routeId: string, now: number = Date.now()): boolean {
+export function sendExpedition(state: GameState, routeId: string, now: number = Date.now(), riderId?: string): boolean {
   if (state.expedition !== null) return false;
   const route = routeById(routeId);
   if (!route) return false;
+  const rider = riderId ? state.moths.find((m) => m.id === riderId) : undefined;
+  if (riderId && (!rider || state.cocoon?.parentIds.includes(riderId))) return false;
   const cost = new Decimal(route.cost);
   if (state.lumen.lt(cost)) return false;
   state.lumen = state.lumen.sub(cost);
@@ -163,8 +171,14 @@ export function sendExpedition(state: GameState, routeId: string, now: number = 
     routeId,
     startedAt: now,
     returnsAt: now + route.durationMinutes * 60_000,
+    ...(rider ? { riderId: rider.id } : {}),
   };
-  addLog(state, `A bottle goes out on ${route.name} — a message, a hope, and a little lamplight for the journey. Back in ${route.durationMinutes >= 60 ? `${route.durationMinutes / 60}h` : `${route.durationMinutes}m`}.`, now);
+  if (rider) {
+    // A rider leaves duty and its post for the whole trip.
+    state.mothDuty = state.mothDuty.filter((id) => id !== rider.id);
+    for (const [lighthouseId, id] of Object.entries(state.mothPosts)) if (id === rider.id) delete state.mothPosts[lighthouseId];
+  }
+  addLog(state, `A bottle goes out on ${route.name} — a message, a hope, and a little lamplight for the journey${rider ? `, with ${rider.name} riding on the cork` : ""}. Back in ${route.durationMinutes >= 60 ? `${route.durationMinutes / 60}h` : `${route.durationMinutes}m`}.`, now);
   return true;
 }
 
@@ -180,6 +194,9 @@ export interface ExpeditionClaim {
   bonusLumen: Decimal;
   /** The relic granted, or null. */
   relic: RelicDef | null;
+  /** The moth that rode along, if any, and the trait it brought home (Crossing only). */
+  rider: Moth | null;
+  riderTrait: string | null;
   /** The story fragment that came home. */
   fragment: string;
 }
@@ -208,6 +225,8 @@ export function claimExpedition(state: GameState, rng: () => number, now: number
     state.expedition = null; // an unknown route (corrupt save) clears rather than bricks
     return null;
   }
+  const rider = riderOf(state);
+  const relicChance = relicChanceFor(state, route, rider);
   state.expedition = null;
 
   const cache = expeditionCache(state, route, now);
@@ -215,7 +234,7 @@ export function claimExpedition(state: GameState, rng: () => number, now: number
 
   let relic: RelicDef | null = null;
   let bonusLumen = new Decimal(0);
-  if (rng() < relicChanceFor(state, route)) {
+  if (rng() < relicChance) {
     const remaining = unclaimedRelics(state);
     if (remaining.length > 0) {
       relic = remaining[Math.floor(rng() * remaining.length)];
@@ -227,11 +246,25 @@ export function claimExpedition(state: GameState, rng: () => number, now: number
     }
   }
 
+  // Last roll: a traitless rider on the Deep Glass Crossing may come home changed.
+  let riderTrait: string | null = null;
+  if (rider && route.id === "crossing" && !rider.trait && rng() < CROSSING_TRAIT_CHANCE) {
+    riderTrait = MOTH_TRAITS[Math.min(MOTH_TRAITS.length - 1, Math.floor(rng() * MOTH_TRAITS.length))].id;
+    rider.trait = riderTrait;
+    if (recordAlmanac(state, rider)) addLog(state, `A new page in the Wing Almanac (${state.almanac.length} filled).`, now);
+  }
+
   const fragment = STORY_FRAGMENTS[state.storyFragmentIndex % STORY_FRAGMENTS.length];
   state.storyFragmentIndex++;
   addLog(state, `The bottle washes back from ${route.name}: +${formatNumber(cache, state.notation)} Lumen of salvage and driftwood.`, now);
   if (relic) addLog(state, `Nestled in the bottle's neck — a relic: ${relic.name}. ${relic.effect}`, now);
   if (bonusLumen.gt(0)) addLog(state, `The sea, having no relics left to give, pays half again in light: +${formatNumber(bonusLumen, state.notation)} Lumen.`, now);
+  if (rider) {
+    const trait = MOTH_TRAITS.find((t) => t.id === riderTrait);
+    addLog(state, trait
+      ? `${rider.name} comes home from the deep glass changed: ${trait.name.toLowerCase()} now. ${trait.effect}`
+      : `${rider.name} hops off the cork and back into the roost, salt on its wings.`, now);
+  }
   addLog(state, `From the bottle: ${fragment}`, now);
-  return { cache, bonusLumen, relic, fragment };
+  return { cache, bonusLumen, relic, fragment, rider, riderTrait };
 }

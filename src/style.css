@@ -824,3 +824,13 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
   .hearth-spark { display: none; }
   * { transition-duration: 0.01ms !important; }
 }
+
+/* ── Wing Almanac ─────────────────────────────────── */
+.almanac-scroll { overflow-x: auto; margin-top: 8px; }
+.almanac { border-collapse: collapse; font-size: 0.78rem; min-width: 560px; width: 100%; }
+.almanac th { font-weight: 500; color: var(--muted); padding: 4px 6px; text-align: center; white-space: nowrap; }
+.almanac tbody th { text-align: left; color: var(--lamp-soft); font-family: var(--display); font-size: 0.92rem; }
+.almanac td { text-align: center; padding: 4px; border: 1px solid var(--edge-soft); }
+.almanac td.almanac-has { background: rgba(255, 196, 99, 0.12); }
+.almanac td.almanac-missing { color: var(--edge); }
+.almanac-rewards { list-style: none; padding: 0; margin: 10px 0 0; font-size: 0.86rem; display: grid; gap: 4px; }

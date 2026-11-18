@@ -1,4 +1,5 @@
 import { CHAIN_LIGHTHOUSES, HOLLOW_LIGHT_ID, type SupplyNodeId } from "../game/config";
+import { hasAlmanacReward } from "../game/almanac";
 import { chainStatus, lighthouseStatus, nextLighthouseId } from "../game/chain";
 import { productionPerSecond } from "../game/engine";
 import { EXPEDITION_ROUTES } from "../game/expeditions";
@@ -21,6 +22,7 @@ export const MOTH_WING_COLORS: Record<string, string> = {
   crescent: "#c9b8ff",
   starlit: "#9fe6d2",
   prismatic: "#ff9be0",
+  tidelit: "#5fd0e8",
 };
 
 export interface SceneMoth {
@@ -57,6 +59,8 @@ export interface SceneModel {
   seventh: number;
   /** Collected moths on duty, drawn larger, in their wing colours. */
   duty: SceneMoth[];
+  /** The Wing Almanac's last reward: a halo in the brightest moth's wing colour, or null. */
+  lampHalo: string | null;
 }
 
 /**
@@ -97,6 +101,7 @@ export function buildSceneModel(state: GameState, now: number): SceneModel {
     stormLanterns: visibleCount(owned("storm-lantern"), 6),
     whales: visibleCount(owned("beacon-whale"), 3),
     seventh: owned("seventh-light") > 0 ? 0.3 + 0.7 * Math.min(1, owned("seventh-light") / 25) : 0,
+    lampHalo: lampHaloColor(state),
     duty: dutyMoths(state).map((m) => {
       const pattern = patternById(m.pattern);
       return { color: MOTH_WING_COLORS[pattern.id] ?? MOTH_WING_COLORS.plain, glow: m.glow / 100, tier: pattern.tier };
@@ -211,7 +216,7 @@ export function buildMeadowModel(state: GameState, now: number): MeadowModel {
   const cocoonIds = new Set(state.cocoon?.parentIds ?? []);
   const cocoonParents = state.cocoon ? state.cocoon.parentIds.map((id) => mothById(state, id)) : [];
   const cocoonSpan =
-    cocoonParents[0] && cocoonParents[1] ? cocoonDurationMs(cocoonParents[0], cocoonParents[1]) : COCOON_BASE_MS;
+    cocoonParents[0] && cocoonParents[1] ? cocoonDurationMs(cocoonParents[0], cocoonParents[1], state) : COCOON_BASE_MS;
   const cocoon = state.cocoon
     ? {
         progress: Math.max(0, Math.min(1, 1 - (state.cocoon.readyAt - now) / cocoonSpan)),
@@ -245,4 +250,11 @@ export function buildMeadowModel(state: GameState, now: number): MeadowModel {
     cocoon,
     bottle,
   };
+}
+
+/** The halo colour once the Wing Almanac is complete: the brightest moth's wings. */
+export function lampHaloColor(state: GameState): string | null {
+  if (!hasAlmanacReward(state, "lamp-halo") || state.moths.length === 0) return null;
+  const brightest = [...state.moths].sort((a, b) => b.glow - a.glow || patternById(b.pattern).tier - patternById(a.pattern).tier)[0];
+  return MOTH_WING_COLORS[brightest.pattern] ?? MOTH_WING_COLORS.plain;
 }

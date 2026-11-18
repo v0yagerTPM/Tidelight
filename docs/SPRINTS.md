@@ -587,3 +587,35 @@ and a use for good moths beyond the three duty slots.
 The duty ceiling rises from +60% to +90% with three glow-100 Lamp-loyal
 moths. The Wing Almanac, Tidelit, moths on expeditions, Hollow moths and
 the story beats follow in later PRs.
+
+## ✅ Post-launch — the Wing Almanac, Tidelit and moths at sea
+
+The third moth PR: a collection to fill, and moths that touch the tide
+and the bottles.
+
+- [x] **The Wing Almanac** (`src/game/almanac.ts`): a page for each of 7
+      patterns × 7 trait columns (no trait counts), 49 in all. A page
+      fills the first time the keeper holds such a moth and never
+      empties. Rewards: 6 pages, the lure bank holds 4; 12, a fourth duty
+      slot; 24, cocoons 15% faster; 36, a lure every 15 minutes; all 49,
+      a halo round the lamp in the brightest moth's wing colour.
+- [x] **Wing Scales**: a release leaves tier + 1 scales (+1 for a
+      trait). 8 scales buy a **scented lure**: no lure needed, and the
+      moth always carries a trait. (The plan's "buy a hint" use was
+      dropped: the Almanac grid already shows what is missing, so scales
+      buy a way to fill it instead.)
+- [x] **Tidelit**: a tier-5 sidegrade, ceiling 100, never wild. A
+      Starlit or Prismatic cocoon that opens in a Stormfront is Tidelit 5%
+      of the time. On duty its bonus counts double in a Stormfront and
+      half in Glass Calm, applied to the final rate only (never chain
+      demand). It breeds as tier 5 (its children are Prismatic/Starlit).
+- [x] **Moths ride bottles**: relic chance + glow ÷ 10 points (+10 more
+      for a Seeker). The rider leaves duty and its post, can't breed or
+      be released at sea. On the Deep Glass Crossing, a traitless rider
+      comes home with a trait 1 time in 10.
+- [x] **Saves → v9**: `almanac` (every moth already held fills its page
+      on load), `wingScales`, `expedition.riderId`.
+
+Pacing, same method as the rebalance (the bot breeds the two best and
+spends every lure, but ignores Fertile and scented lures): first
+Prismatic 12.6h, three Prismatics at glow 100 91h (was 100h).

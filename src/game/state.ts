@@ -1,4 +1,5 @@
 import Decimal from "break_infinity.js";
+import { ALMANAC_TRAITS, almanacKey, isAlmanacKey } from "./almanac";
 import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, GENERATORS, chainLighthouseById } from "./config";
 // The definition tables below are only read inside deserializeState (call
 // time), so these imports form no load-time cycle with modules that import
@@ -21,9 +22,9 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 8;
-/** Older saves (Sprint 0 = v1 … the moth rebalance = v7) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7];
+export const SAVE_VERSION = 9;
+/** Older saves (Sprint 0 = v1 … moth traits = v8) migrate on load. */
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8];
 
 const MAX_LOG_ENTRIES = 60;
 
@@ -74,11 +75,12 @@ function sanitizeChain(
 
 // ── Sprint 4 (Shore) field sanitizing ────────────────────────────────────────
 
-const MAX_DUTY_MOTHS = 3;
 /** mothTraits.ts trait ids (kept literal here so this module stays a leaf). */
-const MOTH_TRAIT_IDS: readonly string[] = ["lamp-loyal", "night-flier", "chain-tender", "seeker", "fertile", "tidewise"];
-/** moths.ts LURE_BANK (kept literal here: moths.ts imports this module). */
-const LURE_BANK = 3;
+const MOTH_TRAIT_IDS: readonly string[] = ALMANAC_TRAITS.filter((t) => t !== "none");
+/** The largest lure bank (almanac.ts lureBankSize); kept literal: moths.ts imports this module. */
+const LURE_BANK = 4;
+/** Duty slots at most (almanac.ts dutySlots). */
+const MAX_DUTY_SLOTS = 4;
 
 function sanitizeMoth(raw: unknown): Moth | null {
   if (typeof raw !== "object" || raw === null) return null;
@@ -113,13 +115,20 @@ function sanitizeCocoon(raw: unknown, moths: Moth[]): Cocoon | null {
   return { parentIds: [a, b], readyAt: c.readyAt };
 }
 
-function sanitizeExpedition(raw: unknown): ExpeditionState | null {
+function sanitizeExpedition(raw: unknown, mothIds: Set<string> = new Set()): ExpeditionState | null {
   if (typeof raw !== "object" || raw === null) return null;
   const e = raw as Partial<ExpeditionState>;
   if (typeof e.routeId !== "string") return null;
   if (typeof e.startedAt !== "number" || !Number.isFinite(e.startedAt)) return null;
   if (typeof e.returnsAt !== "number" || !Number.isFinite(e.returnsAt)) return null;
-  return { routeId: e.routeId, startedAt: e.startedAt, returnsAt: e.returnsAt };
+  const rider = typeof e.riderId === "string" && mothIds.has(e.riderId) ? { riderId: e.riderId } : {};
+  return { routeId: e.routeId, startedAt: e.startedAt, returnsAt: e.returnsAt, ...rider };
+}
+
+function sanitizeAlmanac(raw: unknown, moths: Moth[]): string[] {
+  const keys = Array.isArray(raw) ? raw.filter((k): k is string => typeof k === "string" && isAlmanacKey(k)) : [];
+  for (const m of moths) keys.push(almanacKey(m.pattern, m.trait));
+  return [...new Set(keys)].filter(isAlmanacKey);
 }
 
 /**
@@ -137,6 +146,8 @@ function sanitizeShore(s: Partial<SavedState>): {
   mothLureAnchor: number;
   mothLureRushes: number;
   mothPosts: Record<string, string>;
+  almanac: string[];
+  wingScales: number;
   expedition: ExpeditionState | null;
   relics: string[];
   storyFragmentIndex: number;
@@ -161,19 +172,22 @@ function sanitizeShore(s: Partial<SavedState>): {
   const posted = new Set(Object.values(mothPosts));
   const mothDuty = sanitizeIdList(s.mothDuty)
     .filter((id) => mothIds.has(id) && !posted.has(id))
-    .slice(0, MAX_DUTY_MOTHS);
+    .slice(0, MAX_DUTY_SLOTS);
   return {
     moths,
     mothDuty,
     roostExpansions: sanitizeCount(s.roostExpansions),
     cocoon: sanitizeCocoon(s.cocoon, moths),
     // The moth rebalance (v7) migration: a full lure bank, the clock from now.
-    mothLures: typeof s.mothLures === "number" ? Math.min(LURE_BANK, sanitizeCount(s.mothLures)) : LURE_BANK,
+    mothLures: typeof s.mothLures === "number" ? Math.min(LURE_BANK, sanitizeCount(s.mothLures)) : 3,
     mothLureAnchor:
       typeof s.mothLureAnchor === "number" && Number.isFinite(s.mothLureAnchor) ? s.mothLureAnchor : Date.now(),
     mothLureRushes: sanitizeCount(s.mothLureRushes),
     mothPosts,
-    expedition: sanitizeExpedition(s.expedition),
+    // v9: the Wing Almanac (every moth already held counts) and Wing Scales.
+    almanac: sanitizeAlmanac(s.almanac, moths),
+    wingScales: sanitizeCount(s.wingScales),
+    expedition: sanitizeExpedition(s.expedition, mothIds),
     relics: sanitizeIdList(s.relics, RELICS),
     storyFragmentIndex: sanitizeCount(s.storyFragmentIndex),
   };
@@ -199,10 +213,12 @@ export function createInitialState(now: number = Date.now()): GameState {
     mothDuty: [],
     roostExpansions: 0,
     cocoon: null,
-    mothLures: LURE_BANK,
+    mothLures: 3, // a full starting bank (almanac.ts lureBankSize)
     mothLureAnchor: now,
     mothLureRushes: 0,
     mothPosts: {},
+    almanac: [],
+    wingScales: 0,
     expedition: null,
     relics: [],
     storyFragmentIndex: 0,
@@ -255,6 +271,8 @@ export function serializeState(state: GameState): SavedState {
     mothLureAnchor: state.mothLureAnchor,
     mothLureRushes: state.mothLureRushes,
     mothPosts: { ...state.mothPosts },
+    almanac: [...state.almanac],
+    wingScales: state.wingScales,
     expedition: state.expedition ? { ...state.expedition } : null,
     relics: [...state.relics],
     storyFragmentIndex: state.storyFragmentIndex,
