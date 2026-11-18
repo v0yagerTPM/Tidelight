@@ -6,6 +6,7 @@ import Decimal from "break_infinity.js";
 // Nothing here runs at load time.
 import { creditLumen, productionPerSecond } from "./engine";
 import { formatNumber } from "./format";
+import { mothRelicChanceBonus } from "./mothTraits";
 import { addLog } from "./state";
 import type { GameState } from "./types";
 
@@ -46,6 +47,11 @@ export const EXPEDITION_ROUTES: readonly ExpeditionRouteDef[] = [
   { id: "coastal", name: "Coastal Run",         flavor: "Along the drowned shoreline, past the chimneys of the old harbour.", durationMinutes: 60,  cost: 25_000,  relicChance: 0.35, minCache: 5_000 },
   { id: "crossing", name: "Deep Glass Crossing", flavor: "All the way to where the sea is darkest and the glass rings like a bell.", durationMinutes: 360, cost: 500_000, relicChance: 0.8, minCache: 50_000 },
 ];
+
+/** A route's relic chance, plus 5 points per Seeker moth on duty. */
+export function relicChanceFor(state: GameState, route: ExpeditionRouteDef): number {
+  return Math.min(1, route.relicChance + mothRelicChanceBonus(state));
+}
 
 export function routeById(id: string): ExpeditionRouteDef | undefined {
   return EXPEDITION_ROUTES.find((r) => r.id === id);
@@ -209,7 +215,7 @@ export function claimExpedition(state: GameState, rng: () => number, now: number
 
   let relic: RelicDef | null = null;
   let bonusLumen = new Decimal(0);
-  if (rng() < route.relicChance) {
+  if (rng() < relicChanceFor(state, route)) {
     const remaining = unclaimedRelics(state);
     if (remaining.length > 0) {
       relic = remaining[Math.floor(rng() * remaining.length)];

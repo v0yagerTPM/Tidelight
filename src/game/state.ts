@@ -21,9 +21,9 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 7;
-/** Older saves (Sprint 0 = v1 … the post-launch rebalance = v6) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6];
+export const SAVE_VERSION = 8;
+/** Older saves (Sprint 0 = v1 … the moth rebalance = v7) migrate on load. */
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7];
 
 const MAX_LOG_ENTRIES = 60;
 
@@ -75,6 +75,8 @@ function sanitizeChain(
 // ── Sprint 4 (Shore) field sanitizing ────────────────────────────────────────
 
 const MAX_DUTY_MOTHS = 3;
+/** mothTraits.ts trait ids (kept literal here so this module stays a leaf). */
+const MOTH_TRAIT_IDS: readonly string[] = ["lamp-loyal", "night-flier", "chain-tender", "seeker", "fertile", "tidewise"];
 /** moths.ts LURE_BANK (kept literal here: moths.ts imports this module). */
 const LURE_BANK = 3;
 
@@ -94,6 +96,8 @@ function sanitizeMoth(raw: unknown): Moth | null {
       typeof m.generation === "number" && Number.isFinite(m.generation)
         ? Math.max(1, Math.floor(m.generation))
         : 1,
+    // v8: traits. A save before them has none; an unknown id is dropped.
+    ...(typeof m.trait === "string" && MOTH_TRAIT_IDS.includes(m.trait) ? { trait: m.trait } : {}),
   };
 }
 
@@ -132,6 +136,7 @@ function sanitizeShore(s: Partial<SavedState>): {
   mothLures: number;
   mothLureAnchor: number;
   mothLureRushes: number;
+  mothPosts: Record<string, string>;
   expedition: ExpeditionState | null;
   relics: string[];
   storyFragmentIndex: number;
@@ -140,8 +145,22 @@ function sanitizeShore(s: Partial<SavedState>): {
     ? s.moths.map(sanitizeMoth).filter((m): m is Moth => m !== null)
     : [];
   const mothIds = new Set(moths.map((m) => m.id));
+  // v8: lighthouse posts. One moth per lit lighthouse, each moth at one post,
+  // and a posted moth is never also on duty. Saves before posts have none.
+  const lit = new Set(Array.isArray(s.litLighthouses) ? s.litLighthouses : []);
+  lit.add("first-light");
+  const mothPosts: Record<string, string> = {};
+  if (typeof s.mothPosts === "object" && s.mothPosts !== null) {
+    const used = new Set<string>();
+    for (const [lighthouseId, mothId] of Object.entries(s.mothPosts as Record<string, unknown>)) {
+      if (typeof mothId !== "string" || !lit.has(lighthouseId) || !mothIds.has(mothId) || used.has(mothId)) continue;
+      used.add(mothId);
+      mothPosts[lighthouseId] = mothId;
+    }
+  }
+  const posted = new Set(Object.values(mothPosts));
   const mothDuty = sanitizeIdList(s.mothDuty)
-    .filter((id) => mothIds.has(id))
+    .filter((id) => mothIds.has(id) && !posted.has(id))
     .slice(0, MAX_DUTY_MOTHS);
   return {
     moths,
@@ -153,6 +172,7 @@ function sanitizeShore(s: Partial<SavedState>): {
     mothLureAnchor:
       typeof s.mothLureAnchor === "number" && Number.isFinite(s.mothLureAnchor) ? s.mothLureAnchor : Date.now(),
     mothLureRushes: sanitizeCount(s.mothLureRushes),
+    mothPosts,
     expedition: sanitizeExpedition(s.expedition),
     relics: sanitizeIdList(s.relics, RELICS),
     storyFragmentIndex: sanitizeCount(s.storyFragmentIndex),
@@ -182,6 +202,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     mothLures: LURE_BANK,
     mothLureAnchor: now,
     mothLureRushes: 0,
+    mothPosts: {},
     expedition: null,
     relics: [],
     storyFragmentIndex: 0,
@@ -233,6 +254,7 @@ export function serializeState(state: GameState): SavedState {
     mothLures: state.mothLures,
     mothLureAnchor: state.mothLureAnchor,
     mothLureRushes: state.mothLureRushes,
+    mothPosts: { ...state.mothPosts },
     expedition: state.expedition ? { ...state.expedition } : null,
     relics: [...state.relics],
     storyFragmentIndex: state.storyFragmentIndex,

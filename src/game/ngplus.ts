@@ -1,6 +1,7 @@
 import Decimal from "break_infinity.js";
 import { FIRST_LIGHT_ID, HOLLOW_LIGHT_ID } from "./config";
 import { headStartLumen } from "./emberShop";
+import { vacateDarkPosts } from "./moths";
 import { addLog, defaultChainBoards } from "./state";
 import type { GameState } from "./types";
 import { isPermanentUpgrade } from "./upgrades";
@@ -64,6 +65,7 @@ export function startNgPlus(state: GameState): boolean {
   state.upgrades = state.upgrades.filter((id) => isPermanentUpgrade(id));
   state.litLighthouses = [FIRST_LIGHT_ID];
   state.chainBoards = defaultChainBoards();
+  vacateDarkPosts(state); // moths posted at the darkened lights come home
   state.activeChallenge = null;
   // …and the Ember ledger starts fresh, plus the inheritance (held only).
   state.embers = grantedEmbers;

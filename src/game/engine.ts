@@ -18,6 +18,7 @@ import {
 import { emberShopClickMultiplier, emberShopProductionMultiplier, offlineCapSeconds } from "./emberShop";
 import { relicClickMultiplier, relicProductionMultiplier } from "./expeditions";
 import { mothProductionMultiplier } from "./moths";
+import { tidewiseMultiplier } from "./mothTraits";
 import { legacyMultiplier } from "./ngplus";
 import { addLog } from "./state";
 import { tideClickMultiplier, tideProductionMultiplier } from "./tides";
@@ -141,7 +142,8 @@ export function baseProductionPerSecond(state: GameState): Decimal {
 }
 
 /**
- * Final Lumen/s: base production × chain factor × beam bonus × tide.
+ * Final Lumen/s: base production × chain factor × beam bonus × tide
+ * (× Tidewise moths on duty in High Tide or a Stormfront).
  * The chain factor is 0.25 + 0.75 × efficiency once the chain is unlocked
  * (1 before that); the beam bonus is +5% per Beam level across all boards.
  * The tide multiplier (Sprint 4) applies only here, at the very end: the
@@ -154,7 +156,8 @@ export function productionPerSecond(state: GameState, now?: number): Decimal {
   return baseProductionPerSecond(state)
     .mul(chainFactor(state, now))
     .mul(beamMultiplier(state))
-    .mul(tideProductionMultiplier(state, now));
+    .mul(tideProductionMultiplier(state, now))
+    .mul(tidewiseMultiplier(state, now));
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────

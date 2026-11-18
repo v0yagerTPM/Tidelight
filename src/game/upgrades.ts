@@ -3,6 +3,7 @@ import { EMBER_PRODUCTION_BONUS, GENERATORS, OFFLINE_RATE, litOfflineRateBonus }
 import { OFFLINE_RATE_HARD_CAP, emberHeartBonus, offlineRateBonus } from "./emberShop";
 import { relicOfflineRateBonus } from "./expeditions";
 import { formatNumber } from "./format";
+import { mothOfflineRateBonus } from "./mothTraits";
 import { addLog } from "./state";
 import type { GameState } from "./types";
 
@@ -276,7 +277,7 @@ export function offlineRateFor(state: GameState): number {
   const base = hasUpgrade(state, "longer-wicks") ? LONGER_WICKS_OFFLINE_RATE : OFFLINE_RATE;
   return Math.min(
     OFFLINE_RATE_HARD_CAP,
-    base + offlineRateBonus(state) + relicOfflineRateBonus(state) + litOfflineRateBonus(state.litLighthouses),
+    base + offlineRateBonus(state) + relicOfflineRateBonus(state) + litOfflineRateBonus(state.litLighthouses) + mothOfflineRateBonus(state),
   );
 }
 

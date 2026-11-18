@@ -24,6 +24,7 @@ import {
 import { chainSupportMultiplier, gullRockRelightCost } from "./emberShop";
 import { baseProductionPerSecond, lastingProductionMultiplier } from "./engine";
 import { relicNodeCostMultiplier, relicSupportMultiplier } from "./expeditions";
+import { postSupportMultiplier } from "./mothTraits";
 import { addLog, startBoard } from "./state";
 import { tideSupportMultiplier } from "./tides";
 import type { ChainBoard, GameState } from "./types";
@@ -125,6 +126,7 @@ export function nextLevelSupportGain(state: GameState, lighthouseId: string, nod
   const level = state.chainBoards[lighthouseId]?.[nodeId] ?? 0;
   return boardNodeSupport(lighthouseId, nodeId, level + 1)
     .sub(boardNodeSupport(lighthouseId, nodeId, level))
+    .mul(postSupportMultiplier(state, lighthouseId))
     .mul(supportMultiplier(state, now));
 }
 
@@ -133,11 +135,14 @@ export function nextLevelSupportGain(state: GameState, lighthouseId: string, nod
  * Deep Wicks (Ember perk, Sprint 3) raises every node's support by +25%;
  * the Tide Chart relic (Sprint 4) adds +15%; Widow's Walk lit (Sprint 5)
  * adds +50%; the tide scales support when a time is passed (Low Tide
- * ×1.2, Stormfront ×0.8).
+ * ×1.2, Stormfront ×0.8). A moth at a lighthouse post (mothTraits.ts)
+ * strengthens that one board: +glow × 0.2%, doubled for a Chain-tender.
  */
 export function totalSupport(state: GameState, nodeId: SupplyNodeId, now?: number): Decimal {
   let raw = startingCushion(state, nodeId);
-  for (const id of state.litLighthouses) raw = raw.add(boardNodeSupport(id, nodeId, state.chainBoards[id]?.[nodeId] ?? 0));
+  for (const id of state.litLighthouses) {
+    raw = raw.add(boardNodeSupport(id, nodeId, state.chainBoards[id]?.[nodeId] ?? 0).mul(postSupportMultiplier(state, id)));
+  }
   return raw
     .mul(chainSupportMultiplier(state))
     .mul(relicSupportMultiplier(state))

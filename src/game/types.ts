@@ -34,6 +34,8 @@ export interface Moth {
   glow: number;
   /** 1 for attracted moths; max(parents) + 1 for bred ones. */
   generation: number;
+  /** A trait id (see mothTraits.ts), absent for a moth without one. */
+  trait?: string;
 }
 
 /** A breeding in progress: two parents, ready to hatch at `readyAt` (ms). */
@@ -97,6 +99,8 @@ export interface GameState {
   mothLureAnchor: number;
   /** Rush lures bought since the bank last regrew one (prices the next). */
   mothLureRushes: number;
+  /** Lighthouse id → the moth posted there (see mothTraits.ts). */
+  mothPosts: Record<string, string>;
   /** The bottle expedition currently out, or null. */
   expedition: ExpeditionState | null;
   /** Relic ids claimed from expeditions (unique, permanent). */
@@ -147,6 +151,7 @@ export interface SavedState {
   mothLures: number;
   mothLureAnchor: number;
   mothLureRushes: number;
+  mothPosts: Record<string, string>;
   expedition: ExpeditionState | null;
   relics: string[];
   storyFragmentIndex: number;

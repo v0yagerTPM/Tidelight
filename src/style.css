@@ -400,6 +400,17 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
   font-size: 0.92rem;
 }
 .shore-actions { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; margin-top: 10px; }
+.moth-trait {
+  display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px;
+  border: 1px solid var(--lamp-deep); color: var(--lamp-soft);
+  font-size: 0.72rem; font-weight: 500; white-space: nowrap; cursor: help;
+}
+.moth-trait-line { color: var(--lamp-soft); opacity: 0.85; }
+.moth-post { padding: 10px 0; border-top: 1px solid var(--edge-soft); }
+.moth-post:first-of-type { margin-top: 6px; }
+.moth-post-name { font-family: var(--display); color: var(--lamp-soft); font-size: 1.05rem; }
+.moth-post .shore-actions { margin-top: 6px; }
+.moth-post .post-select { max-width: 100%; }
 .shore-action { display: inline-flex; flex-direction: column; gap: 4px; }
 .gen.moth { justify-content: flex-start; }
 .meadow {
