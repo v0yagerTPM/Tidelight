@@ -100,9 +100,10 @@ import {
 import type { BuyAmount, GameState } from "./game/types";
 import { ChainFlowRenderer } from "./scene/chainFlow";
 import { COAST_LAYOUT, CoastRenderer } from "./scene/coast";
-import { buildChainFlowModel, buildCoastModel, buildSceneModel } from "./scene/model";
+import { MeadowRenderer } from "./scene/meadow";
+import { buildChainFlowModel, buildCoastModel, buildMeadowModel, buildSceneModel } from "./scene/model";
 import { SceneRenderer } from "./scene/renderer";
-import { BRAND_MARK, GENERATOR_ICONS, TAB_ICONS, UNKNOWN_ICON } from "./ui/icons";
+import { BRAND_MARK, GENERATOR_ICONS, RELIC_ICONS, TAB_ICONS, UNKNOWN_ICON } from "./ui/icons";
 import {
   UPGRADES,
   buyUpgrade,
@@ -264,12 +265,13 @@ ${[
     <section id="view-shore" class="view">
       <h2>The Shore</h2>
       <p class="muted">What the glass sea gives back. Moths, relics and story fragments are permanent — they roost through every Rekindle.</p>
+      <div class="meadow"><canvas id="meadow-canvas" aria-hidden="true"></canvas></div>
       <h3 class="section-title">Lantern Moth Garden</h3>
       <div id="moth-area"></div>
       <h3 class="section-title">Bottle Expeditions</h3>
       <div id="expedition-area"></div>
       <h3 class="section-title">Relics of the Glass Sea</h3>
-      <div id="relic-shelf" class="card-list"></div>
+      <div id="relic-shelf" class="relic-cabinet"></div>
     </section>
 
     <section id="view-rekindle" class="view">
@@ -769,7 +771,7 @@ function rebuildShore(): void {
         const card = document.createElement("div");
         card.className = `gen moth${isDuty ? " purchased" : ""}`;
         card.innerHTML = `
-          <div class="moth-swatch" style="background:${pattern.swatch}"></div>
+          <div class="moth-portrait"><div class="moth-swatch" style="background:${pattern.swatch}"></div></div>
           <div class="gen-main">
             <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}</div>
             <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(moth.glow * 0.2).toFixed(1)}%` : ""}</div>
@@ -916,10 +918,10 @@ function rebuildShore(): void {
     for (const relic of RELICS) {
       const owned = state.relics.includes(relic.id);
       const card = document.createElement("div");
-      card.className = `card lighthouse${owned ? " lit" : " locked"}`;
+      card.className = `relic${owned ? " owned" : ""}`;
       card.innerHTML = owned
-        ? `<div class="gen-name">✦ ${relic.name}</div><p class="muted">${relic.effect}</p><p class="learned">Recovered ✓</p>`
-        : `<div class="gen-name">🌫 Undiscovered relic</div><p class="muted">The sea hasn't given this one up yet. Bottles bring them home.</p>`;
+        ? `<div class="relic-icon">${RELIC_ICONS[relic.id] ?? UNKNOWN_ICON}</div><div class="relic-name">${relic.name}</div><p class="relic-effect">${relic.effect}</p>`
+        : `<div class="relic-icon">${UNKNOWN_ICON}</div><div class="relic-name">Still at sea</div><p class="relic-effect">Bottles bring relics home.</p>`;
       relicShelf.appendChild(card);
     }
   }
@@ -1467,6 +1469,7 @@ function makeScene<T>(canvasId: string, make: (canvas: HTMLCanvasElement) => T):
 const scene = makeScene("#scene-canvas", (c) => new SceneRenderer(c));
 const coastScene = makeScene("#coast-canvas", (c) => new CoastRenderer(c));
 const chainFlowScene = makeScene("#chain-flow-canvas", (c) => new ChainFlowRenderer(c));
+const meadowScene = makeScene("#meadow-canvas", (c) => new MeadowRenderer(c));
 
 /**
  * Every scene, the view it lives in, and how to refresh its model. Only the
@@ -1481,6 +1484,7 @@ const SCENES: SceneEntry[] = [
   { tab: "light", renderer: scene, refresh: (now) => scene?.setModel(buildSceneModel(state, now)) },
   { tab: "lighthouses", renderer: coastScene, refresh: (now) => coastScene?.setModel(buildCoastModel(state, now), selectedBoardId) },
   { tab: "lighthouses", renderer: chainFlowScene, refresh: (now) => chainFlowScene?.setModel(buildChainFlowModel(state, now)) },
+  { tab: "shore", renderer: meadowScene, refresh: (now) => meadowScene?.setModel(buildMeadowModel(state, now)) },
 ];
 
 function refreshScene(): void {

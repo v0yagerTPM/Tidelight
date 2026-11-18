@@ -6,6 +6,7 @@ import {
   MOTH_WING_COLORS,
   buildChainFlowModel,
   buildCoastModel,
+  buildMeadowModel,
   buildSceneModel,
   reachFor,
   visibleCount,
@@ -113,5 +114,31 @@ describe("chain flow model", () => {
     expect(lens.flow).toBeCloseTo(10 / 22, 6);
     expect(lens.bottleneck).toBe(true);
     expect(m.chainFactor).toBeCloseTo(0.25 + 0.75 * (10 / 22), 6);
+  });
+});
+
+describe("meadow model", () => {
+  it("places duty and cocoon moths, and tracks the cocoon and the bottle's voyage", () => {
+    const state = createInitialState();
+    state.generators["lantern-moth"] = 1;
+    state.moths = [
+      { id: "a", name: "Ash", pattern: "plain", glow: 50, generation: 1 },
+      { id: "b", name: "Bee", pattern: "starlit", glow: 20, generation: 1 },
+      { id: "c", name: "Cob", pattern: "spotted", glow: 30, generation: 1 },
+    ];
+    state.mothDuty = ["a"];
+    state.cocoon = { parentIds: ["b", "c"], readyAt: NOW + 150_000 }; // halfway through 5 min
+    state.expedition = { routeId: "crossing", startedAt: NOW - 1_000, returnsAt: NOW + 3_000 };
+    const m = buildMeadowModel(state, NOW);
+    expect(m.unlocked).toBe(true);
+    expect(m.moths.map((x) => [x.id, x.duty, x.inCocoon])).toEqual([["a", true, false], ["b", false, true], ["c", false, true]]);
+    expect(m.cocoon).toEqual({ progress: 0.5, ready: false });
+    expect(m.bottle).toEqual({ progress: 0.25, reach: 1, ready: false });
+    expect(buildMeadowModel(state, NOW + 5_000).bottle?.ready).toBe(true);
+  });
+
+  it("an empty roost before the first Lantern Moth is asleep", () => {
+    const m = buildMeadowModel(createInitialState(), NOW);
+    expect(m).toEqual({ unlocked: false, moths: [], cocoon: null, bottle: null });
   });
 });

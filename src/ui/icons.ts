@@ -68,3 +68,31 @@ export const TAB_ICONS: Record<string, string> = {
   rekindle: svg(`<path d="M16 4c5 5 7 8.5 7 13a7 7 0 0 1-14 0c0-2.5 1-4.5 2.5-6 .5 2.5 2 3.5 3.5 3.5C14.5 11 14.5 7.5 16 4z"/><path d="M16 27a3 3 0 0 1-3-3c0-1.8 1.4-3 3-4.5 1.6 1.5 3 2.7 3 4.5a3 3 0 0 1-3 3z" fill="var(--lamp)" stroke="none"/>`),
   log: svg(`<path d="M6 6.5c3-1 7-1 10 1.5 3-2.5 7-2.5 10-1.5v19c-3-1-7-1-10 1.5-3-2.5-7-2.5-10-1.5z"/><path d="M16 8v19.5"/>`),
 };
+
+/** One icon per relic id, for the relic cabinet on the Shore. */
+export const RELIC_ICONS: Record<string, string> = {
+  "brass-compass": svg(
+    `<circle cx="16" cy="16" r="10.5"/><circle cx="16" cy="16" r="8" opacity=".5"/><path d="M16 9.5 18.3 16 16 22.5 13.7 16z" fill="var(--lamp)" stroke="none"/><path d="M16 4v2M16 26v2M4 16h2M26 16h2"/>`,
+  ),
+  "tide-chart": svg(
+    `<path d="M6 7h20v18H6z"/><path d="M9 13c2-1.5 4-1.5 6 0s4 1.5 6 0M9 18c2-1.5 4-1.5 6 0s4 1.5 6 0" opacity=".8"/><circle cx="22" cy="10.5" r="1.3" fill="var(--lamp)" stroke="none"/><path d="M6 7c-1 0-2 1-2 2v14c0 1 1 2 2 2M26 7c1 0 2 1 2 2v14c0 1-1 2-2 2"/>`,
+  ),
+  "salt-lens": svg(
+    `<circle cx="14" cy="14" r="8"/><path d="M10 11a5 5 0 0 1 5-3" stroke="var(--lamp)"/><path d="m20 20 7 7"/><path d="M24 6.5v3M22.5 8h3M7 23.5v2M6 24.5h2" opacity=".7"/>`,
+  ),
+  "keepers-coat": svg(
+    `<path d="M12 5h8l2 3 5 3-2 6-3-1v11H10V16l-3 1-2-6 5-3z"/><path d="M16 8v19" opacity=".6"/><circle cx="14.5" cy="13" r=".9" fill="var(--lamp)" stroke="none"/><circle cx="14.5" cy="18" r=".9" fill="var(--lamp)" stroke="none"/>`,
+  ),
+  "gull-feather": svg(
+    `<path d="M7 26C9 16 15 8 25 5c-1 9-7 16-16 19"/><path d="M7 26l10-12M12 21.5l-2.5-1.5M15 18.5l-2.5-2M18 15.5l-2-2.5M21 12l-1.5-2.5" opacity=".7"/>`,
+  ),
+  "amber-heart": svg(
+    `<path d="M16 26C9 21 5 17 5 12.5A5.5 5.5 0 0 1 16 10a5.5 5.5 0 0 1 11 2.5C27 17 23 21 16 26z" fill="var(--lamp)" fill-opacity=".35"/><path d="M11 12.5a2.5 2.5 0 0 1 2.5-2.5" stroke="var(--lamp)"/>`,
+  ),
+  "driftwood-cradle": svg(
+    `<path d="M4 17c3 6 21 6 24 0"/><path d="M6 16.5c4 2.5 16 2.5 20 0M8 21h16" opacity=".6"/><path d="M15.5 13C13 9.5 9.5 10.5 10 12.5c.4 1.6 3.4 2 5.5.9M16.5 13c2.5-3.5 6-2.5 5.5-.5-.4 1.6-3.4 2-5.5.9" fill="var(--lamp)" fill-opacity=".4"/>`,
+  ),
+  "storm-in-a-bottle": svg(
+    `<path d="M13 4h6M14 4v5c-3 1.5-5 4-5 8v8a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-8c0-4-2-6.5-5-8V4"/><path d="M12 17c2-2 6-2 8 0" opacity=".6"/><path d="m17 18-3 4.5h3.5L15 27" stroke="var(--lamp)"/>`,
+  ),
+};
