@@ -109,3 +109,33 @@ describe("the early game is unchanged at the start", () => {
     expect(totalSupport(state, "lens").toNumber()).toBe(10);
   });
 });
+
+describe("a run starts warm, however many Embers you hold", () => {
+  function tenCrabs(embers: number): GameState {
+    const state = createInitialState();
+    state.generators["candle-crab"] = 10; // the chain just woke
+    state.embers = embers;
+    return state;
+  }
+
+  it("1,000 held Embers start the chain as fed as a new keeper's", () => {
+    // Demand: 10 crabs × 0.5 × 21 (Embers) = 105/s. The starting Lens alone
+    // used to carry 10/s (9.5% efficiency); warmed ×21 it carries 210/s.
+    expect(chainStatus(tenCrabs(0)).efficiency).toBe(1);
+    expect(chainStatus(tenCrabs(1000)).efficiency).toBe(1);
+    expect(totalSupport(tenCrabs(1000), "lens").toNumber()).toBeCloseTo(210, 9);
+  });
+
+  it("only the starting levels are warmed; bought levels add their usual support", () => {
+    const state = tenCrabs(1000);
+    const before = totalSupport(state, "lens").toNumber();
+    state.chainBoards[FIRST_LIGHT_ID].lens = 2;
+    expect(totalSupport(state, "lens").toNumber() - before).toBeCloseTo(10 * 1.115, 9);
+  });
+
+  it("a penalty such as Fogbound's ×0.5 never shrinks the starting chain", () => {
+    const state = tenCrabs(0);
+    state.activeChallenge = "fogbound";
+    expect(totalSupport(state, "wick").toNumber()).toBe(20);
+  });
+});

@@ -181,12 +181,14 @@ describe("Gull Rock Light", () => {
     state.chainBoards[GULL_ROCK_ID] = { wick: 0, oil: 0, lens: 0, beam: 0 };
     // (Lit by hand here because this state's efficiency is under the
     // relight gate; the gate itself is covered above.)
-    expect(totalSupport(state, "wick").toNumber()).toBe(20); // unchanged
+    // First Light's starting Wick is warmed by Gull Rock's lasting +50%
+    // (startingCushion): 20 × 1.5. The empty Gull Rock board adds nothing.
+    expect(totalSupport(state, "wick").toNumber()).toBeCloseTo(30, 9);
     expect(buyNodeUpgrade(state, GULL_ROCK_ID, "wick")).toBe(true); // 4,000 at level 0 (×8 board)
     expect(buyNodeUpgrade(state, GULL_ROCK_ID, "wick")).toBe(true); // 4,400 at level 1
     expect(totalNodeLevels(state, "wick")).toBe(3); // 1 + 2
-    // First Light's 20, plus Gull Rock's two levels at ×8 scale: 8 × (20 + 20 × 1.095).
-    expect(totalSupport(state, "wick").toNumber()).toBeCloseTo(20 + 8 * (20 + 20 * 1.095), 9);
+    // That 30, plus Gull Rock's two levels at ×8 scale: 8 × (20 + 20 × 1.095).
+    expect(totalSupport(state, "wick").toNumber()).toBeCloseTo(30 + 8 * (20 + 20 * 1.095), 9);
   });
 });
 

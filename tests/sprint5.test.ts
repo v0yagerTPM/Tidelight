@@ -128,9 +128,11 @@ describe("lighthouse bonuses", () => {
     expect(relightLighthouse(before, GULL_ROCK_ID)).toBe(true);
     expect(relightLighthouse(before, CORMORANT_ROOST_ID)).toBe(true);
     expect(relightLighthouse(before, WIDOWS_WALK_ID)).toBe(true);
-    // Same boards as a fresh state (all starting levels), one multiplier more:
-    expect(totalSupport(before, "wick").toNumber()).toBeCloseTo(wickBefore * 1.5, 9);
-    expect(totalSupport(before, "lens").toNumber()).toBeCloseTo(10 * 1.5, 9);
+    // Same boards as a fresh state (all starting levels). First Light's
+    // start is warmed by the lit lights' lasting production bonus (Gull Rock
+    // ×1.5 × Cormorant Roost ×1.75), and Widow's Walk adds ×1.5 to support:
+    expect(totalSupport(before, "wick").toNumber()).toBeCloseTo(wickBefore * 1.5 * 1.75 * 1.5, 9);
+    expect(totalSupport(before, "lens").toNumber()).toBeCloseTo(10 * 1.5 * 1.75 * 1.5, 9);
   });
 
   it("The Bellwether: Rekindle Ember gain +25%", () => {

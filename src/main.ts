@@ -48,6 +48,7 @@ import { EMBER_PERKS, buyPerk, type EmberPerkDef } from "./game/emberShop";
 import {
   advanceToNow,
   applyOfflineEarnings,
+  lastingProductionMultiplier,
   buyQuote,
   buyWithAmount,
   clickBeam,
@@ -1488,6 +1489,11 @@ function updateChainView(): void {
       `${boardDef.name} board · Beam efficiency ${pct(status.efficiency)} ` +
       `(chain factor ×${status.chainFactor.toFixed(2)}${beamPct > 0 ? `, Beam +${beamPct}%` : ""}). ` +
       `Support sums across every lit lighthouse. This board works at ×${boardDef.boardScale} scale: its levels cost and support ×${boardDef.boardScale}.`;
+    const warm = lastingProductionMultiplier(state).toNumber();
+    if (warm > 1.005) {
+      chainSummary.textContent +=
+        ` First Light's starting Wick, Oil and Lens are warmed ×${fmt(warm)} by your lasting bonuses (Embers, perks, moths, relics, lighthouses), so every run starts fed.`;
+    }
   }
 }
 
@@ -1984,6 +1990,13 @@ function renderDynamic(): void {
   }
   if (hud.rkKept && hud.rkLost) {
     const kept: string[] = ["All Embers (old + new)", "Stats & log", "All-time Lumen"];
+    // The next run's warm start: lasting bonuses with the new Embers counted in.
+    const perEmber = emberBonusPerEmber(state);
+    const warmAfter = lastingProductionMultiplier(state)
+      .toNumber() * ((1 + (state.embers + gain) * perEmber) / (1 + state.embers * perEmber));
+    if (warmAfter > 1.005) {
+      kept.push(`A warm start: First Light's starting chain supports ×${fmt(warmAfter)}, so the new run begins fed`);
+    }
     const lost: string[] = ["Current Lumen", "All generators", "This run's lifetime"];
     const keptUps = state.upgrades.filter((id) => isPermanentUpgrade(id)).map((id) => upgradeById(id).name);
     const lostUps = state.upgrades.filter((id) => !isPermanentUpgrade(id)).map((id) => upgradeById(id).name);

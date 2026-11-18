@@ -123,12 +123,14 @@ describe("ember perk effects", () => {
 
   it("Deep Wicks: chain support +25% on every supply node", () => {
     const state = emberState(20);
-    expect(totalSupport(state, "wick").toNumber()).toBe(20);
-    expect(totalSupport(state, "lens").toNumber()).toBe(10);
+    // 20 held Embers (×1.4) warm First Light's starting levels (startingCushion).
+    expect(totalSupport(state, "wick").toNumber()).toBeCloseTo(20 * 1.4, 9);
+    expect(totalSupport(state, "lens").toNumber()).toBeCloseTo(10 * 1.4, 9);
     expect(buyPerk(state, "deep-wicks")).toBe(true);
-    expect(totalSupport(state, "wick").toNumber()).toBe(25);
-    expect(totalSupport(state, "oil").toNumber()).toBe(18.75);
-    expect(totalSupport(state, "lens").toNumber()).toBe(12.5);
+    // 8 Embers left (×1.16), and Deep Wicks multiplies all support ×1.25.
+    expect(totalSupport(state, "wick").toNumber()).toBeCloseTo(20 * 1.16 * 1.25, 9);
+    expect(totalSupport(state, "oil").toNumber()).toBeCloseTo(15 * 1.16 * 1.25, 9);
+    expect(totalSupport(state, "lens").toNumber()).toBeCloseTo(10 * 1.16 * 1.25, 9);
   });
 
   it("The Long Night: offline cap rises from 8h to 12h", () => {
