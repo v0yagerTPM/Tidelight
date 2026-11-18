@@ -722,3 +722,16 @@ The Bellwether (lighthouse 5) brought no helper, so after Beacon Whales
 | The Hollow Light (the ending) | 63.9h  | 62.0h |
 | Highest generator tier hired  | 8 of 8 | 9 of 9 |
 | Endgame chain efficiency      | 91%    | 91%   |
+
+## ✅ Post-launch — no accidental zoom on phones
+
+- [x] **Double-tap zoom:** rapid taps on Flash the Beam (or any button)
+      zoomed the page in and out. `touch-action: manipulation` on the root
+      and on every tappable element turns double-tap zoom off while keeping
+      scrolling and pinch-zoom (which people who need larger text rely on,
+      so the viewport stays zoomable).
+- [x] **Focus zoom:** iOS zooms into any form field under 16px when it
+      gets focus; the Moth Garden's selects were 12.8px and others 15.5px.
+      On touch screens, selects, inputs and the save box are now 16px.
+- [x] The beam no longer selects text, flashes a tap highlight or opens
+      the long-press menu when hammered.
