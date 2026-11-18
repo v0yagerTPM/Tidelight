@@ -98,12 +98,14 @@ import {
   startBoard,
 } from "./game/state";
 import type { BuyAmount, GameState } from "./game/types";
+import { Sound } from "./audio/sound";
 import { ChainFlowRenderer } from "./scene/chainFlow";
 import { COAST_LAYOUT, CoastRenderer } from "./scene/coast";
 import { MeadowRenderer } from "./scene/meadow";
+import { MomentRenderer, type MomentKind } from "./scene/moments";
 import { buildChainFlowModel, buildCoastModel, buildMeadowModel, buildSceneModel } from "./scene/model";
 import { SceneRenderer } from "./scene/renderer";
-import { BRAND_MARK, GENERATOR_ICONS, RELIC_ICONS, TAB_ICONS, UNKNOWN_ICON } from "./ui/icons";
+import { BRAND_MARK, GENERATOR_ICONS, RELIC_ICONS, SOUND_OFF_ICON, SOUND_ON_ICON, TAB_ICONS, UNKNOWN_ICON } from "./ui/icons";
 import {
   UPGRADES,
   buyUpgrade,
@@ -121,6 +123,11 @@ const state: GameState = loadState() ?? createInitialState();
 
 /** All displayed numbers honour the Keeper's Desk notation setting. */
 const fmt = (value: Decimal | number | string): string => formatNumber(value, state.notation);
+
+/** Synthesised sound (WebAudio); it starts on the first click or key press. */
+const sound = new Sound();
+window.addEventListener("pointerdown", () => sound.unlock(), { capture: true });
+window.addEventListener("keydown", () => sound.unlock(), { capture: true });
 
 /** Format a 0–1 fraction as a percentage that never reads "0%" while above zero. */
 function pct(fraction: number): string {
@@ -191,6 +198,7 @@ if (!app) throw new Error("#app not found");
 app.innerHTML = `
   <header class="hud">
     <div class="brand"><span class="brand-mark">${BRAND_MARK}</span><span class="brand-name">Tidelight</span></div>
+    <button id="sound-toggle" class="sound-toggle" aria-pressed="true" aria-label="Sound"></button>
     <div class="hud-stats">
       <div class="stat"><span class="stat-label">Lumen</span><strong id="hud-lumen">0</strong></div>
       <div class="stat"><span class="stat-label">per second</span><strong id="hud-rate">0</strong></div>
@@ -328,6 +336,16 @@ ${[
       </div>
     </section>
   </main>
+
+  <div id="moment" class="moment hidden" role="dialog" aria-modal="true" aria-labelledby="moment-title">
+    <canvas id="moment-canvas" aria-hidden="true"></canvas>
+    <div class="moment-text">
+      <div class="moment-eyebrow" id="moment-eyebrow"></div>
+      <h2 id="moment-title"></h2>
+      <p id="moment-body"></p>
+      <button class="buy affordable" id="moment-continue">Continue</button>
+    </div>
+  </div>
 `;
 
 // ── Tab switching ────────────────────────────────────────────────────────────
@@ -413,6 +431,7 @@ if (genList) {
     if (!buy) continue;
     buy.addEventListener("click", () => {
       if (buyWithAmount(state, def.id, state.buyAmount)) {
+        sound.buy();
         row.classList.remove("bought");
         void row.offsetWidth; // restart the purchase pulse
         row.classList.add("bought");
@@ -529,6 +548,7 @@ function rebuildUpgrades(): void {
       if (!buy) continue;
       buy.addEventListener("click", () => {
         if (buyUpgrade(state, def.id)) {
+          sound.chime();
           saveState(state);
           renderDynamic();
         }
@@ -596,6 +616,7 @@ function rebuildEmberShop(): void {
       if (!buy || !warning) continue;
       buy.addEventListener("click", () => {
         if (buyPerk(state, def.id)) {
+          sound.chime();
           saveState(state);
           renderDynamic();
         }
@@ -748,6 +769,7 @@ function rebuildShore(): void {
       shoreRefs.roostNote = controls.querySelector<HTMLElement>(".moth-roost-note");
       shoreRefs.attractBtn?.addEventListener("click", () => {
         if (attractMoth(state, Math.random)) {
+          sound.chime();
           saveState(state);
           renderDynamic();
         }
@@ -819,6 +841,7 @@ function rebuildShore(): void {
         shoreRefs.hatchBtn = breed.querySelector<HTMLButtonElement>(".cocoon-hatch");
         shoreRefs.hatchBtn?.addEventListener("click", () => {
           if (hatchCocoon(state, Math.random)) {
+            sound.chime();
             saveState(state);
             renderDynamic();
           }
@@ -851,6 +874,7 @@ function rebuildShore(): void {
         }
         breed.querySelector<HTMLButtonElement>(".breed-start")?.addEventListener("click", () => {
           if (startBreeding(state, breedParentA, breedParentB)) {
+            sound.buy();
             saveState(state);
             renderDynamic();
           }
@@ -879,6 +903,7 @@ function rebuildShore(): void {
       shoreRefs.claimBtn = card.querySelector<HTMLButtonElement>(".expedition-claim");
       shoreRefs.claimBtn?.addEventListener("click", () => {
         if (claimExpedition(state, Math.random)) {
+          sound.chime();
           saveState(state);
           renderDynamic();
         }
@@ -901,6 +926,7 @@ function rebuildShore(): void {
       if (btn) {
         btn.addEventListener("click", () => {
           if (sendExpedition(state, route.id)) {
+            sound.buy();
             saveState(state);
             renderDynamic();
           }
@@ -1088,6 +1114,13 @@ function rebuildEndingPanel(): void {
       checkStory(state);
       saveState(state);
       renderDynamic();
+      sound.rekindle();
+      playMoment(
+        "rekindle",
+        "The Next Keeping",
+        "A new keeper takes the lamp",
+        `Keeping № ${state.ngPlusCount + 1} begins at a cold lamp, with ${state.embers} inherited Embers and a legacy of ×${legacyMultiplier(state).toFixed(2)} production. The moths remember you.`,
+      );
     }
   });
   endingPanel.appendChild(panel);
@@ -1151,6 +1184,20 @@ function rebuildLighthouses(): void {
             checkStory(state);
             saveState(state);
             renderDynamic();
+            if (def.triggersEnding) {
+              sound.bell(true);
+              playMoment(
+                "ending",
+                "The Hollow Light",
+                "The Sea Remembers",
+                "Seven lights stand in a row across the glass, and the glass has remembered it was water. The ships that are mostly memory are coming home.",
+                null,
+              );
+            } else {
+              sound.bell();
+              const bonus = lighthouseBonusText(def);
+              playMoment("relight", `Lighthouse ${i + 1} of 7`, `${def.name} burns again`, bonus ? `Permanently: ${bonus}.` : "");
+            }
           }
         });
         card.appendChild(buyWrap);
@@ -1227,6 +1274,7 @@ function rebuildLighthouses(): void {
     if (!buy) return;
     buy.addEventListener("click", () => {
       if (buyNodeUpgrade(state, selectedBoardId, nodeId)) {
+        sound.buy();
         saveState(state);
         renderDynamic();
       }
@@ -1549,6 +1597,7 @@ function flashBeam(): void {
   const now = Date.now();
   const value = clickValue(state, now);
   clickBeam(state, now);
+  sound.flash();
   if (value.gt(0)) scene?.flash(`+${fmt(value)}`);
   renderDynamic();
 }
@@ -1558,14 +1607,82 @@ sceneCanvas?.addEventListener("pointerdown", (e) => {
   if (e.button === 0) flashBeam();
 });
 
+// ── Moments: full-screen set pieces for a Rekindle, a relight, the ending ───
+const momentEl = document.querySelector<HTMLDivElement>("#moment");
+const momentText = {
+  eyebrow: document.querySelector<HTMLElement>("#moment-eyebrow"),
+  title: document.querySelector<HTMLElement>("#moment-title"),
+  body: document.querySelector<HTMLElement>("#moment-body"),
+  button: document.querySelector<HTMLButtonElement>("#moment-continue"),
+};
+const momentScene = makeScene("#moment-canvas", (c) => new MomentRenderer(c));
+let momentTimer: number | undefined;
+let momentReturnFocus: Element | null = null;
+
+/** When each moment's words appear (s), after the picture has had its say. */
+const MOMENT_TEXT_DELAY: Record<MomentKind, number> = { rekindle: 2.2, relight: 1.2, ending: 4.6 };
+
+/**
+ * Play a moment over the whole screen. It closes on Continue, a click, or
+ * Escape — and on its own after `autoCloseMs` (null: stays until closed).
+ */
+function playMoment(kind: MomentKind, eyebrow: string, title: string, body: string, autoCloseMs: number | null = 7000): void {
+  if (!momentEl) return;
+  if (momentText.eyebrow) momentText.eyebrow.textContent = eyebrow;
+  if (momentText.title) momentText.title.textContent = title;
+  if (momentText.body) momentText.body.textContent = body;
+  momentEl.style.setProperty("--text-delay", `${MOMENT_TEXT_DELAY[kind]}s`);
+  momentEl.dataset.kind = kind;
+  momentReturnFocus = document.activeElement;
+  momentEl.classList.remove("hidden");
+  momentScene?.begin(kind);
+  momentScene?.start();
+  momentText.button?.focus({ preventScroll: true });
+  window.clearTimeout(momentTimer);
+  momentTimer = autoCloseMs === null ? undefined : window.setTimeout(closeMoment, autoCloseMs);
+}
+function closeMoment(): void {
+  if (!momentEl || momentEl.classList.contains("hidden")) return;
+  window.clearTimeout(momentTimer);
+  momentEl.classList.add("hidden");
+  momentScene?.stop();
+  if (momentReturnFocus instanceof HTMLElement) momentReturnFocus.focus({ preventScroll: true });
+}
+momentEl?.addEventListener("click", closeMoment);
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeMoment();
+});
+
+// ── Sound toggle (a per-device preference, not part of the save) ───────────
+const soundToggle = document.querySelector<HTMLButtonElement>("#sound-toggle");
+function showSoundState(): void {
+  if (!soundToggle) return;
+  soundToggle.innerHTML = sound.isEnabled ? SOUND_ON_ICON : SOUND_OFF_ICON;
+  soundToggle.setAttribute("aria-pressed", String(sound.isEnabled));
+  soundToggle.title = sound.isEnabled ? "Sound on — click to mute" : "Sound off — click to unmute";
+}
+soundToggle?.addEventListener("click", () => {
+  sound.setEnabled(!sound.isEnabled);
+  if (sound.isEnabled) sound.chime();
+  showSoundState();
+});
+showSoundState();
+
 // ── Rekindle (two-step confirm so nobody resets by accident) ────────────────
 const rkButton = document.querySelector<HTMLButtonElement>("#rk-button");
 if (rkButton) {
   armTwoStep(rkButton, () => `Are you sure? Click again to Rekindle for +${rekindleGain(state)} Embers`, () => {
     if (!canRekindle(state)) return;
-    rekindle(state);
+    const gained = rekindle(state);
     saveState(state);
     renderDynamic();
+    sound.rekindle();
+    playMoment(
+      "rekindle",
+      "Rekindle",
+      "The light catches again",
+      `+${gained} Embers banked. You hold ${state.embers}, and every flame burns +${state.embers * Math.round(emberBonusPerEmber(state) * 100)}% brighter.`,
+    );
   });
 }
 
@@ -1877,7 +1994,10 @@ function gameTick(): void {
     saveState(state);
   }
   // Story beats fire the moment their moment arrives (cheap predicates).
-  if (checkStory(state).length > 0) saveState(state);
+  if (checkStory(state).length > 0) {
+    sound.story();
+    saveState(state);
+  }
   if (document.hidden) return; // nothing to draw; the clock still runs
   try {
     renderDynamic();
@@ -1894,6 +2014,7 @@ setInterval(gameTick, 100);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) gameTick();
   syncSceneRunning();
+  sound.setHidden(document.hidden);
 });
 
 setInterval(() => saveState(state), 5_000);

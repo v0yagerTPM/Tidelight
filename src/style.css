@@ -519,6 +519,53 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
   resize: vertical;
 }
 
+/* ── Sound toggle ──────────────────────────────────── */
+.sound-toggle {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--edge-soft);
+  background: var(--ink-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+.sound-toggle svg { width: 20px; height: 20px; }
+.sound-toggle[aria-pressed="true"] { color: var(--lamp-soft); }
+
+/* ── Moments: full-screen set pieces ───────────────── */
+.moment {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: end center;
+  background: #03070f;
+  cursor: pointer;
+  animation: moment-in 0.5s ease-out;
+}
+@keyframes moment-in { from { opacity: 0; } to { opacity: 1; } }
+#moment-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.moment-text {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  max-width: 560px;
+  padding: 0 max(20px, env(safe-area-inset-left, 0px)) calc(48px + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+  opacity: 0;
+  animation: moment-text 1.2s ease-out var(--text-delay, 1s) forwards;
+}
+@keyframes moment-text { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.moment-eyebrow { font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--seafoam); }
+.moment-text h2 { margin: 0; font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.1; text-shadow: 0 0 30px rgba(255, 196, 99, 0.5); }
+.moment-text p { margin: 0 0 10px; color: var(--text); font-size: 1.05rem; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9); }
+.moment[data-kind="ending"] { place-items: center; }
+
 /* ── Narrow screens ────────────────────────────────── */
 @media (max-width: 700px) {
   :root { --tabbar-h: calc(64px + env(safe-area-inset-bottom, 0px)); }
@@ -574,6 +621,7 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .view.active, .gen.bought { animation: none; }
+  .view.active, .gen.bought, .moment { animation: none; }
+  .moment-text { animation: none; opacity: 1; }
   * { transition-duration: 0.01ms !important; }
 }

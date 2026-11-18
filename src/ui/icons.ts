@@ -96,3 +96,7 @@ export const RELIC_ICONS: Record<string, string> = {
     `<path d="M13 4h6M14 4v5c-3 1.5-5 4-5 8v8a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-8c0-4-2-6.5-5-8V4"/><path d="M12 17c2-2 6-2 8 0" opacity=".6"/><path d="m17 18-3 4.5h3.5L15 27" stroke="var(--lamp)"/>`,
   ),
 };
+
+/** The header's sound toggle. */
+export const SOUND_ON_ICON = svg(`<path d="M5 12.5h4.5L16 7v18l-6.5-5.5H5z"/><path d="M20 12a5 5 0 0 1 0 8M23 9a9 9 0 0 1 0 14"/>`);
+export const SOUND_OFF_ICON = svg(`<path d="M5 12.5h4.5L16 7v18l-6.5-5.5H5z"/><path d="m21 13 6 6M27 13l-6 6"/>`);
