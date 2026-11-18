@@ -541,7 +541,7 @@ const upgradeContainers = {
 const upgradesSummary = document.querySelector<HTMLElement>("#upgrades-summary");
 let availableUpgradeRows: UpgradeRow[] = [];
 let lockedUpgradeRows: LockedUpgradeRow[] = [];
-let upgradeStructureKey = "";
+let upgradeStructureKey: string | null = null;
 /** How many undiscovered lessons to show as silhouettes (the nearest first). */
 const LOCKED_LESSONS_SHOWN = 6;
 
@@ -659,6 +659,9 @@ function rebuildUpgrades(): void {
 }
 
 // ── Ember Shop: illustrated perk cards (rebuilt on ownership change) ─────────
+// Every view's structure key starts as null ("never built"), not "": a
+// keeper with no perks has an empty key, and an empty starting key once meant
+// the shop never built at all until a perk was owned — which needed the shop.
 interface PerkRow {
   def: EmberPerkDef;
   buy: HTMLButtonElement;
@@ -666,7 +669,7 @@ interface PerkRow {
 }
 const shopContainer = document.querySelector<HTMLDivElement>("#ember-shop");
 let shopRows: PerkRow[] = [];
-let shopStructureKey = "";
+let shopStructureKey: string | null = null;
 
 function rebuildEmberShop(): void {
   shopRows = [];
@@ -709,7 +712,7 @@ function rebuildEmberShop(): void {
 
 // ── Challenges: illustrated trial cards (rebuilt on active/completed change)
 const challengeContainer = document.querySelector<HTMLDivElement>("#challenges");
-let challengeStructureKey = "";
+let challengeStructureKey: string | null = null;
 interface ActiveChallengeRefs {
   bar: HTMLElement;
   label: HTMLElement;
@@ -792,7 +795,7 @@ function rebuildChallenges(): void {
 const mothArea = document.querySelector<HTMLDivElement>("#moth-area");
 const expeditionArea = document.querySelector<HTMLDivElement>("#expedition-area");
 const relicShelf = document.querySelector<HTMLDivElement>("#relic-shelf");
-let shoreStructureKey = "";
+let shoreStructureKey: string | null = null;
 let breedParentA = "";
 let breedParentB = "";
 
@@ -1146,7 +1149,7 @@ const lhList = document.querySelector<HTMLDivElement>("#lighthouse-list");
 const chainArea = document.querySelector<HTMLDivElement>("#chain-area");
 const endingPanel = document.querySelector<HTMLDivElement>("#ending-panel");
 let selectedBoardId: string = FIRST_LIGHT_ID;
-let lhStructureKey = "";
+let lhStructureKey: string | null = null;
 let relightBtn: HTMLButtonElement | null = null;
 let relightNote: HTMLElement | null = null;
 let relightTargetId: string | null = null;
@@ -1490,7 +1493,7 @@ function updateChainView(): void {
 
 // ── The Story section + Keeper's Desk (Log view, Sprint 5) ──────────────────
 const storyArea = document.querySelector<HTMLDivElement>("#story-area");
-let storyStructureKey = "";
+let storyStructureKey: string | null = null;
 
 function rebuildStory(): void {
   if (!storyArea) return;
@@ -1803,7 +1806,7 @@ const hud = {
   tideStrip: document.querySelector<HTMLElement>("#tide-strip"),
 };
 
-let logStructureKey = "";
+let logStructureKey: string | null = null;
 
 function renderDynamic(): void {
   const nowMs = Date.now();
