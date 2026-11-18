@@ -1,5 +1,6 @@
 import Decimal from "break_infinity.js";
 import { relicMothGlowBonus } from "./expeditions";
+import { formatNumber } from "./format";
 import { addLog } from "./state";
 import type { GameState, Moth } from "./types";
 
@@ -286,9 +287,26 @@ export function hatchCocoon(state: GameState, rng: () => number, now: number = D
 
 // ── Release ──────────────────────────────────────────────────────────────────
 
-/** Lumen a moth returns when released: 100 × glow × (pattern tier + 1). */
+/** A moth's base trade-in value: 100 × glow × (pattern tier + 1). */
 export function releaseValue(moth: Moth): Decimal {
   return new Decimal(100 * moth.glow * (patternById(moth.pattern).tier + 1));
+}
+
+/**
+ * Share of the re-attract price a release can pay at most. Attracting is
+ * priced on moths currently held, so without this cap an empty roost made
+ * attract-then-release a Lumen printer (attract 500, release ~11,000).
+ */
+export const RELEASE_PAYOUT_CAP = 0.4;
+
+/**
+ * What releasing this moth actually pays: its base value, capped at 40% of
+ * what attracting a moth will cost once it has gone. The loop always loses.
+ */
+export function releasePayout(state: GameState, moth: Moth): Decimal {
+  const heldAfter = Math.max(0, state.moths.length - 1);
+  const reattract = new Decimal(ATTRACT_BASE_COST).mul(new Decimal(ATTRACT_COST_GROWTH).pow(heldAfter)).ceil();
+  return Decimal.min(releaseValue(moth), reattract.mul(RELEASE_PAYOUT_CAP).floor());
 }
 
 /**
@@ -300,10 +318,10 @@ export function releaseMoth(state: GameState, mothId: string): Decimal | null {
   const moth = mothById(state, mothId);
   if (!moth) return null;
   if (isCocoonParent(state, mothId)) return null;
-  const value = releaseValue(moth);
+  const value = releasePayout(state, moth);
   state.moths = state.moths.filter((m) => m.id !== mothId);
   state.mothDuty = state.mothDuty.filter((id) => id !== mothId);
   state.lumen = state.lumen.add(value);
-  addLog(state, `${moth.name} drifts out over the glass sea, unhurried. The lamp is dimmer for it. (+${value.toString()} Lumen of stored lamplight)`);
+  addLog(state, `${moth.name} drifts out over the glass sea, unhurried. The lamp is dimmer for it. (+${formatNumber(value, state.notation)} Lumen of stored lamplight)`);
   return value;
 }

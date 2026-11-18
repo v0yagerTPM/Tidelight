@@ -1,11 +1,20 @@
 import Decimal from "break_infinity.js";
-import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, chainLighthouseById } from "./config";
+import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, GENERATORS, chainLighthouseById } from "./config";
+// The definition tables below are only read inside deserializeState (call
+// time), so these imports form no load-time cycle with modules that import
+// addLog from here.
+import { CHALLENGES } from "./challenges";
+import { EMBER_PERKS } from "./emberShop";
+import { RELICS } from "./expeditions";
+import { STORY_BEATS } from "./story";
+import { UPGRADES } from "./upgrades";
 import type {
   BuyAmount,
   ChainBoard,
   Cocoon,
   ExpeditionState,
   GameState,
+  LogEntry,
   Moth,
   SavedState,
   StorageLike,
@@ -135,7 +144,7 @@ function sanitizeShore(s: Partial<SavedState>): {
     roostExpansions: sanitizeCount(s.roostExpansions),
     cocoon: sanitizeCocoon(s.cocoon, moths),
     expedition: sanitizeExpedition(s.expedition),
-    relics: sanitizeIdList(s.relics),
+    relics: sanitizeIdList(s.relics, RELICS),
     storyFragmentIndex: sanitizeCount(s.storyFragmentIndex),
   };
 }
@@ -233,8 +242,42 @@ function sanitizeCount(value: unknown): number {
   return Math.max(0, Math.floor(value));
 }
 
-function sanitizeIdList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
+/**
+ * Keep only string ids, and — when a table of known ids is given — only ids
+ * that table defines, without duplicates. A save from a newer build or a
+ * hand-edited import can name perks, relics or upgrades this build doesn't
+ * know; looking those up throws, so they are dropped here instead.
+ */
+function sanitizeIdList(value: unknown, known?: readonly { id: string }[]): string[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = known ? new Set(known.map((d) => d.id)) : null;
+  const out: string[] = [];
+  for (const id of value) {
+    if (typeof id !== "string" || out.includes(id)) continue;
+    if (allowed && !allowed.has(id)) continue;
+    out.push(id);
+  }
+  return out;
+}
+
+/** Generator counts for known generators only, as whole non-negative numbers. */
+function sanitizeGenerators(value: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (typeof value !== "object" || value === null) return out;
+  const raw = value as Record<string, unknown>;
+  for (const def of GENERATORS) {
+    const count = sanitizeCount(raw[def.id]);
+    if (count > 0) out[def.id] = count;
+  }
+  return out;
+}
+
+function sanitizeLog(value: unknown): LogEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((e): e is LogEntry => typeof e === "object" && e !== null && typeof e.at === "number" && typeof e.message === "string")
+    .slice(-MAX_LOG_ENTRIES)
+    .map((e) => ({ at: e.at, message: e.message }));
 }
 
 export function deserializeState(raw: unknown): GameState | null {
@@ -261,28 +304,29 @@ export function deserializeState(raw: unknown): GameState | null {
       // so the held balance is the best (and only) lower bound for it.
       embersTotalEarned:
         typeof s.embersTotalEarned === "number" ? sanitizeCount(s.embersTotalEarned) : embers,
-      emberPerks: sanitizeIdList(s.emberPerks),
-      activeChallenge: typeof s.activeChallenge === "string" ? s.activeChallenge : null,
-      completedChallenges: sanitizeIdList(s.completedChallenges),
-      generators: typeof s.generators === "object" && s.generators !== null ? { ...s.generators } : {},
-      upgrades: Array.isArray(s.upgrades)
-        ? s.upgrades.filter((id): id is string => typeof id === "string")
-        : [],
+      emberPerks: sanitizeIdList(s.emberPerks, EMBER_PERKS),
+      activeChallenge:
+        typeof s.activeChallenge === "string" && CHALLENGES.some((c) => c.id === s.activeChallenge)
+          ? s.activeChallenge
+          : null,
+      completedChallenges: sanitizeIdList(s.completedChallenges, CHALLENGES),
+      generators: sanitizeGenerators(s.generators),
+      upgrades: sanitizeIdList(s.upgrades, UPGRADES),
       buyAmount: validBuyAmount(s.buyAmount),
       ...sanitizeChain(s.litLighthouses, s.chainBoards),
       ...sanitizeShore(s),
       // Sprint 5 migration: story unseen, ending unwitnessed, no Keepings
       // yet, standard notation — unless the save says otherwise.
-      storySeen: sanitizeIdList(s.storySeen),
+      storySeen: sanitizeIdList(s.storySeen, STORY_BEATS),
       endingSeen: s.endingSeen === true,
       ngPlusCount: sanitizeCount(s.ngPlusCount),
       notation: s.notation === "scientific" ? "scientific" : "standard",
-      totalClicks: s.totalClicks ?? 0,
-      totalGeneratorsBought: s.totalGeneratorsBought ?? 0,
-      totalRekindles: s.totalRekindles ?? 0,
-      playTimeSeconds: s.playTimeSeconds ?? 0,
-      lastSeen: typeof s.lastSeen === "number" ? s.lastSeen : Date.now(),
-      log: Array.isArray(s.log) ? s.log : [],
+      totalClicks: sanitizeCount(s.totalClicks),
+      totalGeneratorsBought: sanitizeCount(s.totalGeneratorsBought),
+      totalRekindles: sanitizeCount(s.totalRekindles),
+      playTimeSeconds: typeof s.playTimeSeconds === "number" && Number.isFinite(s.playTimeSeconds) ? Math.max(0, s.playTimeSeconds) : 0,
+      lastSeen: typeof s.lastSeen === "number" && Number.isFinite(s.lastSeen) ? s.lastSeen : Date.now(),
+      log: sanitizeLog(s.log),
     };
   } catch {
     return null; // A corrupt Decimal string should never brick the game.

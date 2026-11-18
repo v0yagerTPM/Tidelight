@@ -6,6 +6,7 @@ import {
   bulkCost,
   buyGenerator,
   costFor,
+  generatorProduction,
   maxAffordable,
   offlineEarnings,
   productionPerSecond,
@@ -54,8 +55,10 @@ describe("production", () => {
 
     const state = createInitialState();
     state.generators[crab.id] = 25;
-    // 25 crabs × 0.5/s × milestone ×2 = 25/s
-    expect(productionPerSecond(state).toNumber()).toBe(25);
+    // 25 crabs × 0.5/s × milestone ×2 = 25/s per generator. (25 generators
+    // also wake the supply chain, which taxes the TOTAL — so the milestone is
+    // asserted on the generator's own rate, as the Sprint 2 notes describe.)
+    expect(generatorProduction(state, crab).toNumber()).toBe(25);
   });
 
   it("held Embers add +2% production each", () => {

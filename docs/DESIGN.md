@@ -98,9 +98,28 @@ passes, no forced ads. If a free web demo exists, its only monetization
 is an optional one-time supporter purchase. Players praise idle games
 that respect their time; this design takes that as a hard rule.
 
+## Visual direction — nocturne in glass
+
+- Night ink and sea glass, with lamplight as the only saturated colour:
+  anything the keeper owns gives off light; anything not yet reached is
+  a silhouette.
+- The Light view opens on a canvas scene (`src/scene/`) that draws the
+  game's own state: the beam's strength and sputter follow the chain,
+  the six far lighthouses light as you relight them, the glass cracks
+  heal and, at the ending, turn to water; tides change the waterline,
+  rain and mirror; each generator type appears as a creature or light.
+- The scene reads a pure SceneModel built from game state 10×/s, never
+  GameState itself; it runs only while the Light view is visible and
+  holds still under prefers-reduced-motion.
+- Type: IM Fell English (story, names, flavour), Figtree (interface),
+  IBM Plex Mono (numbers) — bundled via @fontsource, so the Steam build
+  needs no network. Icons are inline SVG (`src/ui/icons.ts`).
+
 ## UI rules
 
 - Persistent header: Lumen, Lumen/s, Embers — never more than a glance.
+- Generator tiers reveal one at a time: every tier up to one past the
+  highest owned, then a single silhouette.
 - Tab menu with separate views (Light / Upgrades / Lighthouses / Shore /
   Rekindle / Log), never one long scrolling page.
 - Buy amounts ×1/×10/×100/Max, time-to-afford on every purchase,

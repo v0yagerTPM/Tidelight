@@ -21,6 +21,14 @@ save export/import. The full design lives in
 [docs/SPRINTS.md](docs/SPRINTS.md); the Steam wrapper guide is
 [docs/STEAM.md](docs/STEAM.md).
 
+**Post-launch — playtest fixes and Overhaul phase 1.** Five bugs from
+the first full playtest are fixed (see SPRINTS.md), and the graphics
+overhaul has begun: the Light view opens on a living scene of
+Candlewick Point — the beam, the glass sea, the tides, the seven
+lighthouses on the horizon, and every kind of helper you've hired —
+with a new type and colour system, illustrated generator rows, and a
+bottom tab bar on phones.
+
 ## What's playable
 
 - **The full early loop** — Flash the Beam, hire all 8 generator tiers,
@@ -119,7 +127,8 @@ npm run build      # typecheck + production build to dist/
 
 ## Controls
 
-- **Flash the Beam** — +1 Lumen per click (upgradable to +8).
+- **Flash the Beam** — +1 Lumen per click (upgradable to +8). Tap
+  anywhere on the lighthouse scene, or use the button.
 - **Buy** — hire generators at the selected buy amount (×1/×10/×100/Max).
   Unaffordable buttons show how long until you can afford the batch.
 - **Upgrades tab** — spend Lumen on one-time upgrades as they unlock.
@@ -134,7 +143,7 @@ npm run build      # typecheck + production build to dist/
 - **Log tab** — the story so far, the Keeper's Log, and the Keeper's
   Desk (notation, save export/import, hard reset).
 - **Tabs** — Light · Upgrades · Lighthouses · Shore · Rekindle · Log.
-  One view at a time.
+  One view at a time; on phones they sit in a bottom bar.
 - Progress saves automatically to your browser (localStorage,
   `tidelight-save-v1`), including offline earnings for up to 8 hours.
 

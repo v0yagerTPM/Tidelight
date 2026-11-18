@@ -28,6 +28,7 @@ import {
   mothsUnlocked,
   patternById,
   releaseMoth,
+  releasePayout,
   releaseValue,
   roostExpansionCost,
   startBreeding,
@@ -251,16 +252,36 @@ describe("lantern moths — breeding", () => {
 describe("lantern moths — release", () => {
   it("release pays 100 × glow × (tier + 1), to the purse only, and clears duty", () => {
     const state = gardenState(0);
-    state.moths = [moth("a", "striped", 40)]; // tier 2
+    // A full roost: re-attracting would cost 500 × 2.2^5, so the 40% cap
+    // (≈10.3K) doesn't bind on this moth's 6,000 base value.
+    state.moths = [moth("a", "striped", 20), ...["b", "c", "d", "e", "f"].map((id) => moth(id, "plain", 10))];
     toggleDuty(state, "a");
-    expect(releaseValue(state.moths[0]).toNumber()).toBe(100 * 40 * 3);
+    expect(releaseValue(state.moths[0]).toNumber()).toBe(100 * 20 * 3);
     const gained = releaseMoth(state, "a");
-    expect(gained!.toNumber()).toBe(12_000);
-    expect(state.lumen.toNumber()).toBe(12_000);
+    expect(gained!.toNumber()).toBe(6_000);
+    expect(state.lumen.toNumber()).toBe(6_000);
     expect(state.lifetimeLumen.toNumber()).toBe(0); // a trade-in, not earnings
-    expect(state.moths).toEqual([]);
+    expect(state.moths.map((m) => m.id)).toEqual(["b", "c", "d", "e", "f"]);
     expect(state.mothDuty).toEqual([]);
     expect(releaseMoth(state, "a")).toBeNull(); // already gone
+  });
+
+  it("release pays at most 40% of the re-attract price, so attract-and-release always loses", () => {
+    const state = gardenState(0);
+    state.moths = [moth("a", "striped", 40)]; // base value 12,000
+    // After release the roost is empty: re-attracting costs 500 → cap 200.
+    expect(releasePayout(state, state.moths[0]).toNumber()).toBe(200);
+    expect(releaseMoth(state, "a")!.toNumber()).toBe(200);
+
+    // The loop that used to print Lumen: 200 cycles from a 500 purse.
+    const loop = gardenState(500);
+    const rng = mulberry32(42);
+    for (let i = 0; i < 200; i++) {
+      const m = attractMoth(loop, rng);
+      if (!m) break;
+      releaseMoth(loop, m.id);
+    }
+    expect(loop.lumen.toNumber()).toBeLessThan(500);
   });
 
   it("a moth in the cocoon cannot be released", () => {

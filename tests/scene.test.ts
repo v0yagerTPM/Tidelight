@@ -1,0 +1,77 @@
+import { describe, expect, it } from "vitest";
+import { CHAIN_LIGHTHOUSES, HOLLOW_LIGHT_ID } from "../src/game/config";
+import { createInitialState, startBoard } from "../src/game/state";
+import { MOTH_WING_COLORS, buildSceneModel, reachFor, visibleCount } from "../src/scene/model";
+
+// The scene model maps game state to what the Light-view scene draws. The
+// renderer itself is canvas drawing; these tests pin the mapping.
+
+const NOW = 1_700_000_000_000;
+
+describe("scene model", () => {
+  it("a fresh keeper: a dark coast, no helpers, glass sea", () => {
+    const m = buildSceneModel(createInitialState(), NOW);
+    expect(m.farLit).toEqual([false, false, false, false, false, false]);
+    expect(m.seaIsWater).toBe(false);
+    expect(m.crabs + m.motes + m.bells + m.cottageWindows + m.lensGlints + m.stormLanterns + m.whales).toBe(0);
+    expect(m.seventh).toBe(0);
+    expect(m.reach).toBe(0);
+    expect(m.beamStrength).toBe(1); // the chain is asleep: full strength
+    expect(m.starved).toBe(false);
+  });
+
+  it("each copy shows at first, then counts fill slowly toward their cap", () => {
+    expect(visibleCount(0, 12)).toBe(0);
+    expect(visibleCount(1, 12)).toBe(1);
+    expect(visibleCount(3, 12)).toBe(3);
+    expect(visibleCount(500, 12)).toBe(12);
+    for (let n = 1; n < 200; n++) expect(visibleCount(n + 1, 12)).toBeGreaterThanOrEqual(visibleCount(n, 12));
+  });
+
+  it("lamplight reach grows with production and stays within 0–1", () => {
+    expect(reachFor(0)).toBe(0);
+    expect(reachFor(10)).toBeGreaterThan(reachFor(1));
+    expect(reachFor(1e6)).toBeGreaterThan(reachFor(1e3));
+    expect(reachFor(1e30)).toBe(1);
+  });
+
+  it("lit lighthouses light up on the horizon; The Hollow Light turns glass to water", () => {
+    const state = createInitialState();
+    for (const lh of CHAIN_LIGHTHOUSES.slice(1, 3)) {
+      state.litLighthouses.push(lh.id);
+      state.chainBoards[lh.id] = startBoard(lh.id);
+    }
+    expect(buildSceneModel(state, NOW).farLit).toEqual([true, true, false, false, false, false]);
+    state.litLighthouses.push(HOLLOW_LIGHT_ID);
+    expect(buildSceneModel(state, NOW).seaIsWater).toBe(true);
+  });
+
+  it("a starved chain weakens and flags the beam", () => {
+    const state = createInitialState();
+    state.generators["candle-crab"] = 10;
+    state.generators["beacon-whale"] = 1; // far more demand than 1/1/1 can support
+    const m = buildSceneModel(state, NOW);
+    expect(m.starved).toBe(true);
+    expect(m.beamStrength).toBeLessThan(0.5);
+    expect(m.whales).toBe(1);
+  });
+
+  it("duty moths fly in their own wing colours", () => {
+    const state = createInitialState();
+    state.moths = [
+      { id: "a", name: "Ash", pattern: "prismatic", glow: 80, generation: 1 },
+      { id: "b", name: "Bee", pattern: "unknown-pattern", glow: 10, generation: 1 },
+    ];
+    state.mothDuty = ["a", "b"];
+    const m = buildSceneModel(state, NOW);
+    expect(m.duty).toHaveLength(2);
+    expect(m.duty[0]).toEqual({ color: MOTH_WING_COLORS.prismatic, glow: 0.8, tier: 5 });
+    expect(m.duty[1].color).toBe(MOTH_WING_COLORS.plain); // unknown patterns fall back to Plain
+  });
+
+  it("one Seventh Light already shows its halo", () => {
+    const state = createInitialState();
+    state.generators["seventh-light"] = 1;
+    expect(buildSceneModel(state, NOW).seventh).toBeGreaterThanOrEqual(0.3);
+  });
+});
