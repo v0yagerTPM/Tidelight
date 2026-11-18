@@ -15,7 +15,8 @@
 // the recommended 40 Embers) and on to the second.
 //
 // Phase B — the endgame, played plainly (post-launch rebalance): grow
-// greedily, keep the chain fed, and once the next lighthouse costs no more
+// greedily, keep the chain fed (saving for a chain level when it costs no
+// more than 10 minutes of production, as a keeper would), and once the next lighthouse costs no more
 // than SAVE_WINDOW_SECONDS of production, stop growing and save for it
 // (feeding the chain out of the surplus until its gate is met), then
 // relight. Rekindle whenever the gain is at least half the Embers held
@@ -73,7 +74,16 @@ export interface SimResult {
  */
 export const REKINDLE_GROWTH = 0.5;
 
-export function runSim(opts: { verbose?: boolean; rekindleGrowth?: number } = {}): SimResult {
+export interface SimOptions {
+  verbose?: boolean;
+  rekindleGrowth?: number;
+  /** Tuning shortcut: stop as soon as this lighthouse is lit. */
+  stopWhenLit?: string;
+  /** Tuning shortcut: stop at this many sim hours. */
+  stopAfterHours?: number;
+}
+
+export function runSim(opts: SimOptions = {}): SimResult {
   const rekindleGrowth = opts.rekindleGrowth ?? REKINDLE_GROWTH;
   const out: string[] = [];
   const say = (line: string) => {
@@ -151,7 +161,9 @@ export function runSim(opts: { verbose?: boolean; rekindleGrowth?: number } = {}
   let report = totalT;
   const curve: Record<number, number> = {};
   const SAMPLE_HOURS = [2, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128];
-  while (endingAt === null && totalT < ENDGAME_CAP_SECONDS && secondRekindleAt !== null) {
+  const capSeconds = Math.min(ENDGAME_CAP_SECONDS, (opts.stopAfterHours ?? Infinity) * 3600);
+  while (endingAt === null && totalT < capSeconds && secondRekindleAt !== null) {
+    if (opts.stopWhenLit && state.litLighthouses.includes(opts.stopWhenLit)) break;
     const dt = totalT < 6 * 3600 ? 2 : totalT < 24 * 3600 ? 10 : 60;
     const nextId = nextLighthouseId(state);
     let saving = false;
@@ -170,7 +182,7 @@ export function runSim(opts: { verbose?: boolean; rekindleGrowth?: number } = {}
     }
     if (!saving) {
       savingSince = null;
-      botBuyPhase(state, runT, hooks, { feedPaybackCapSeconds: 3600 });
+      botBuyPhase(state, runT, hooks, { saveToFeedSeconds: 600 });
     }
     noteTiers();
     if (state.litLighthouses.includes(HOLLOW_LIGHT_ID)) {

@@ -188,6 +188,14 @@ export interface BotBuyOptions {
    * most this many seconds (cheap growth that barely moves demand).
    */
   growthPaybackCapSeconds?: number;
+  /**
+   * Feed patience (growth mode): when the chain is short and the next
+   * bottleneck level costs no more than this many seconds of production,
+   * save for it instead of spending on generators first. Without it, a bot
+   * that spends every Lumen each step never affords a chain level and runs
+   * starved however well feeding would pay.
+   */
+  saveToFeedSeconds?: number;
   /** Savings mode only: never let a purchase drop the purse below this. */
   reserveLumen?: Decimal;
   /**
@@ -235,6 +243,14 @@ export function botBuyPhase(
           worthIt = gain.gt(0) && cost.div(gain).toNumber() <= options.feedPaybackCapSeconds;
         }
         if (worthIt && buyNodeUpgrade(state, boardId, status.bottleneck)) continue;
+        if (
+          !options.saveForLighthouse &&
+          options.saveToFeedSeconds !== undefined &&
+          state.lumen.lt(cost) &&
+          cost.lte(productionPerSecond(state).mul(options.saveToFeedSeconds))
+        ) {
+          break; // wait a moment for a chain level worth more than more generators
+        }
       }
     }
     // Purchases.
