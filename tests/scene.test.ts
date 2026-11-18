@@ -95,7 +95,7 @@ describe("coast model", () => {
     expect(m.towers.slice(2).every((t) => !t.isNext && t.readiness === 0)).toBe(true);
 
     state.generators["candle-crab"] = 10; // chain awake, 5/s, fully supported
-    state.lumen = new Decimal(1_000_000); // half of Gull Rock's 2,000,000
+    state.lumen = new Decimal(2_500_000); // half of Gull Rock's 5,000,000
     m = buildCoastModel(state, NOW);
     expect(m.towers[1].readiness).toBeCloseTo(0.5, 6);
   });

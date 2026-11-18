@@ -429,8 +429,72 @@ save, and scripted probes against the game modules):
 
 **Still to do**
 
-- [ ] Balance: chain support that scales with demand and gates in the
-      40–90% band, so buying generators never pushes the ending away (the
-      sim's bot still owns none of tiers 6–8 after 200 hours); softer
-      scaling for held Embers.
 - [ ] Upgrades and Rekindle views: illustrated upgrade and perk cards.
+
+## ✅ Post-launch — the rebalance
+
+The playtest found the economy only held together because the chain
+throttled it: support grew linearly per level against exponential demand,
+efficiency sat near 0% for most of the game, every generator bought
+pushed the lighthouse gates further away (they had to fall to 0.2%), and
+the sim's bot reached the ending only through a "demand cap" — refusing
+to grow — never owning a tier above Lens Polisher. Fixing the chain
+alone exposed the rest: unthrottled, Embers let a single run climb the
+whole generator ladder, production leapt seven orders of magnitude in an
+hour, and the game flattened into a plateau after it.
+
+- [x] **Geometric chain support** (`config.ts` CHAIN_NODES, `chain.ts`):
+      level k adds supportPerLevel × supportGrowth^(k−1); support grows
+      just slower than cost (1.095 / 1.105 / 1.115 vs 1.10 / 1.11 / 1.12),
+      so feeding the chain costs a steady slice of production at every
+      scale and deep boards slowly get dearer per Lumen/s. Level 1 is
+      unchanged (20 / 15 / 10). Node prices ×5 (500 / 1,000 / 2,000) keep
+      the first Rekindle near its old pace. Each lighthouse's board works
+      at its own scale (`boardScale`, was `boardCostMultiplier`): costs
+      and support both, so a fresh board is the best-value support there
+      is. Upgrade buttons show the support their next level adds.
+- [x] **Real gates**: 50 / 60 / 65 / 70 / 75 / 80% (were 50 / 20 / 5 /
+      2 / 0.5 / 0.2%). `tests/balance.test.ts` shows an hour of
+      production fed to the chain clears 80% at demands from 1e3 to
+      1e15 — growing never locks the ending.
+- [x] **The upper tiers answer the relit lighthouses**: Lens Polishers
+      with Gull Rock, Storm Lanterns with Cormorant Roost, Beacon Whales
+      with Widow's Walk, The Seventh Light with Siren's Rest. Production
+      climbs a staircase with the story. Copies already owned keep
+      producing. Locked rows name their lighthouse; the next lighthouse's
+      card says what relighting it brings.
+- [x] **Relight costs re-paced** with the sim: Gull Rock 5M, Cormorant
+      Roost 840M, Widow's Walk 3.4T, The Bellwether 7.6e18, Siren's Rest
+      8.5e21, The Hollow Light 3.2e24 (were 2M / 25M / 150M / 1B / 8B /
+      60B — trivial once the chain stopped throttling production).
+- [x] **Held Embers: left as they were.** The review flagged them as
+      swamping other bonuses; on closer reading every bonus multiplies,
+      so a +10% relic is still +10%. An Ember-curve knee (cube root past
+      100 Embers) was tried to stop the runaway and proved unnecessary
+      once the ladder was gated — with it the late game went flat — so
+      it was removed. Ember counts now display through the number
+      formatter (they reach the billions late).
+- [x] **The sim** (`scripts/simCore.ts`, reported by `npm run sim`) plays
+      the endgame plainly — no demand cap: grow greedily, keep the chain
+      fed (saving for a chain level worth ≤10 minutes of production, as a
+      keeper would; the old payback cap stalled feeding whenever two
+      nodes tied), save for each light once it costs ≤30 minutes of
+      production, Rekindle for +50% Embers. `scripts/tune.ts` and
+      `scripts/autotune.ts` are the tuning tools used for the numbers
+      above.
+
+| Bot (`npm run sim`)            | Before    | After     |
+| ------------------------------ | --------- | --------- |
+| First Rekindle                 | 103 min   | 85 min    |
+| Second Rekindle                | +69 min   | +60 min   |
+| Gull Rock                      | 6.7h      | 3.5h      |
+| Cormorant Roost                | 14.7h     | 6.7h      |
+| Widow's Walk                   | 26.4h     | 12.4h     |
+| The Bellwether                 | 42.0h     | 21.8h     |
+| Siren's Rest                   | 153.0h    | 37.5h     |
+| The Hollow Light (the ending)  | 200.9h    | 64.9h     |
+| Highest generator tier hired   | 5 of 8    | 8 of 8    |
+| Endgame chain efficiency, mean | ~0%       | 86%       |
+
+Existing saves load unchanged, but a keeper partway up the coast meets
+the new prices from their next relight on.

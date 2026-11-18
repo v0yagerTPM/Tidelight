@@ -1123,7 +1123,7 @@ function rebuildEndingPanel(): void {
         "rekindle",
         "The Next Keeping",
         "A new keeper takes the lamp",
-        `Keeping № ${state.ngPlusCount + 1} begins at a cold lamp, with ${state.embers} inherited Embers and a legacy of ×${legacyMultiplier(state).toFixed(2)} production. The moths remember you.`,
+        `Keeping № ${state.ngPlusCount + 1} begins at a cold lamp, with ${fmt(state.embers)} inherited Embers and a legacy of ×${legacyMultiplier(state).toFixed(2)} production. The moths remember you.`,
       );
     }
   });
@@ -1174,7 +1174,7 @@ function rebuildLighthouses(): void {
       // full description and the Relight button. The coast above shows all.
       card.innerHTML = `
         <div class="gen-name"><span class="lh-num">${i + 1}</span> ${def.name}</div>
-        ${isNextCard ? `<p class="muted">${def.hint}</p>` : ""}
+        ${isNextCard ? `<p class="muted">${def.hint}</p>${bonus ? `<p class="lh-grants">Relighting it grants: ${bonus}</p>` : ""}` : ""}
         ${lit ? `<p class="learned">Lit ✓${bonus ? ` — ${bonus}` : ""}</p>` : ""}`;
       if (!lit && def.id === relightTargetId) {
         const buyWrap = document.createElement("div");
@@ -1678,7 +1678,7 @@ showSoundState();
 // ── Rekindle (two-step confirm so nobody resets by accident) ────────────────
 const rkButton = document.querySelector<HTMLButtonElement>("#rk-button");
 if (rkButton) {
-  armTwoStep(rkButton, () => `Are you sure? Click again to Rekindle for +${rekindleGain(state)} Embers`, () => {
+  armTwoStep(rkButton, () => `Are you sure? Click again to Rekindle for +${fmt(rekindleGain(state))} Embers`, () => {
     if (!canRekindle(state)) return;
     const gained = rekindle(state);
     saveState(state);
@@ -1688,7 +1688,7 @@ if (rkButton) {
       "rekindle",
       "Rekindle",
       "The light catches again",
-      `+${gained} Embers banked. You hold ${state.embers}, and every flame burns +${state.embers * Math.round(emberBonusPerEmber(state) * 100)}% brighter.`,
+      `+${fmt(gained)} Embers banked. You hold ${fmt(state.embers)}, and every flame burns +${fmt(state.embers * Math.round(emberBonusPerEmber(state) * 100))}% brighter.`,
     );
   });
 }
@@ -1721,7 +1721,7 @@ function renderDynamic(): void {
   const nowMs = Date.now();
   if (hud.lumen) hud.lumen.textContent = fmt(state.lumen);
   if (hud.rate) hud.rate.textContent = `${fmt(productionPerSecond(state, nowMs))}/s`;
-  if (hud.embers) hud.embers.textContent = String(state.embers);
+  if (hud.embers) hud.embers.textContent = fmt(state.embers);
   if (hud.beamHint) {
     hud.beamHint.textContent = `+${fmt(clickValue(state, nowMs))} Lumen per flash. Hire help below and the light keeps itself.`;
   }
@@ -1849,11 +1849,11 @@ function renderDynamic(): void {
   // Rekindle view
   const gain = rekindleGain(state);
   const perEmberPct = Math.round(emberBonusPerEmber(state) * 100);
-  if (hud.rkGain) hud.rkGain.textContent = String(gain);
-  if (hud.rkHeld) hud.rkHeld.textContent = String(state.embers);
+  if (hud.rkGain) hud.rkGain.textContent = fmt(gain);
+  if (hud.rkHeld) hud.rkHeld.textContent = fmt(state.embers);
   if (hud.rkHeldLabel) hud.rkHeldLabel.textContent = `Embers held (each: +${perEmberPct}% production)`;
-  if (hud.rkTotal) hud.rkTotal.textContent = String(state.embersTotalEarned);
-  if (hud.rkBonus) hud.rkBonus.textContent = `+${state.embers * perEmberPct}%`;
+  if (hud.rkTotal) hud.rkTotal.textContent = fmt(state.embersTotalEarned);
+  if (hud.rkBonus) hud.rkBonus.textContent = `+${fmt(state.embers * perEmberPct)}%`;
   if (hud.rkRecovery) {
     hud.rkRecovery.textContent =
       state.activeChallenge !== null
@@ -1866,7 +1866,7 @@ function renderDynamic(): void {
     hud.rkLabel.textContent =
       gain >= PRESTIGE_RECOMMENDED_EMBERS
         ? `Recommended first Rekindle: ${PRESTIGE_RECOMMENDED_EMBERS} Embers — reached ✓`
-        : `Recommended first Rekindle: ${PRESTIGE_RECOMMENDED_EMBERS} Embers (${gain} so far — early Rekindles pay very little)`;
+        : `Recommended first Rekindle: ${PRESTIGE_RECOMMENDED_EMBERS} Embers (${fmt(gain)} so far — early Rekindles pay very little)`;
   }
   if (hud.rkBar) {
     hud.rkBar.style.width = `${Math.min(100, (gain / PRESTIGE_RECOMMENDED_EMBERS) * 100)}%`;
@@ -1916,7 +1916,7 @@ function renderDynamic(): void {
         rkButton.textContent = `Rekindle unavailable — the ${activeChallenge(state)?.name} challenge is in progress (finish or abandon it first)`;
       } else {
         rkButton.textContent = canRekindle(state)
-          ? `Rekindle the Light (+${gain} Embers)`
+          ? `Rekindle the Light (+${fmt(gain)} Embers)`
           : "Rekindle the Light (earn 5,000 lifetime Lumen for your first Ember)";
       }
     }
@@ -1929,14 +1929,14 @@ function renderDynamic(): void {
     rebuildEmberShop();
   }
   if (hud.shopHeld) {
-    hud.shopHeld.textContent = `You hold ${state.embers} Embers (${state.embersTotalEarned} earned all-time).`;
+    hud.shopHeld.textContent = `You hold ${fmt(state.embers)} Embers (${fmt(state.embersTotalEarned)} earned all-time).`;
   }
   for (const row of shopRows) {
     const affordable = state.embers >= row.def.costEmbers;
     row.buy.disabled = !affordable;
     row.buy.classList.toggle("affordable", affordable);
     const bonusLoss = row.def.costEmbers * perEmberPct;
-    row.warning.textContent = `Spending ${row.def.costEmbers} Embers lowers your held bonus by ${bonusLoss}% (from +${state.embers * perEmberPct}% to +${(state.embers - row.def.costEmbers) * perEmberPct}%).`;
+    row.warning.textContent = `Spending ${row.def.costEmbers} Embers lowers your held bonus by ${bonusLoss}% (from +${fmt(state.embers * perEmberPct)}% to +${fmt((state.embers - row.def.costEmbers) * perEmberPct)}%).`;
   }
 
   // The Shore: rebuild on structure change, refresh costs/countdowns in place.

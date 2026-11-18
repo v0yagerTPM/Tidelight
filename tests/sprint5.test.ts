@@ -39,11 +39,12 @@ const ALL_RELIGHTABLE = [
 ];
 
 /**
- * A keeper who can relight anything: 10 Candle Crabs (chain awake,
- * demand 5/s — the starting board's 20/15/10 support gives efficiency
- * 1.0, clearing every gate) and a bottomless purse.
+ * A keeper who can afford anything: 10 Candle Crabs (chain awake, demand
+ * 5/s — fully supported by the starting board's 20/15/10) and a bottomless
+ * purse. Each lighthouse lit raises demand, so lightAll() feeds the chain
+ * before every relight to clear the 50–80% gates.
  */
-function richState(lumen = 1_000_000_000_000): GameState {
+function richState(lumen: number | string = "1e60"): GameState {
   const state = createInitialState();
   state.generators[crab.id] = 10;
   state.totalGeneratorsBought = 10;
@@ -108,8 +109,8 @@ describe("lighthouse order gating", () => {
   it("Friend of Gulls halves Gull Rock only — never the later lights", () => {
     const state = richState();
     state.emberPerks.push("gull-friend");
-    expect(relightCost(state, GULL_ROCK_ID).toNumber()).toBe(1_000_000);
-    expect(relightCost(state, CORMORANT_ROOST_ID).toNumber()).toBe(25_000_000);
+    expect(relightCost(state, GULL_ROCK_ID).toNumber()).toBe(2_500_000);
+    expect(relightCost(state, CORMORANT_ROOST_ID).toNumber()).toBe(840_000_000);
   });
 });
 
@@ -290,7 +291,7 @@ describe("the ending and the Next Keeping (NG+)", () => {
     expect(startNgPlus(state)).toBe(true);
     // Relight the shore in the new Keeping:
     state.generators[crab.id] = 10;
-    state.lumen = new Decimal(1_000_000_000_000);
+    state.lumen = new Decimal("1e60");
     lightAll(state);
     expect(startNgPlus(state)).toBe(true);
     expect(state.ngPlusCount).toBe(2);

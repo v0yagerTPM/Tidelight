@@ -49,7 +49,7 @@ describe("relighting reads the same tide as the Relight button", () => {
     const state = createInitialState();
     state.generators["candle-crab"] = 10;
     state.generators["tide-bell"] = 1; // 22/s demand; lens supports 10/s → 45% neutral
-    state.lumen = new Decimal(3_000_000);
+    state.lumen = new Decimal(6_000_000);
     return state;
   }
 

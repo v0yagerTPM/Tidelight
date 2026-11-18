@@ -146,7 +146,7 @@ describe("beam bonus", () => {
 });
 
 describe("Gull Rock Light", () => {
-  it("gates on chain unlock, 50% efficiency, and the 2,000,000 cost", () => {
+  it("gates on chain unlock, 50% efficiency, and the 5,000,000 cost", () => {
     // Chain locked (9 generators):
     expect(gullRockStatus(crabState(9, 5_000_000)).canRelight).toBe(false);
     // Efficiency too low (25 crabs → lens bottleneck at 40%):
@@ -154,14 +154,14 @@ describe("Gull Rock Light", () => {
     expect(gullRockStatus(strained).efficiencyOk).toBe(false);
     expect(relightGullRock(strained)).toBe(false);
     // Can't afford it:
-    const poor = crabState(10, 1_999_999);
+    const poor = crabState(10, 4_999_999);
     expect(gullRockStatus(poor).affordable).toBe(false);
     expect(relightGullRock(poor)).toBe(false);
     expect(poor.litLighthouses).toEqual([FIRST_LIGHT_ID]);
   });
 
-  it("relighting costs 2M, grants +50% production, and starts an empty board", () => {
-    const state = crabState(10, 2_000_000); // 5/s at full efficiency
+  it("relighting costs 5M, grants +50% production, and starts an empty board", () => {
+    const state = crabState(10, 5_000_000); // 5/s at full efficiency
     expect(productionPerSecond(state).toNumber()).toBe(5);
     expect(relightGullRock(state)).toBe(true);
     expect(state.lumen.toNumber()).toBe(0);
@@ -192,7 +192,7 @@ describe("Gull Rock Light", () => {
 
 describe("rekindle and the chain", () => {
   it("keeps lit lighthouses and their bonus, resets every board to its start", () => {
-    const state = crabState(10, 3_000_000);
+    const state = crabState(10, 6_000_000);
     expect(relightGullRock(state)).toBe(true);
     state.chainBoards[FIRST_LIGHT_ID].wick = 5;
     state.chainBoards[FIRST_LIGHT_ID].beam = 2;
@@ -235,7 +235,7 @@ describe("save migration (v2 → v4)", () => {
   });
 
   it("round-trips lit lighthouses and boards at version 6", () => {
-    const state = crabState(10, 2_000_000);
+    const state = crabState(10, 5_000_000);
     expect(relightGullRock(state)).toBe(true);
     state.chainBoards[GULL_ROCK_ID].wick = 4;
     const saved = serializeState(state);
