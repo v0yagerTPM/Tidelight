@@ -313,3 +313,43 @@ export function applyOfflineEarnings(state: GameState, now: number = Date.now())
   state.lastSeen = now;
   return result;
 }
+
+// ── Real time while the page is open ────────────────────────────────────────
+
+/**
+ * Gaps longer than this between two live ticks are treated as time away.
+ * Browsers throttle timers in background tabs (to once a second, and to
+ * once a minute after ~5 minutes hidden), so a live tab can see gaps of
+ * about a minute; those are still "online" and pay full rate. Anything
+ * longer (a sleeping laptop, a long-suspended tab) pays exactly what a
+ * closed tab would, through the offline rules.
+ */
+export const LIVE_GAP_LIMIT_SECONDS = 90;
+
+export interface AdvanceResult {
+  /** "live" — credited at full rate; "offline" — credited by the offline rules. */
+  mode: "live" | "offline";
+  gain: Decimal;
+  /** Wall-clock seconds since the previous tick. */
+  elapsedSeconds: number;
+  /** Seconds the offline rules credited (offline mode only). */
+  creditedSeconds: number;
+}
+
+/**
+ * Advance a running game to wall-clock `now`, from `state.lastSeen` (which
+ * this updates). Short gaps tick at full, tide-aware rate; long gaps go
+ * through the offline-earnings path. The old loop clamped every tick to
+ * one second, so a background tab throttled to one tick a minute earned
+ * one second of production per minute — less than closing the tab.
+ */
+export function advanceToNow(state: GameState, now: number): AdvanceResult {
+  const elapsedSeconds = Math.max(0, (now - state.lastSeen) / 1000);
+  if (elapsedSeconds > LIVE_GAP_LIMIT_SECONDS) {
+    const offline = applyOfflineEarnings(state, now);
+    return { mode: "offline", gain: offline.gain, elapsedSeconds, creditedSeconds: offline.creditedSeconds };
+  }
+  const gain = tick(state, elapsedSeconds, now);
+  state.lastSeen = now;
+  return { mode: "live", gain, elapsedSeconds, creditedSeconds: 0 };
+}

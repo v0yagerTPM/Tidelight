@@ -5,6 +5,7 @@ import Decimal from "break_infinity.js";
 // chain, upgrades and prestige read this module's pure relic helpers.
 // Nothing here runs at load time.
 import { creditLumen, productionPerSecond } from "./engine";
+import { formatNumber } from "./format";
 import { addLog } from "./state";
 import type { GameState } from "./types";
 
@@ -222,9 +223,9 @@ export function claimExpedition(state: GameState, rng: () => number, now: number
 
   const fragment = STORY_FRAGMENTS[state.storyFragmentIndex % STORY_FRAGMENTS.length];
   state.storyFragmentIndex++;
-  addLog(state, `The bottle washes back from ${route.name}: +${cache.toString()} Lumen of salvage and driftwood.`, now);
+  addLog(state, `The bottle washes back from ${route.name}: +${formatNumber(cache, state.notation)} Lumen of salvage and driftwood.`, now);
   if (relic) addLog(state, `Nestled in the bottle's neck — a relic: ${relic.name}. ${relic.effect}`, now);
-  if (bonusLumen.gt(0)) addLog(state, "The sea, having no relics left to give, pays double in light.", now);
+  if (bonusLumen.gt(0)) addLog(state, `The sea, having no relics left to give, pays half again in light: +${formatNumber(bonusLumen, state.notation)} Lumen.`, now);
   addLog(state, `From the bottle: ${fragment}`, now);
   return { cache, bonusLumen, relic, fragment };
 }

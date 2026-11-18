@@ -36,6 +36,7 @@ import {
 } from "./game/chain";
 import { EMBER_PERKS, buyPerk, type EmberPerkDef } from "./game/emberShop";
 import {
+  advanceToNow,
   applyOfflineEarnings,
   buyQuote,
   buyWithAmount,
@@ -43,7 +44,6 @@ import {
   clickValue,
   generatorProduction,
   productionPerSecond,
-  tick,
   timeToAffordCost,
 } from "./game/engine";
 import { estimateRecoveryMinutes } from "./game/estimate";
@@ -71,7 +71,7 @@ import {
   mothsUnlocked,
   patternById,
   releaseMoth,
-  releaseValue,
+  releasePayout,
   roostExpansionCost,
   startBreeding,
   toggleDuty,
@@ -108,22 +108,62 @@ const state: GameState = loadState() ?? createInitialState();
 /** All displayed numbers honour the Keeper's Desk notation setting. */
 const fmt = (value: Decimal | number | string): string => formatNumber(value, state.notation);
 
-const offline = applyOfflineEarnings(state);
-if (offline.gain.gt(0)) {
-  addLog(
-    state,
-    `While you were away (${formatDuration(offline.creditedSeconds)} credited): +${fmt(offline.gain)} Lumen.`,
-  );
+/** Format a 0–1 fraction as a percentage that never reads "0%" while above zero. */
+function pct(fraction: number): string {
+  const p = fraction * 100;
+  if (p <= 0) return "0%";
+  if (p < 1) return `${p < 0.1 ? p.toFixed(2) : p.toFixed(1)}%`;
+  return `${Math.round(p)}%`;
 }
-// Welcome back, in full: the Shore keeps its own time while you're gone.
-if (offline.awaySeconds > 60) {
-  const shoreNotes: string[] = [];
-  if (state.cocoon && cocoonReady(state)) shoreNotes.push("the cocoon is ready to hatch");
-  if (state.expedition && expeditionReady(state)) shoreNotes.push("a bottle has washed back onto the glass");
-  if (shoreNotes.length > 0) {
-    addLog(state, `While you were away: ${shoreNotes.join(", and ")} — see the Shore.`);
+
+/**
+ * Two-step confirm for destructive buttons: the first click arms the button
+ * and swaps its label; a second click within 5 seconds confirms. Left alone,
+ * it disarms and restores its label, so a stale "Are you sure?" never waits
+ * for an accidental click later.
+ */
+const CONFIRM_WINDOW_MS = 5_000;
+function armTwoStep(btn: HTMLButtonElement, confirmText: string | (() => string), onConfirm: () => void): void {
+  let timer: number | undefined;
+  let original = "";
+  btn.addEventListener("click", () => {
+    if (timer === undefined) {
+      original = btn.textContent ?? "";
+      btn.textContent = typeof confirmText === "function" ? confirmText() : confirmText;
+      btn.classList.add("armed");
+      timer = window.setTimeout(() => {
+        timer = undefined;
+        btn.textContent = original;
+        btn.classList.remove("armed");
+      }, CONFIRM_WINDOW_MS);
+      return;
+    }
+    window.clearTimeout(timer);
+    timer = undefined;
+    btn.classList.remove("armed");
+    btn.textContent = original;
+    onConfirm();
+  });
+}
+
+/** Log what time away paid, and any news from the Shore. */
+function welcomeBack(gain: Decimal, creditedSeconds: number, awaySeconds: number): void {
+  if (gain.gt(0)) {
+    addLog(state, `While you were away (${formatDuration(creditedSeconds)} credited): +${fmt(gain)} Lumen.`);
+  }
+  // Welcome back, in full: the Shore keeps its own time while you're gone.
+  if (awaySeconds > 60) {
+    const shoreNotes: string[] = [];
+    if (state.cocoon && cocoonReady(state)) shoreNotes.push("the cocoon is ready to hatch");
+    if (state.expedition && expeditionReady(state)) shoreNotes.push("a bottle has washed back onto the glass");
+    if (shoreNotes.length > 0) {
+      addLog(state, `While you were away: ${shoreNotes.join(", and ")} — see the Shore.`);
+    }
   }
 }
+
+const offline = applyOfflineEarnings(state);
+welcomeBack(offline.gain, offline.creditedSeconds, offline.awaySeconds);
 // Story beats can be earned offline too (a lighthouse of Lumen, a record
 // crossed in the dark) — deliver whatever is due before the first frame.
 checkStory(state);
@@ -540,36 +580,27 @@ function rebuildChallenges(): void {
       const label = card.querySelector<HTMLElement>(".challenge-progress-label");
       if (bar && label) activeChallengeRefs = { bar, label };
       const abandon = card.querySelector<HTMLButtonElement>(".challenge-abandon");
-      let armed = false;
-      abandon?.addEventListener("click", () => {
-        if (!armed) {
-          armed = true;
-          abandon.textContent = "Are you sure? Click again to abandon — the run resets, no reward";
-          return;
-        }
-        if (abandonChallenge(state)) {
-          saveState(state);
-          renderDynamic();
-        }
-      });
+      if (abandon) {
+        armTwoStep(abandon, "Are you sure? Click again to abandon — the run resets, no reward", () => {
+          if (abandonChallenge(state)) {
+            saveState(state);
+            renderDynamic();
+          }
+        });
+      }
     } else {
       html += `<button class="buy challenge-start" ${active ? "disabled" : ""}>Start challenge — resets your run, no Embers</button>
         ${active ? `<div class="gen-note muted">Finish or abandon ${active.name} first.</div>` : ""}`;
       card.innerHTML = html;
       const start = card.querySelector<HTMLButtonElement>(".challenge-start");
-      let armed = false;
-      start?.addEventListener("click", () => {
-        if (!armed) {
-          armed = true;
-          start.textContent = `Are you sure? Click again — your run resets and no Embers are granted`;
-          start.classList.add("affordable");
-          return;
-        }
-        if (startChallenge(state, def.id)) {
-          saveState(state);
-          renderDynamic();
-        }
-      });
+      if (start) {
+        armTwoStep(start, "Are you sure? Click again — your run resets and no Embers are granted", () => {
+          if (startChallenge(state, def.id)) {
+            saveState(state);
+            renderDynamic();
+          }
+        });
+      }
     }
     challengeContainer.appendChild(card);
   }
@@ -677,7 +708,7 @@ function rebuildShore(): void {
           </div>
           <div class="gen-buy moth-actions">
             <button class="buy moth-duty">${isDuty ? "Stand down" : "Put on duty"}</button>
-            <button class="buy moth-release">Release (+${fmt(releaseValue(moth))})</button>
+            <button class="buy moth-release">Release (+${fmt(releasePayout(state, moth))})</button>
           </div>`;
         const dutyBtn = card.querySelector<HTMLButtonElement>(".moth-duty");
         dutyBtn?.addEventListener("click", () => {
@@ -687,19 +718,14 @@ function rebuildShore(): void {
           }
         });
         const releaseBtn = card.querySelector<HTMLButtonElement>(".moth-release");
-        let armed = false;
-        releaseBtn?.addEventListener("click", () => {
-          if (inCocoon) return;
-          if (!armed) {
-            armed = true;
-            releaseBtn.textContent = `Are you sure? ${moth.name} won't come back`;
-            return;
-          }
-          if (releaseMoth(state, moth.id) !== null) {
-            saveState(state);
-            renderDynamic();
-          }
-        });
+        if (releaseBtn && !inCocoon) {
+          armTwoStep(releaseBtn, `Are you sure? ${moth.name} won't come back`, () => {
+            if (releaseMoth(state, moth.id) !== null) {
+              saveState(state);
+              renderDynamic();
+            }
+          });
+        }
         if (inCocoon && releaseBtn) releaseBtn.disabled = true;
         list.appendChild(card);
       }
@@ -986,13 +1012,7 @@ function rebuildEndingPanel(): void {
     <button class="danger ngplus-button">Begin the Next Keeping (NG+)</button>`;
   endingStats = panel.querySelector<HTMLElement>(".ending-stats");
   const btn = panel.querySelector<HTMLButtonElement>(".ngplus-button");
-  let armed = false;
-  btn?.addEventListener("click", () => {
-    if (!armed) {
-      armed = true;
-      btn.textContent = "Are you sure? The shore goes dark — click again to begin the Next Keeping";
-      return;
-    }
+  if (btn) armTwoStep(btn, "Are you sure? The shore goes dark — click again to begin the Next Keeping", () => {
     if (startNgPlus(state)) {
       selectedBoardId = FIRST_LIGHT_ID;
       checkStory(state);
@@ -1052,7 +1072,7 @@ function rebuildLighthouses(): void {
         relightBtn = buyWrap.querySelector<HTMLButtonElement>(".buy");
         relightNote = buyWrap.querySelector<HTMLElement>(".gen-note");
         relightBtn?.addEventListener("click", () => {
-          if (relightLighthouse(state, def.id)) {
+          if (relightLighthouse(state, def.id, Date.now())) {
             selectedBoardId = def.id;
             checkStory(state);
             saveState(state);
@@ -1234,7 +1254,7 @@ function updateChainView(): void {
       const { word, cls } = statusWord(nodeStatus.efficiency);
       refs.status.textContent = word;
       refs.status.className = `node-status ${cls}`;
-      refs.detail.textContent = `Supports ${fmt(totalSupport(state, nodeId, Date.now()))}/s of ${fmt(status.demand)}/s produced · ${Math.round(nodeStatus.efficiency * 100)}%`;
+      refs.detail.textContent = `Supports ${fmt(totalSupport(state, nodeId, Date.now()))}/s of ${fmt(status.demand)}/s produced · ${pct(nodeStatus.efficiency)}`;
       const isBottleneck = status.bottleneck === nodeId;
       refs.box.classList.toggle("bottleneck", isBottleneck);
       refs.flag.textContent = isBottleneck
@@ -1247,7 +1267,7 @@ function updateChainView(): void {
     const beamPct = Math.round((status.beamMultiplier.toNumber() - 1) * 100);
     const boardDef = chainLighthouseById(selectedBoardId);
     chainSummary.textContent =
-      `${boardDef.name} board · Beam efficiency ${Math.round(status.efficiency * 100)}% ` +
+      `${boardDef.name} board · Beam efficiency ${pct(status.efficiency)} ` +
       `(chain factor ×${status.chainFactor.toFixed(2)}${beamPct > 0 ? `, Beam +${beamPct}%` : ""}). ` +
       `Support sums across every lit lighthouse; node costs on this board are ×${boardDef.boardCostMultiplier}.`;
   }
@@ -1348,15 +1368,7 @@ document.querySelector<HTMLButtonElement>("#desk-import")?.addEventListener("cli
   renderDynamic();
 });
 const deskReset = document.querySelector<HTMLButtonElement>("#desk-reset");
-let deskResetArmed = false;
-deskReset?.addEventListener("click", () => {
-  if (!deskResetArmed) {
-    deskResetArmed = true;
-    deskReset.textContent = "Are you sure? EVERYTHING goes — moths, relics, story, Keepings. Click again to erase it all";
-    return;
-  }
-  deskResetArmed = false;
-  deskReset.textContent = "Hard reset — erase everything and start over";
+if (deskReset) armTwoStep(deskReset, "Are you sure? EVERYTHING goes — moths, relics, story, Keepings. Click again to erase it all", () => {
   Object.assign(state, createInitialState());
   selectedBoardId = FIRST_LIGHT_ID;
   saveState(state);
@@ -1371,20 +1383,15 @@ document.querySelector<HTMLButtonElement>("#flash")?.addEventListener("click", (
 });
 
 // ── Rekindle (two-step confirm so nobody resets by accident) ────────────────
-let rekindleArmed = false;
 const rkButton = document.querySelector<HTMLButtonElement>("#rk-button");
-rkButton?.addEventListener("click", () => {
-  if (!canRekindle(state)) return;
-  if (!rekindleArmed) {
-    rekindleArmed = true;
-    rkButton.textContent = `Are you sure? Click again to Rekindle for +${rekindleGain(state)} Embers`;
-    return;
-  }
-  rekindleArmed = false;
-  rekindle(state);
-  saveState(state);
-  renderDynamic();
-});
+if (rkButton) {
+  armTwoStep(rkButton, () => `Are you sure? Click again to Rekindle for +${rekindleGain(state)} Embers`, () => {
+    if (!canRekindle(state)) return;
+    rekindle(state);
+    saveState(state);
+    renderDynamic();
+  });
+}
 
 // ── Rendering ────────────────────────────────────────────────────────────────
 const hud = {
@@ -1407,6 +1414,8 @@ const hud = {
   logList: document.querySelector<HTMLUListElement>("#log-list"),
   tideStrip: document.querySelector<HTMLElement>("#tide-strip"),
 };
+
+let logStructureKey = "";
 
 function renderDynamic(): void {
   const nowMs = Date.now();
@@ -1449,13 +1458,13 @@ function renderDynamic(): void {
       hud.beamEfficiency.textContent = "";
     } else {
       const beamPct = Math.round((chain.beamMultiplier.toNumber() - 1) * 100);
-      hud.beamEfficiency.textContent = `Beam efficiency: ${Math.round(chain.efficiency * 100)}%${beamPct > 0 ? ` · Beam +${beamPct}%` : ""}`;
+      hud.beamEfficiency.textContent = `Beam efficiency: ${pct(chain.efficiency)}${beamPct > 0 ? ` · Beam +${beamPct}%` : ""}`;
     }
   }
   if (chainBanner) {
     if (chain.unlocked && chain.efficiency < 1 && chain.bottleneck) {
       const bn = chain.nodes.find((n) => n.nodeId === chain.bottleneck);
-      chainBanner.textContent = `⚠ ${CHAIN_NODES[chain.bottleneck].name.toUpperCase()} is limiting your beam to ${Math.round(chain.efficiency * 100)}% — supports ${fmt(bn?.support ?? 0)}/s vs ${fmt(chain.demand)}/s produced. Tap to see the chain board.`;
+      chainBanner.textContent = `⚠ ${CHAIN_NODES[chain.bottleneck].name} is the bottleneck: it supports ${fmt(bn?.support ?? 0)}/s of ${fmt(chain.demand)}/s produced (${pct(chain.efficiency)}), so the beam runs at ${Math.round(chain.chainFactor * 100)}% strength. Tap to see the chain board.`;
       chainBanner.classList.remove("hidden");
     } else {
       chainBanner.classList.add("hidden");
@@ -1585,7 +1594,7 @@ function renderDynamic(): void {
   }
   if (rkButton) {
     rkButton.disabled = !canRekindle(state);
-    if (!rekindleArmed) {
+    if (!rkButton.classList.contains("armed")) {
       if (state.activeChallenge !== null) {
         rkButton.textContent = `Rekindle unavailable — the ${activeChallenge(state)?.name} challenge is in progress (finish or abandon it first)`;
       } else {
@@ -1653,7 +1662,11 @@ function renderDynamic(): void {
   }
 
   // Log view (newest first; story beats get their own styling)
-  if (hud.logList) {
+  // Rebuilt only when an entry arrives, so the Log can be read, selected
+  // and copied (rebuilding every tick replaced the nodes under the cursor).
+  const logKey = `${state.log.length}|${state.log[state.log.length - 1]?.at ?? 0}|${state.log[state.log.length - 1]?.message ?? ""}`;
+  if (hud.logList && logKey !== logStructureKey) {
+    logStructureKey = logKey;
     hud.logList.innerHTML = state.log
       .slice()
       .reverse()
@@ -1665,18 +1678,35 @@ function renderDynamic(): void {
   }
 }
 
-// ── Game loop: tick 10×/s from real elapsed time, autosave every 5s ────────
-let lastTick = performance.now();
-setInterval(() => {
-  const now = performance.now();
-  const dt = Math.min((now - lastTick) / 1000, 1); // clamp tab-switch jumps; offline handles the rest
-  lastTick = now;
-  tick(state, dt, Date.now()); // the live tide applies to the running game
-  state.lastSeen = Date.now();
+// ── Game loop: 10×/s from wall-clock time, autosave every 5s ───────────────
+// advanceToNow credits the real gap since the last tick: short gaps (even a
+// background tab throttled to one tick a minute) at full, tide-aware rate;
+// long ones (a sleeping laptop) by the offline rules, as if the tab had been
+// closed. A render error is logged once and never stops the clock.
+let renderErrorLogged = false;
+function gameTick(): void {
+  const result = advanceToNow(state, Date.now());
+  if (result.mode === "offline") {
+    welcomeBack(result.gain, result.creditedSeconds, result.elapsedSeconds);
+    saveState(state);
+  }
   // Story beats fire the moment their moment arrives (cheap predicates).
   if (checkStory(state).length > 0) saveState(state);
-  renderDynamic();
-}, 100);
+  if (document.hidden) return; // nothing to draw; the clock still runs
+  try {
+    renderDynamic();
+  } catch (err) {
+    if (!renderErrorLogged) {
+      renderErrorLogged = true;
+      console.error("Tidelight render error (the game keeps running):", err);
+    }
+  }
+}
+setInterval(gameTick, 100);
+// Coming back to the tab settles the gap at once instead of on the next tick.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) gameTick();
+});
 
 setInterval(() => saveState(state), 5_000);
 window.addEventListener("beforeunload", () => saveState(state));

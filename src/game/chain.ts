@@ -298,9 +298,13 @@ const RELIGHT_LOG_LINES: Record<string, string> = {
  * Enforces the full gate — order, chain awake, efficiency, cost — and
  * returns true on success. Lighting The Hollow Light also sets
  * state.endingSeen: the ending has been witnessed.
+ * `now` is optional, as everywhere in the chain: the UI passes Date.now()
+ * so the action checks the SAME tide-adjusted efficiency the Relight button
+ * shows (Low Tide's ×1.2 support can open a gate; Stormfront can close one).
+ * Omit it and the gate is checked tide-neutral, as the sim and tests do.
  */
-export function relightLighthouse(state: GameState, lighthouseId: string): boolean {
-  const status = lighthouseStatus(state, lighthouseId);
+export function relightLighthouse(state: GameState, lighthouseId: string, now?: number): boolean {
+  const status = lighthouseStatus(state, lighthouseId, now);
   if (!status.canRelight) return false;
   state.lumen = state.lumen.sub(status.cost);
   state.litLighthouses.push(lighthouseId);
