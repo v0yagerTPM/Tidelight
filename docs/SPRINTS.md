@@ -735,3 +735,14 @@ The Bellwether (lighthouse 5) brought no helper, so after Beacon Whales
       On touch screens, selects, inputs and the save box are now 16px.
 - [x] The beam no longer selects text, flashes a tap highlight or opens
       the long-press menu when hammered.
+- [x] **The real cause: a header wider than the phone.** On a phone the
+      top bar (brand, ?, sound, three stats) grew with the numbers; late in
+      a game it was 15px wider than the screen (405px on a 390px iPhone 13),
+      so the browser shrank the page to fit, and as the Lumen figures changed
+      width on every tap it shrank and grew back. The ? button added with
+      the tutorial made it worse (it was being squeezed to 9px). On screens
+      560px wide or less the stats now get a row of their own, the round
+      buttons never shrink, and `overflow-x: clip` on the page stops
+      anything ever widening it again. Checked on iPhone SE, iPhone 13 and
+      Pixel 5 with saves up to 8.88e44 Lumen and ~1T Embers, in both
+      notations: the page is exactly the screen's width on every tap.

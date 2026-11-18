@@ -67,7 +67,8 @@ button { font: inherit; }
 .brand-mark { display: inline-flex; width: 34px; height: 34px; filter: drop-shadow(0 0 10px rgba(255, 196, 99, 0.35)); }
 .brand-mark svg { width: 100%; height: 100%; }
 .brand-name { font-family: var(--display); font-size: 1.75rem; line-height: 1; letter-spacing: 0.01em; }
-.hud-stats { display: flex; gap: 24px; }
+.hud-stats { display: flex; gap: 24px; min-width: 0; }
+.stat strong { white-space: nowrap; }
 .stat { text-align: right; }
 .stat-label { display: block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.18em; color: var(--muted); }
 .stat strong { font-family: var(--mono); font-weight: 500; font-size: 1.2rem; color: var(--lamp); font-variant-numeric: tabular-nums; }
@@ -705,8 +706,9 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 .trial.active .trial-art { color: var(--lamp); box-shadow: inset 0 0 0 1px var(--lamp), 0 0 24px -8px rgba(255, 196, 99, 0.9); }
 .trial.completed .trial-art { color: var(--seafoam); box-shadow: inset 0 0 0 1px rgba(143, 214, 196, 0.6); }
 
-/* ── Sound toggle ──────────────────────────────────── */
+/* ── Sound toggle (and the ? beside it) ─────────────── */
 .sound-toggle {
+  flex-shrink: 0;
   margin-left: auto;
   display: grid;
   place-items: center;
@@ -1040,4 +1042,22 @@ button, .moth-tile, .tab, .toggle-btn { -webkit-tap-highlight-color: transparent
 /* iOS zooms into any form field under 16px when it gets focus. */
 @media (pointer: coarse) {
   select, textarea, input, .breed-select, .side-card .breed-select, .desk-text { font-size: 16px; }
+}
+
+/* The ? sits before the sound toggle: only the first of the pair pushes right. */
+.help-toggle + .sound-toggle { margin-left: 0; }
+
+/* ── Phones: the header can never be wider than the screen ─────────── */
+/* A row wider than the phone makes the browser shrink the page to fit, and
+   as the Lumen figures change width with every tap it shrank and grew back:
+   the page "zoomed in and out". On narrow screens the stats get a row of
+   their own, and nothing may widen the page (clip, not hidden: hidden
+   would break the sticky header). */
+html, body { overflow-x: clip; }
+@media (max-width: 560px) {
+  .hud { flex-wrap: wrap; row-gap: 4px; padding-bottom: 8px; }
+  .hud-stats { order: 3; flex: 1 0 100%; justify-content: space-between; gap: 8px; }
+  .hud-stats .stat { text-align: left; min-width: 0; }
+  .hud-stats .stat:last-child { text-align: right; }
+  .help-toggle, .sound-toggle { width: 36px; height: 36px; }
 }
