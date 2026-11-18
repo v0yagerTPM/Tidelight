@@ -326,3 +326,75 @@
   the sprint was specced) prioritised the full lighthouse ladder, the
   story, NG+ and the Steam guide; the tide system remains the weather
   layer. Both remain good post-launch candidates.
+
+## ✅ Post-launch — playtest fixes
+
+Found in the first full playtest (fresh keeper in Chromium, a late-game
+save, and scripted probes against the game modules):
+
+- [x] **Moth attract-and-release loop.** Attracting is priced on moths
+      currently held, so an empty roost sold moths at 500 that released
+      for ~11,000 — 200 cycles turned 500 Lumen into 2.3M. Release now
+      pays at most 40% of the re-attract price (`releasePayout`), so the
+      loop always loses; the "release to make room" design is unchanged.
+- [x] **Unknown ids in a save.** Perks, upgrades, relics, challenges,
+      story beats and generator counts are filtered against this build's
+      definitions on load. An imported save naming an unknown perk used to
+      throw on every tick, and autosave kept the broken state.
+- [x] **Relight vs the tide.** `relightLighthouse` takes `now`, so the
+      action checks the same tide-adjusted efficiency the button shows
+      (Low Tide could light the button while the click did nothing).
+- [x] **Background tabs.** The loop now credits the wall-clock gap
+      (`advanceToNow`): gaps up to 90 s (a throttled background tab) at
+      full rate, longer ones (a sleeping laptop) by the offline rules.
+      The old 1-second clamp paid a throttled tab one second a minute.
+- [x] **CI was red.** The milestone test in `tests/engine.test.ts` still
+      asserted total production in a state where the chain taxes it; it
+      now asserts the generator's own rate, as the Sprint 2 notes said.
+- [x] Smaller: the Log only rebuilds when an entry arrives (it can be
+      selected and copied); two-step confirms disarm after 5 s; the chain
+      banner states the real beam strength (25% floor) and efficiencies
+      under 1% show decimals; bottle and release log lines format their
+      numbers; the empty-relic bonus text says +50%, as it pays.
+- [x] Tests: `tests/fixes.test.ts` covers each fix.
+
+## 🔨 Graphics overhaul
+
+**Phase 1 — shipped.**
+
+- [x] Visual identity: night-ink and sea-glass palette with lamplight as
+      the only saturated colour; IM Fell English / Figtree / IBM Plex
+      Mono, bundled locally; an SVG Tidelight mark (replacing 🗼, which is
+      Tokyo Tower).
+- [x] The Light-view scene (`src/scene/model.ts`, `src/scene/renderer.ts`):
+      Canvas 2D, procedural, no image assets. Beam sweep speed and sputter
+      follow the chain factor; lamplight reach grows with production; the
+      six far lighthouses light with your relights; glass cracks heal as
+      the coast relights and the sea turns to water at the ending; tides
+      move the waterline (High/Low), mirror the tower (Glass Calm) and
+      bring rain and lightning (Stormfront). Every generator type is drawn:
+      candle crabs, lantern-moth motes, tide-bell buoys, lit cottage
+      windows (oil keepers), lens glints, storm lanterns on a jetty,
+      surfacing beacon whales, and the Seventh Light's halo. Duty moths fly
+      in their wing colours. Tapping the scene flashes the beam (bloom,
+      ring, floating gain). Runs only while the Light view is visible;
+      still under prefers-reduced-motion. 60 fps on a late-game save.
+- [x] Illustrated generator rows (SVG icons, a ring showing progress to
+      the next ×2) that reveal one tier at a time, with a silhouette for
+      the next.
+- [x] Phones: tabs move to a bottom bar with icons; compact header; the
+      Flash button sits clear of the lamp.
+- [x] Tests: `tests/scene.test.ts` pins the state → scene mapping.
+
+**Next phases**
+
+- [ ] Balance: chain support that scales with demand and gates in the
+      40–90% band, so buying generators never pushes the ending away (the
+      sim's bot still owns none of tiers 6–8 after 200 hours); softer
+      scaling for held Embers.
+- [ ] Lighthouses view: a coast panorama of the seven towers and an
+      animated chain board (flowing pipes, a visibly narrowed bottleneck).
+- [ ] Shore: the moth garden as a night meadow, bottles drifting out on
+      the glass, a lit relic cabinet.
+- [ ] Set pieces and sound: Rekindle (the lamp gutters, embers rise),
+      relight cinematics, the ending, and WebAudio ambience and chimes.

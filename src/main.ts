@@ -1,3 +1,11 @@
+import "@fontsource/im-fell-english/latin-400.css";
+import "@fontsource/im-fell-english/latin-400-italic.css";
+import "@fontsource/figtree/latin-400.css";
+import "@fontsource/figtree/latin-500.css";
+import "@fontsource/figtree/latin-600.css";
+import "@fontsource/figtree/latin-700.css";
+import "@fontsource/ibm-plex-mono/latin-400.css";
+import "@fontsource/ibm-plex-mono/latin-500.css";
 import "./style.css";
 import Decimal from "break_infinity.js";
 import {
@@ -90,6 +98,9 @@ import {
   startBoard,
 } from "./game/state";
 import type { BuyAmount, GameState } from "./game/types";
+import { buildSceneModel } from "./scene/model";
+import { SceneRenderer } from "./scene/renderer";
+import { BRAND_MARK, GENERATOR_ICONS, TAB_ICONS, UNKNOWN_ICON } from "./ui/icons";
 import {
   UPGRADES,
   buyUpgrade,
@@ -112,6 +123,7 @@ const fmt = (value: Decimal | number | string): string => formatNumber(value, st
 function pct(fraction: number): string {
   const p = fraction * 100;
   if (p <= 0) return "0%";
+  if (p < 0.01) return "<0.01%";
   if (p < 1) return `${p < 0.1 ? p.toFixed(2) : p.toFixed(1)}%`;
   return `${Math.round(p)}%`;
 }
@@ -175,7 +187,7 @@ if (!app) throw new Error("#app not found");
 
 app.innerHTML = `
   <header class="hud">
-    <div class="brand">🗼 Tidelight</div>
+    <div class="brand"><span class="brand-mark">${BRAND_MARK}</span><span class="brand-name">Tidelight</span></div>
     <div class="hud-stats">
       <div class="stat"><span class="stat-label">Lumen</span><strong id="hud-lumen">0</strong></div>
       <div class="stat"><span class="stat-label">per second</span><strong id="hud-rate">0</strong></div>
@@ -184,23 +196,33 @@ app.innerHTML = `
   </header>
 
   <nav class="tabs" role="tablist">
-    <button class="tab active" data-tab="light" role="tab">Light</button>
-    <button class="tab" data-tab="upgrades" role="tab">Upgrades</button>
-    <button class="tab" data-tab="lighthouses" role="tab">Lighthouses</button>
-    <button class="tab" data-tab="shore" role="tab">Shore</button>
-    <button class="tab" data-tab="rekindle" role="tab">Rekindle</button>
-    <button class="tab" data-tab="log" role="tab">Log</button>
+${[
+    ["light", "Light"],
+    ["upgrades", "Upgrades"],
+    ["lighthouses", "Lighthouses"],
+    ["shore", "Shore"],
+    ["rekindle", "Rekindle"],
+    ["log", "Log"],
+  ]
+    .map(
+      ([id, label], i) =>
+        `<button class="tab${i === 0 ? " active" : ""}" data-tab="${id}" role="tab"><span class="tab-icon">${TAB_ICONS[id]}</span><span class="tab-label">${label}</span></button>`,
+    )
+    .join("")}
   </nav>
 
   <main>
     <section id="view-light" class="view active">
       <div id="challenge-banner" class="challenge-banner hidden" role="button" tabindex="0"></div>
       <div id="chain-banner" class="chain-banner hidden" role="button" tabindex="0"></div>
-      <div id="tide-strip" class="tide-strip"></div>
-      <div class="beam-wrap">
-        <button id="flash" class="beam">✦ Flash the Beam ✦</button>
-        <p class="beam-hint" id="beam-hint"></p>
-        <p class="beam-efficiency" id="beam-efficiency"></p>
+      <div class="scene">
+        <canvas id="scene-canvas" aria-hidden="true"></canvas>
+        <div id="tide-strip" class="tide-strip"></div>
+        <div class="scene-foot">
+          <button id="flash" class="beam">Flash the Beam</button>
+          <p class="beam-hint" id="beam-hint"></p>
+          <p class="beam-efficiency" id="beam-efficiency"></p>
+        </div>
       </div>
       <div class="buy-toggle" role="group" aria-label="Buy amount">
         <span class="buy-toggle-label">Buy</span>
@@ -301,13 +323,16 @@ app.innerHTML = `
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".tab"));
+let activeTab = "light";
 function activateTab(name: string): void {
+  activeTab = name;
   tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.querySelector(`#view-${name}`)?.classList.add("active");
   // Opening the Rekindle view always gets a fresh recovery estimate.
   if (name === "rekindle") recoveryCacheKey = "";
   renderDynamic();
+  syncSceneRunning();
 }
 for (const tab of tabs) {
   tab.addEventListener("click", () => {
@@ -343,6 +368,8 @@ for (const btn of toggleBtns) {
 // ── Generator rows (built once, updated in place) ────────────────────────────
 interface GenRow {
   def: GeneratorDef;
+  row: HTMLElement;
+  ring: SVGCircleElement;
   owned: HTMLElement;
   prod: HTMLElement;
   milestone: HTMLElement;
@@ -358,6 +385,10 @@ if (genList) {
     const row = document.createElement("div");
     row.className = "gen";
     row.innerHTML = `
+      <div class="gen-icon">
+        ${GENERATOR_ICONS[def.id] ?? UNKNOWN_ICON}
+        <svg class="gen-ring" viewBox="0 0 48 48" aria-hidden="true"><circle class="gen-ring-track" cx="24" cy="24" r="22"/><circle class="gen-ring-fill" cx="24" cy="24" r="22" pathLength="100"/></svg>
+      </div>
       <div class="gen-main">
         <div class="gen-name">${def.name} <span class="gen-owned"></span></div>
         <div class="gen-flavor">${def.flavor}</div>
@@ -373,6 +404,9 @@ if (genList) {
     if (!buy) continue;
     buy.addEventListener("click", () => {
       if (buyWithAmount(state, def.id, state.buyAmount)) {
+        row.classList.remove("bought");
+        void row.offsetWidth; // restart the purchase pulse
+        row.classList.add("bought");
         saveState(state);
         renderDynamic();
       }
@@ -380,6 +414,8 @@ if (genList) {
     genList.appendChild(row);
     genRows.push({
       def,
+      row,
+      ring: row.querySelector(".gen-ring-fill") as SVGCircleElement,
       owned: row.querySelector(".gen-owned") as HTMLElement,
       prod: row.querySelector(".gen-prod") as HTMLElement,
       milestone: row.querySelector(".gen-milestone") as HTMLElement,
@@ -388,6 +424,31 @@ if (genList) {
       buy,
     });
   }
+}
+
+// Tiers reveal one at a time: every tier up to one past the highest you own,
+// then a single silhouette hinting that the coast goes further.
+const genTeaser = document.createElement("div");
+genTeaser.className = "gen gen-teaser";
+genTeaser.innerHTML = `<div class="gen-icon">${UNKNOWN_ICON}</div><div class="gen-main"><div class="gen-name">Something further out</div><div class="gen-flavor teaser-text"></div></div>`;
+genList?.appendChild(genTeaser);
+const genTeaserText = genTeaser.querySelector<HTMLElement>(".teaser-text");
+
+/** Highest generator tier index owned this run (−1 for none). */
+function highestTierOwned(): number {
+  let highest = -1;
+  GENERATORS.forEach((def, i) => {
+    if ((state.generators[def.id] ?? 0) > 0) highest = i;
+  });
+  return highest;
+}
+
+/** 0–1 progress from the last milestone toward the next (1 once all are reached). */
+function milestoneProgress(owned: number): number {
+  const next = MILESTONE_THRESHOLDS.find((t) => owned < t);
+  if (next === undefined) return 1;
+  const prev = [...MILESTONE_THRESHOLDS].reverse().find((t) => t <= owned) ?? 0;
+  return (owned - prev) / (next - prev);
 }
 
 function milestoneHint(owned: number): string {
@@ -1376,10 +1437,40 @@ if (deskReset) armTwoStep(deskReset, "Are you sure? EVERYTHING goes — moths, r
   renderDynamic();
 });
 
-// ── Flash the Beam ───────────────────────────────────────────────────────────
-document.querySelector<HTMLButtonElement>("#flash")?.addEventListener("click", () => {
-  clickBeam(state, Date.now());
+// ── The scene + Flash the Beam ───────────────────────────────────────────────
+// The scene draws only while the Light view is showing; its model is rebuilt
+// from game state with the rest of the UI (10×/s), never per animation frame.
+const sceneCanvas = document.querySelector<HTMLCanvasElement>("#scene-canvas");
+let scene: SceneRenderer | null = null;
+try {
+  scene = sceneCanvas ? new SceneRenderer(sceneCanvas) : null;
+} catch (err) {
+  console.error("Tidelight scene unavailable (the game runs without it):", err);
+}
+function refreshScene(): void {
+  if (scene && activeTab === "light") scene.setModel(buildSceneModel(state, Date.now()));
+}
+function syncSceneRunning(): void {
+  if (!scene) return;
+  if (activeTab === "light" && !document.hidden) {
+    refreshScene();
+    scene.start();
+  } else {
+    scene.stop();
+  }
+}
+
+function flashBeam(): void {
+  const now = Date.now();
+  const value = clickValue(state, now);
+  clickBeam(state, now);
+  if (value.gt(0)) scene?.flash(`+${fmt(value)}`);
   renderDynamic();
+}
+document.querySelector<HTMLButtonElement>("#flash")?.addEventListener("click", flashBeam);
+// Tapping anywhere on the scene flashes too (the button stays for keyboards).
+sceneCanvas?.addEventListener("pointerdown", (e) => {
+  if (e.button === 0) flashBeam();
 });
 
 // ── Rekindle (two-step confirm so nobody resets by accident) ────────────────
@@ -1436,8 +1527,8 @@ function renderDynamic(): void {
         : "";
     const nextHint = next.def.id === "storm" ? " — shore up your chain." : "";
     hud.tideStrip.innerHTML =
-      `${current.def.icon} <strong>${current.def.name}</strong> — ${current.def.effectText}${stormRelic} ` +
-      `Turns in ${formatDuration((current.endsAt - nowMs) / 1000)}. Next: ${next.def.icon} ${next.def.name}${nextHint}`;
+      `${current.def.icon} <strong>${current.def.name}</strong><span class="tide-detail"> — ${current.def.effectText}${stormRelic}</span> ` +
+      `<span class="tide-turn">· turns in ${formatDuration((current.endsAt - nowMs) / 1000)} · next: ${next.def.icon} ${next.def.name}<span class="tide-detail">${nextHint}</span></span>`;
   }
 
   // Challenge banner in the Light view while a challenge run is active.
@@ -1486,8 +1577,17 @@ function renderDynamic(): void {
     btn.classList.toggle("active", state.buyAmount === value);
   }
 
+  const revealUpTo = highestTierOwned() + 1;
+  genRows.forEach((row, i) => row.row.classList.toggle("hidden", i > revealUpTo));
+  const nextHidden = GENERATORS[revealUpTo + 1];
+  genTeaser.classList.toggle("hidden", !nextHidden);
+  if (nextHidden && genTeaserText) {
+    genTeaserText.textContent = `Hire a ${GENERATORS[revealUpTo].name} and you'll see what else answers the light.`;
+  }
   for (const row of genRows) {
     const owned = state.generators[row.def.id] ?? 0;
+    row.ring.style.strokeDashoffset = String(100 - milestoneProgress(owned) * 100);
+    row.row.classList.toggle("owned", owned > 0);
     const quote = buyQuote(state, row.def, state.buyAmount);
     row.owned.textContent = owned > 0 ? `× ${owned}` : "";
     row.prod.textContent =
@@ -1695,6 +1795,7 @@ function gameTick(): void {
   if (document.hidden) return; // nothing to draw; the clock still runs
   try {
     renderDynamic();
+    refreshScene();
   } catch (err) {
     if (!renderErrorLogged) {
       renderErrorLogged = true;
@@ -1706,9 +1807,11 @@ setInterval(gameTick, 100);
 // Coming back to the tab settles the gap at once instead of on the next tick.
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) gameTick();
+  syncSceneRunning();
 });
 
 setInterval(() => saveState(state), 5_000);
 window.addEventListener("beforeunload", () => saveState(state));
 
 renderDynamic();
+syncSceneRunning();
