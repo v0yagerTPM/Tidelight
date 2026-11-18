@@ -45,7 +45,7 @@ body {
 #app {
   max-width: 900px;
   margin: 0 auto;
-  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(48px + var(--tabbar-h)) max(16px, env(safe-area-inset-left, 0px));
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(24px + var(--tabbar-h)) max(16px, env(safe-area-inset-left, 0px));
 }
 
 button { font: inherit; }
@@ -406,11 +406,6 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
   font-size: 0.72rem; font-weight: 500; white-space: nowrap; cursor: help;
 }
 .moth-trait-line { color: var(--lamp-soft); opacity: 0.85; }
-.moth-post { padding: 10px 0; border-top: 1px solid var(--edge-soft); }
-.moth-post:first-of-type { margin-top: 6px; }
-.moth-post-name { font-family: var(--display); color: var(--lamp-soft); font-size: 1.05rem; }
-.moth-post .shore-actions { margin-top: 6px; }
-.moth-post .post-select { max-width: 100%; }
 .shore-action { display: inline-flex; flex-direction: column; gap: 4px; }
 .gen.moth { justify-content: flex-start; }
 .meadow {
@@ -932,4 +927,102 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 }
 @media (prefers-reduced-motion: reduce) {
   .splash, .splash-page, .bottle-relic, .bottle-art * { animation: none !important; }
+}
+
+/* ── The Shore, redesigned: two panes, a one-screen moth garden ─── */
+.shore-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.shore-head h2 { margin: 0; }
+.shore-panes { margin: 0; }
+.shore-panes .toggle-btn { position: relative; min-height: 36px; padding: 4px 14px; }
+.pane-dot { position: absolute; top: 4px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--lamp); box-shadow: 0 0 8px var(--lamp); }
+.shore-pane { display: none; }
+.shore-pane.active { display: block; }
+
+/* The roost bar: stats, then every roost button on one row. */
+.roost-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 8px 14px; margin-bottom: 10px; }
+.roost-stats { display: grid; gap: 0; min-width: 0; }
+.roost-stats .moth-roost-line { font-size: 0.82rem; }
+.roost-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.roost-actions button.buy { min-height: 36px; padding: 6px 12px; font-size: 0.86rem; }
+.roost-bar .moth-attract-note { grid-column: 1 / -1; font-size: 0.76rem; }
+
+.garden-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 10px; align-items: start; }
+.garden-main, .garden-side { display: grid; gap: 10px; align-content: start; }
+.garden-side .meadow { height: 80px; margin: 0; }
+
+/* The roster: compact tiles, two to a row. */
+.roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-height: max(190px, calc(100vh - 520px)); /* the roster scrolls; its detail strip always fits beneath */ min-height: 120px; overflow-y: auto; padding: 2px; }
+.roster > p { grid-column: 1 / -1; margin: 0; }
+.moth-tile {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 6px 10px;
+  border: 1px solid var(--edge-soft);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--glass-2), var(--glass));
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.moth-tile:hover { border-color: var(--edge); }
+.moth-tile.working { border-color: rgba(143, 214, 196, 0.45); }
+.moth-tile.selected { border-color: var(--lamp); box-shadow: 0 0 0 1px var(--lamp) inset, 0 0 14px rgba(255, 196, 99, 0.18); }
+.moth-tile .moth-swatch { width: 34px; height: 27px; }
+.tile-main { display: grid; gap: 3px; min-width: 0; }
+.tile-name { font-weight: 600; color: var(--lamp-soft); font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-line { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
+.glow-meter { flex: 0 0 46px; height: 5px; border-radius: 999px; background: var(--ink-2); overflow: hidden; }
+.glow-meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--lamp-deep), var(--lamp)); }
+.glow-num { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+.tile-line .moth-trait { margin: 0; padding: 0 6px; font-size: 0.66rem; }
+.tile-flags { display: grid; justify-items: end; gap: 2px; }
+.tile-status { font-size: 0.68rem; color: var(--seafoam); white-space: nowrap; }
+.tile-status.post { color: var(--lamp-soft); }
+.tile-status.sea { color: #9fc6ee; }
+
+/* The selected moth. */
+.moth-detail { display: grid; gap: 8px; padding: 10px 14px; }
+.moth-detail > p { margin: 0; font-size: 0.88rem; }
+.detail-head { display: grid; grid-template-columns: 52px 1fr; gap: 10px; align-items: center; }
+.moth-swatch.big { width: 52px; height: 41px; }
+.detail-head .gen-flavor { font-size: 0.84rem; }
+.detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.detail-actions button.buy { min-height: 36px; padding: 6px 12px; font-size: 0.86rem; }
+.detail-hint { font-size: 0.78rem; }
+
+/* Side cards: breeding / cocoon, and posts. */
+.side-card { display: grid; gap: 4px; padding: 8px 12px; }
+.side-title { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.side-title .gen-name { font-size: 0.98rem; }
+.side-line { margin: 0; font-size: 0.82rem; }
+.side-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.side-row .muted { font-size: 0.82rem; }
+.side-card button.buy { min-height: 34px; padding: 4px 12px; font-size: 0.84rem; }
+.side-card .breed-select { min-height: 34px; padding: 4px 8px; font-size: 0.84rem; width: 100%; }
+.info-btn { width: 22px; height: 22px; padding: 0; border: 1px solid var(--edge-soft); border-radius: 50%; background: transparent; color: var(--muted); font-size: 0.85rem; cursor: pointer; }
+.info-btn:hover, .info-btn:focus-visible { color: var(--lamp-soft); border-color: var(--lamp-deep); }
+.post-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto; align-items: center; gap: 6px; min-height: 26px; font-size: 0.8rem; border-top: 1px solid var(--edge-soft); padding-top: 2px; }
+.post-name { font-family: var(--display); color: var(--lamp-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.post-who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.post-buttons { display: flex; gap: 4px; }
+.side-card .post-buttons button.buy { min-height: 24px; padding: 1px 8px; font-size: 0.74rem; }
+.splash[data-kind="almanac"] .splash-card { width: min(720px, 100%); }
+
+@media (max-width: 760px) {
+  .garden-grid { grid-template-columns: 1fr; }
+  .garden-side .meadow { height: 150px; }
+  .roost-bar { grid-template-columns: 1fr; }
+  .roost-actions { justify-content: flex-start; }
+  .roster { max-height: none; }
+}
+@media (max-width: 480px) {
+  .roster { grid-template-columns: 1fr; }
+}
+/* Short desktop screens (768–800px tall): the meadow becomes a thin strip so the garden still fits. */
+@media (min-width: 761px) and (max-height: 800px) {
+  .garden-side .meadow { height: 40px; }
 }

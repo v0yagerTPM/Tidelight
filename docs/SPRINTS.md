@@ -673,3 +673,29 @@ The last moth PR.
       Next, the dots or the arrow keys; Escape, × or the backdrop close it;
       Tab stays inside; focus returns where it was; the buttons stay in
       reach on a phone; reduced motion turns the animation off.
+
+## ✅ Post-launch — the Moth Garden on one screen
+
+The Shore had grown to 4,584 px at 1280×800, the moth garden alone
+~2,700: a full card per moth with two buttons each, a dropdown row per
+lighthouse post, and the whole Almanac table always open.
+
+- [x] **Two panes on the Shore:** Moth Garden, and Bottles & Relics. A
+      dot on a pane's button says a cocoon or bottle is ready there.
+- [x] **A one-line roost bar:** counts, then Attract / Rush / Scented /
+      Expand and the Almanac button.
+- [x] **The roster:** compact tiles two to a row (pattern, name, a glow
+      meter, traits, duty / posted / at sea / cocoon). Select one to see
+      its details and act on it in one strip below; the roster scrolls on
+      its own so the strip always fits.
+- [x] **The side column:** the meadow, the cocoon (with a progress bar)
+      or breeding, and one compact row per lighthouse post that posts the
+      selected moth. Rules moved behind ⓘ buttons, and the full Almanac
+      opens in a dialog.
+- [x] Fits one screen at 1280×800, 1366×768, 1440×900 and 1920×1080, even
+      with all seven lighthouses lit and 12 moths (on screens 800 px tall
+      or less the meadow becomes a thin strip). Phones stack it in one
+      column.
+- [x] **Fix:** the buy-amount code listened to every pill toggle, so the
+      Keeper's Desk notation buttons set the buy amount to NaN until a
+      reload. It now listens only to the ×1/×10/×100/Max buttons.
