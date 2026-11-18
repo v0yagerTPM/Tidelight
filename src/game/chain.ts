@@ -286,7 +286,7 @@ export function chainFactor(state: GameState, now?: number): number {
  * Fails cleanly (false, no change) while the chain is locked, the
  * lighthouse is dark, or the player can't afford the next level.
  */
-export function buyNodeUpgrade(state: GameState, lighthouseId: string, nodeId: ChainNodeId): boolean {
+export function buyNodeUpgrade(state: GameState, lighthouseId: string, nodeId: ChainNodeId, log = true): boolean {
   if (!chainUnlocked(state)) return false;
   const board = state.chainBoards[lighthouseId];
   if (!isLit(state, lighthouseId) || !board) return false;
@@ -295,7 +295,7 @@ export function buyNodeUpgrade(state: GameState, lighthouseId: string, nodeId: C
   state.lumen = state.lumen.sub(cost);
   board[nodeId] += 1;
   const lh = chainLighthouseById(lighthouseId);
-  addLog(state, `${CHAIN_NODES[nodeId].name} at ${lh.name} raised to level ${board[nodeId]}.`);
+  if (log) addLog(state, `${CHAIN_NODES[nodeId].name} at ${lh.name} raised to level ${board[nodeId]}.`);
   return true;
 }
 
@@ -369,7 +369,7 @@ export function nextLighthouseId(state: GameState): string | null {
 const RELIGHT_LOG_LINES: Record<string, string> = {
   [GULL_ROCK_ID]: "Gull Rock Light burns again — every flame you tend burns half again as bright. (+50% production)",
   "cormorant-roost": "Cormorant Roost burns again — the cormorants approve, in their hundreds, all facing the light. (+75% production)",
-  "widows-walk": "The Widow's Walk burns again — and in its store-rooms, a century of careful keeping: every supply chain you tend runs half again as strong. (chain support +50%)",
+  "widows-walk": "The Widow's Walk burns again — and in its store-rooms, a century of careful keeping, and a steward who never stopped keeping it. Every supply chain you tend runs half again as strong, and the Chain Steward now feeds it for you. (chain support +50%; the Chain Steward, on the Light view)",
   bellwether: "The Bellwether burns again — somewhere across the glass, its bell rings once, and the ships that are mostly memory turn toward it. Every ember you bank from now on weighs more. (Ember gain +25%; Memory Ships can be hired)",
   "sirens-rest": "Siren's Rest burns again — the sirens stir, stretch, and go back to sleep, mollified. The night itself works harder for you now. (offline rate +10 pts, offline cap +4h)",
   [HOLLOW_LIGHT_ID]: "THE HOLLOW LIGHT BURNS. From Candlewick Point to the heart of the sea, seven lights stand in a row across the glass — and the glass, all at once, remembers it was water. (+150% production)",

@@ -37,6 +37,7 @@ import {
   buyNodeUpgrade,
   chainStatus,
   isLit,
+  lighthouseMultiplier,
   lighthouseStatus,
   nextLighthouseId,
   nextLevelSupportGain,
@@ -70,6 +71,8 @@ import {
 } from "./game/expeditions";
 import { Splash, type SplashPage } from "./ui/splash";
 import { tutorialPages } from "./ui/tutorial";
+import { infoTip, initTips, setTip, tipAttr } from "./ui/tips";
+import { bottleneckAtDemand, efficiencyAtDemand, feedNode, feedQuote, fillChain, stewardActive, stewardUnlocked, tendChain } from "./game/supply";
 import { formatDuration, formatNumber } from "./game/format";
 import {
   attractMoth,
@@ -237,6 +240,7 @@ checkStory(state);
 saveState(state);
 
 // ── Static shell: persistent header + tab menu (separate views, no long page)
+initTips();
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("#app not found");
 
@@ -271,16 +275,47 @@ ${[
   <main>
     <section id="view-light" class="view active">
       <div id="challenge-banner" class="challenge-banner hidden" role="button" tabindex="0"></div>
-      <div id="chain-banner" class="chain-banner hidden" role="button" tabindex="0"></div>
       <div class="scene">
         <canvas id="scene-canvas" aria-hidden="true"></canvas>
         <div id="tide-strip" class="tide-strip"></div>
         <div class="scene-foot">
           <button id="flash" class="beam">Flash the Beam</button>
-          <p class="beam-hint" id="beam-hint"></p>
-          <p class="beam-efficiency" id="beam-efficiency"></p>
         </div>
       </div>
+      <section id="supply-strip" class="card supply-strip hidden" aria-label="Supply chain">
+        <div class="supply-head">
+          <span class="supply-title">Supply chain <strong id="supply-eff"></strong><span id="supply-eff-tip"></span></span>
+          <span class="supply-actions">
+            <button class="buy supply-fill" id="supply-fill">Fill the chain</button>
+            <button class="toggle-btn supply-steward" id="steward-btn" aria-expanded="false">Steward</button>
+            <button class="toggle-btn" id="supply-boards">Boards</button>
+          </span>
+        </div>
+        <div class="supply-nodes">
+          ${(["wick", "oil", "lens", "beam"] as const)
+            .map(
+              (id) => `
+          <div class="supply-node" data-node="${id}">
+            <div class="sn-top"><span class="sn-name">${CHAIN_NODES[id].name}</span><span class="sn-pct"></span></div>
+            <div class="sn-gauge"><span></span></div>
+            <button class="buy sn-feed">Feed</button>
+          </div>`,
+            )
+            .join("")}
+        </div>
+        <div id="steward-panel" class="steward-panel hidden">
+          <div class="steward-row"><span>Steward</span>
+            <span class="buy-toggle steward-toggle"><button class="toggle-btn" data-steward-on="1">On</button><button class="toggle-btn" data-steward-on="0">Off</button></span>
+          </div>
+          <div class="steward-row"><span>Share of income</span>
+            <span class="buy-toggle steward-toggle">${[0.1, 0.25, 0.5].map((v) => `<button class="toggle-btn" data-steward-share="${v}">${Math.round(v * 100)}%</button>`).join("")}</span>
+          </div>
+          <div class="steward-row"><span>Keep the beam at</span>
+            <span class="buy-toggle steward-toggle">${[0.8, 0.9, 1].map((v) => `<button class="toggle-btn" data-steward-target="${v}">${Math.round(v * 100)}%</button>`).join("")}</span>
+          </div>
+          <p class="muted steward-status" id="steward-status"></p>
+        </div>
+      </section>
       <div class="buy-toggle" role="group" aria-label="Buy amount">
         <span class="buy-toggle-label">Buy</span>
         <button class="toggle-btn" data-amount="1">×1</button>
@@ -292,8 +327,8 @@ ${[
     </section>
 
     <section id="view-upgrades" class="view">
-      <h2>Upgrades</h2>
-      <p class="muted">One-time lessons for the light. Most are forgotten when you Rekindle — the ones marked ♾ are keeper knowledge and are kept. <span id="upgrades-summary"></span></p>
+      <h2>Upgrades ${infoTip("One-time lessons for the light. Most are forgotten when you Rekindle; the ones marked ♾ are keeper knowledge and are kept.", "About upgrades")}</h2>
+      <p class="muted"><span id="upgrades-summary"></span></p>
       <h3 class="section-title">Ready to learn</h3>
       <div id="upgrades-available" class="lesson-grid"></div>
       <h3 class="section-title">Not yet discovered</h3>
@@ -303,8 +338,7 @@ ${[
     </section>
 
     <section id="view-lighthouses" class="view">
-      <h2>The Seven Lighthouses</h2>
-      <p class="muted">Lit lighthouses stay lit forever — even through a Rekindle. Their supply chains don't: every board is stripped back to its starting levels when the light gutters. They relight in order, and each demands a beam running at its efficiency — tend the chain, then reach.</p>
+      <h2>The Seven Lighthouses ${infoTip("Lit lighthouses stay lit forever, even through a Rekindle. Their supply chains don't: every board is stripped back to its starting levels when the light gutters. They relight in order, and each demands a beam running at its efficiency. Feed the chain from the supply strip on the Light view; the boards below show it lighthouse by lighthouse.", "About the lighthouses")}</h2>
       <div class="coast">
         <canvas id="coast-canvas" aria-hidden="true"></canvas>
         <div id="coast-pins" class="coast-pins"></div>
@@ -318,7 +352,7 @@ ${[
 
     <section id="view-shore" class="view">
       <div class="shore-head">
-        <h2>The Shore</h2>
+        <h2>The Shore ${infoTip("What the glass sea gives back. Moths, relics and story fragments are permanent: they roost through every Rekindle.", "About the Shore")}</h2>
         <div class="buy-toggle shore-panes" role="tablist" aria-label="The Shore">
           <button class="toggle-btn active" data-pane="garden" role="tab" aria-selected="true">🦋 Moth Garden<span class="pane-dot hidden" id="garden-dot"></span></button>
           <button class="toggle-btn" data-pane="sea" role="tab" aria-selected="false">🍾 Bottles &amp; Relics<span class="pane-dot hidden" id="sea-dot"></span></button>
@@ -335,7 +369,6 @@ ${[
         </div>
       </div>
       <div class="shore-pane" id="pane-sea">
-        <p class="muted">What the glass sea gives back. Moths, relics and story fragments are permanent — they roost through every Rekindle.</p>
         <h3 class="section-title">Bottle Expeditions</h3>
         <div id="expedition-area"></div>
         <h3 class="section-title">Relics of the Glass Sea</h3>
@@ -344,8 +377,7 @@ ${[
     </section>
 
     <section id="view-rekindle" class="view">
-      <h2>Rekindle</h2>
-      <p class="muted">Let the light gutter out and light it again, stronger. Embers are banked from this run's lifetime Lumen: √(lifetime ÷ 5,000).</p>
+      <h2>Rekindle ${infoTip("Let the light gutter out and light it again, stronger. Embers are banked from this run's lifetime Lumen: √(lifetime ÷ 5,000). Each Ember you hold adds +2% to all production.", "About Rekindling")}</h2>
       <div class="card hearth" id="rk-hearth">
         <div class="hearth-top">
           <div class="hearth-art">${HEARTH_ART}<span class="hearth-spark"></span><span class="hearth-spark"></span><span class="hearth-spark"></span></div>
@@ -372,12 +404,11 @@ ${[
         <button id="rk-button" class="danger">Rekindle the Light</button>
       </div>
 
-      <h3 class="section-title">Ember Shop</h3>
-      <p class="muted">Spend held Embers on permanent perks. Every Ember spent lowers your held-Ember production bonus — that's the trade. <span id="shop-held"></span></p>
+      <h3 class="section-title">Ember Shop ${infoTip("Spend held Embers on permanent perks. Every Ember spent lowers your held-Ember production bonus: that's the trade.", "About the Ember Shop")}</h3>
+      <p class="muted"><span id="shop-held"></span></p>
       <div id="ember-shop" class="perk-grid"></div>
 
-      <h3 class="section-title">Challenges</h3>
-      <p class="muted">Opt-in rule-changing runs. Starting one resets your run like a Rekindle — but grants no Embers. Reach the goal to bank a permanent reward; the run then continues. Abandoning resets the run with no reward.</p>
+      <h3 class="section-title">Challenges ${infoTip("Opt-in rule-changing runs. Starting one resets your run like a Rekindle, but grants no Embers. Reach the goal to bank a permanent reward; the run then continues. Abandoning resets the run with no reward.", "About challenges")}</h3>
       <div id="challenges" class="trial-list"></div>
     </section>
 
@@ -446,11 +477,6 @@ challengeBanner?.addEventListener("keydown", (e) => {
 });
 
 // The bottleneck banner in the Light view jumps straight to the chain board.
-const chainBanner = document.querySelector<HTMLDivElement>("#chain-banner");
-chainBanner?.addEventListener("click", () => activateTab("lighthouses"));
-chainBanner?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" || e.key === " ") activateTab("lighthouses");
-});
 
 // ── Buy-amount toggle (persisted in the save) ────────────────────────────────
 // Only the ×1/×10/×100/Max buttons: other pill toggles (notation, the
@@ -472,8 +498,10 @@ interface GenRow {
   ring: SVGCircleElement;
   owned: HTMLElement;
   prod: HTMLElement;
+  /** The icon with its milestone ring: its tip says how far the next ×2 is. */
   milestone: HTMLElement;
-  cost: HTMLElement;
+  /** "beam 100% → 84% · feed Oil" when buying would starve the chain. */
+  chain: HTMLElement;
   note: HTMLElement;
   buy: HTMLButtonElement;
 }
@@ -490,15 +518,13 @@ if (genList) {
         <svg class="gen-ring" viewBox="0 0 48 48" aria-hidden="true"><circle class="gen-ring-track" cx="24" cy="24" r="22"/><circle class="gen-ring-fill" cx="24" cy="24" r="22" pathLength="100"/></svg>
       </div>
       <div class="gen-main">
-        <div class="gen-name">${def.name} <span class="gen-owned"></span></div>
-        <div class="gen-flavor">${def.flavor}</div>
+        <div class="gen-name"><span class="gen-title"${tipAttr(def.flavor)}>${def.name}</span> <span class="gen-owned"></span></div>
         <div class="gen-prod muted"></div>
-        <div class="gen-milestone muted"></div>
       </div>
       <div class="gen-buy">
         <button class="buy">Buy</button>
-        <div class="gen-cost"></div>
         <div class="gen-note muted"></div>
+        <div class="gen-chain hidden"></div>
       </div>`;
     const buy = row.querySelector<HTMLButtonElement>(".buy");
     if (!buy) continue;
@@ -519,8 +545,8 @@ if (genList) {
       ring: row.querySelector(".gen-ring-fill") as SVGCircleElement,
       owned: row.querySelector(".gen-owned") as HTMLElement,
       prod: row.querySelector(".gen-prod") as HTMLElement,
-      milestone: row.querySelector(".gen-milestone") as HTMLElement,
-      cost: row.querySelector(".gen-cost") as HTMLElement,
+      milestone: row.querySelector(".gen-icon") as HTMLElement,
+      chain: row.querySelector(".gen-chain") as HTMLElement,
       note: row.querySelector(".gen-note") as HTMLElement,
       buy,
     });
@@ -1544,6 +1570,7 @@ function lighthouseBonusText(def: (typeof CHAIN_LIGHTHOUSES)[number]): string {
   if (brings) parts.push(brings.name.startsWith("The ") ? `${brings.name} answers its light` : `${brings.name}s answer its light`);
   if (def.productionBonus > 0) parts.push(`+${Math.round(def.productionBonus * 100)}% production`);
   if (def.supportBonus > 0) parts.push(`chain support +${Math.round(def.supportBonus * 100)}%`);
+  if (def.id === "widows-walk") parts.push("a Chain Steward feeds your chain");
   if (def.emberGainBonus > 0) parts.push(`Ember gain +${Math.round(def.emberGainBonus * 100)}%`);
   if (def.offlineRateBonus > 0) parts.push(`offline rate +${Math.round(def.offlineRateBonus * 100)} pts`);
   if (def.offlineCapBonusSeconds > 0) parts.push(`offline cap +${def.offlineCapBonusSeconds / 3600}h`);
@@ -1642,8 +1669,8 @@ function rebuildLighthouses(): void {
       // Lit and far-off lighthouses are one-liners; the next one gets its
       // full description and the Relight button. The coast above shows all.
       card.innerHTML = `
-        <div class="gen-name"><span class="lh-num">${i + 1}</span> ${def.name}</div>
-        ${isNextCard ? `<p class="muted">${def.hint}</p>${bonus ? `<p class="lh-grants">Relighting it grants: ${bonus}</p>` : ""}` : ""}
+        <div class="gen-name"><span class="lh-num">${i + 1}</span> <span class="lh-name"${tipAttr(def.hint)}>${def.name}</span></div>
+        ${isNextCard && bonus ? `<p class="lh-grants">Relighting it grants: ${bonus}</p>` : ""}
         ${lit ? `<p class="learned">Lit ✓${bonus ? ` — ${bonus}` : ""}</p>` : ""}`;
       if (!lit && def.id === relightTargetId) {
         const buyWrap = document.createElement("div");
@@ -1733,9 +1760,8 @@ function rebuildLighthouses(): void {
     const box = document.createElement("div");
     box.className = "node";
     box.innerHTML = `
-      <div class="node-head"><span class="node-name">${def.name}</span><span class="node-status"></span></div>
+      <div class="node-head"><span class="node-name"${tipAttr(def.flavor)}>${def.name}</span><span class="node-status"></span></div>
       <div class="node-level"></div>
-      <div class="gen-flavor">${def.flavor}</div>
       <div class="node-detail muted"></div>
       <div class="node-flag"></div>
       <div class="gen-buy node-buy">
@@ -2217,8 +2243,6 @@ const hud = {
   lumen: document.querySelector<HTMLElement>("#hud-lumen"),
   rate: document.querySelector<HTMLElement>("#hud-rate"),
   embers: document.querySelector<HTMLElement>("#hud-embers"),
-  beamHint: document.querySelector<HTMLElement>("#beam-hint"),
-  beamEfficiency: document.querySelector<HTMLElement>("#beam-efficiency"),
   rkGain: document.querySelector<HTMLElement>("#rk-gain"),
   rkHeld: document.querySelector<HTMLElement>("#rk-held"),
   rkHeldLabel: document.querySelector<HTMLElement>("#rk-held-label"),
@@ -2238,14 +2262,168 @@ const hud = {
 
 let logStructureKey: string | null = null;
 
+// ── The supply strip: the chain, fed from the Light view ────────────────────
+// Wick, Oil and Lens as gauges of support against demand (the bottleneck
+// glows), the Beam bonus, a Feed button on each (the best-value level on
+// any lit board: supply.ts), Fill the chain, and the Chain Steward's
+// settings. The board-by-board view stays on the Lighthouses tab.
+const supplyStrip = document.querySelector<HTMLElement>("#supply-strip");
+/** Levels the Chain Steward has fed since the page opened. */
+let stewardLevels = 0;
+const supplyNodes = (["wick", "oil", "lens", "beam"] as const).map((nodeId) => {
+  const el = supplyStrip?.querySelector<HTMLElement>(`.supply-node[data-node="${nodeId}"]`) ?? null;
+  const feed = el?.querySelector<HTMLButtonElement>(".sn-feed") ?? null;
+  feed?.addEventListener("click", () => {
+    if (feedNode(state, nodeId)) {
+      sound.buy();
+      saveState(state);
+      renderDynamic();
+    }
+  });
+  return {
+    nodeId,
+    el,
+    pct: el?.querySelector<HTMLElement>(".sn-pct") ?? null,
+    gauge: el?.querySelector<HTMLElement>(".sn-gauge > span") ?? null,
+    feed,
+  };
+});
+const supplyFill = document.querySelector<HTMLButtonElement>("#supply-fill");
+const supplyEff = document.querySelector<HTMLElement>("#supply-eff");
+const stewardBtn = document.querySelector<HTMLButtonElement>("#steward-btn");
+const stewardPanel = document.querySelector<HTMLElement>("#steward-panel");
+const stewardStatus = document.querySelector<HTMLElement>("#steward-status");
+supplyFill?.addEventListener("click", () => {
+  const filled = fillChain(state, 1, state.lumen, Date.now());
+  if (filled.levels > 0) {
+    sound.buy();
+    saveState(state);
+    renderDynamic();
+  }
+});
+document.querySelector("#supply-boards")?.addEventListener("click", () => activateTab("lighthouses"));
+setTip(document.querySelector("#supply-boards")!, "The board-by-board view of every lighthouse's chain, on the Lighthouses tab.");
+stewardBtn?.addEventListener("click", () => {
+  if (!stewardUnlocked(state) || !stewardPanel) return;
+  const open = stewardPanel.classList.toggle("hidden") === false;
+  stewardBtn.setAttribute("aria-expanded", String(open));
+});
+stewardPanel?.querySelectorAll<HTMLButtonElement>("[data-steward-on]").forEach((b) =>
+  b.addEventListener("click", () => {
+    state.stewardOn = b.dataset.stewardOn === "1";
+    saveState(state);
+    renderDynamic();
+  }),
+);
+stewardPanel?.querySelectorAll<HTMLButtonElement>("[data-steward-share]").forEach((b) =>
+  b.addEventListener("click", () => {
+    state.stewardShare = Number(b.dataset.stewardShare);
+    saveState(state);
+    renderDynamic();
+  }),
+);
+stewardPanel?.querySelectorAll<HTMLButtonElement>("[data-steward-target]").forEach((b) =>
+  b.addEventListener("click", () => {
+    state.stewardTarget = Number(b.dataset.stewardTarget);
+    saveState(state);
+    renderDynamic();
+  }),
+);
+
+/** A soft glow on the strip when the Steward feeds the chain. */
+function pulseSupply(): void {
+  if (!supplyStrip) return;
+  supplyStrip.classList.remove("tended");
+  void supplyStrip.offsetWidth; // restart the animation
+  supplyStrip.classList.add("tended");
+}
+
+function updateSupplyStrip(now: number): void {
+  if (!supplyStrip) return;
+  const chain = chainStatus(state, now);
+  supplyStrip.classList.toggle("hidden", !chain.unlocked);
+  if (!chain.unlocked) return;
+  if (supplyEff) {
+    supplyEff.textContent = pct(chain.efficiency);
+    supplyEff.classList.toggle("starved", chain.efficiency < 0.5);
+    setTip(
+      supplyEff,
+      `Beam efficiency: the weakest supply carries ${pct(chain.efficiency)} of the ${fmt(chain.demand)}/s your helpers produce, so the beam runs at ${Math.round(chain.chainFactor * 100)}% strength (25% + 75% × efficiency).`,
+    );
+  }
+  for (const ref of supplyNodes) {
+    const quote = feedQuote(state, ref.nodeId, now);
+    const boardName = quote.board ? chainLighthouseById(quote.board).name : "";
+    if (ref.nodeId === "beam") {
+      const bonus = Math.round((chain.beamMultiplier.toNumber() - 1) * 100);
+      if (ref.pct) ref.pct.textContent = `+${bonus}%`;
+      if (ref.gauge) ref.gauge.style.width = "0%";
+      if (ref.el) setTip(ref.el, `Beam: ${chain.beamLevels} level${chain.beamLevels === 1 ? "" : "s"} across all boards, +5% production each (+${bonus}% now). Beam doesn't carry supplies, so it never holds the chain back.`);
+      if (ref.feed) setTip(ref.feed, quote.board ? `The cheapest Beam level, on ${boardName}: +5% production.` : "");
+    } else {
+      const node = chain.nodes.find((n) => n.nodeId === ref.nodeId)!;
+      const isBottleneck = chain.bottleneck === ref.nodeId;
+      if (ref.pct) ref.pct.textContent = pct(node.efficiency);
+      if (ref.gauge) ref.gauge.style.width = `${Math.max(2, node.efficiency * 100).toFixed(1)}%`;
+      ref.el?.classList.toggle("bottleneck", isBottleneck);
+      if (ref.el) setTip(ref.el, `${CHAIN_NODES[ref.nodeId].name} carries ${fmt(node.support)}/s of the ${fmt(chain.demand)}/s your helpers produce${isBottleneck ? ". It's the bottleneck: feed it first." : "."}`);
+      if (ref.feed && quote.board) {
+        setTip(
+          ref.feed,
+          `Buys the best-value ${CHAIN_NODES[ref.nodeId].name} level, on ${boardName}: +${fmt(quote.supportGain)}/s support` +
+            (pct(quote.efficiencyAfter) !== pct(chain.efficiency)
+              ? `, beam ${pct(chain.efficiency)} → ${pct(quote.efficiencyAfter)}.`
+              : isBottleneck
+                ? ". The beam needs more than one level here: Fill the chain feeds it until it's full."
+                : ` (${CHAIN_NODES[chain.bottleneck ?? ref.nodeId].name} is the one holding the beam back).`),
+        );
+      }
+    }
+    if (ref.feed) {
+      ref.feed.textContent = quote.cost ? `Feed · ${fmt(quote.cost)}` : "Feed";
+      ref.feed.disabled = !quote.affordable;
+      ref.feed.classList.toggle("affordable", quote.affordable && (ref.nodeId === chain.bottleneck || (chain.bottleneck === null && ref.nodeId === "beam")));
+    }
+  }
+  if (supplyFill) {
+    const bottleneckQuote = chain.bottleneck ? feedQuote(state, chain.bottleneck, now) : null;
+    const can = chain.efficiency < 1 && bottleneckQuote !== null && bottleneckQuote.affordable;
+    supplyFill.disabled = !can;
+    supplyFill.classList.toggle("affordable", can);
+    setTip(supplyFill, chain.efficiency >= 1 ? "The beam is fully fed." : "Feed the weakest supply again and again until the beam is fully fed or your Lumen runs out.");
+  }
+  // The Chain Steward.
+  const unlocked = stewardUnlocked(state);
+  if (stewardBtn) {
+    stewardBtn.textContent = unlocked ? `Steward · ${state.stewardOn ? "on" : "off"}` : "Steward 🔒";
+    stewardBtn.classList.toggle("active", unlocked && state.stewardOn);
+    stewardBtn.setAttribute("aria-disabled", String(!unlocked));
+    setTip(
+      stewardBtn,
+      unlocked
+        ? `The Chain Steward sets aside ${Math.round(state.stewardShare * 100)}% of what you earn and feeds the weakest supply until the beam is at ${Math.round(state.stewardTarget * 100)}%. Tap to change.`
+        : "Relight Widow's Walk and a Chain Steward feeds the chain for you.",
+    );
+  }
+  if (stewardPanel && !stewardPanel.classList.contains("hidden")) {
+    stewardPanel.querySelectorAll<HTMLButtonElement>("[data-steward-on]").forEach((b) => b.classList.toggle("active", (b.dataset.stewardOn === "1") === state.stewardOn));
+    stewardPanel.querySelectorAll<HTMLButtonElement>("[data-steward-share]").forEach((b) => b.classList.toggle("active", Number(b.dataset.stewardShare) === state.stewardShare));
+    stewardPanel.querySelectorAll<HTMLButtonElement>("[data-steward-target]").forEach((b) => b.classList.toggle("active", Number(b.dataset.stewardTarget) === state.stewardTarget));
+    if (stewardStatus) {
+      stewardStatus.textContent = stewardActive(state)
+        ? `Purse ${fmt(state.stewardPurse)} · fed ${stewardLevels} level${stewardLevels === 1 ? "" : "s"} since you opened the game. It never spends more than its purse, which holds at most ten minutes of production.`
+        : "Off: the chain is yours to feed.";
+    }
+  }
+}
+
 function renderDynamic(): void {
   const nowMs = Date.now();
   if (hud.lumen) hud.lumen.textContent = fmt(state.lumen);
   if (hud.rate) hud.rate.textContent = `${fmt(productionPerSecond(state, nowMs))}/s`;
   if (hud.embers) hud.embers.textContent = fmt(state.embers);
-  if (hud.beamHint) {
-    hud.beamHint.textContent = `+${fmt(clickValue(state, nowMs))} Lumen per flash. Hire help below and the light keeps itself.`;
-  }
+  const flashBtn = document.querySelector("#flash");
+  if (flashBtn) setTip(flashBtn, `+${fmt(clickValue(state, nowMs))} Lumen per flash (tapping the sea works too). Hire help below and the light keeps itself.`);
 
   // Tide strip (Sprint 4): current tide, its effect in words, the turn
   // countdown, and what's coming next.
@@ -2257,8 +2435,9 @@ function renderDynamic(): void {
         : "";
     const nextHint = next.def.id === "storm" ? " — shore up your chain." : "";
     hud.tideStrip.innerHTML =
-      `${current.def.icon} <strong>${current.def.name}</strong><span class="tide-detail"> — ${current.def.effectText}${stormRelic}</span> ` +
-      `<span class="tide-turn">· turns in ${formatDuration((current.endsAt - nowMs) / 1000)} · next: ${next.def.icon} ${next.def.name}<span class="tide-detail">${nextHint}</span></span>`;
+      `${current.def.icon} <strong>${current.def.name}</strong> ` +
+      `<span class="tide-turn">· turns in ${formatDuration((current.endsAt - nowMs) / 1000)} · next: ${next.def.icon} ${next.def.name}</span>`;
+    setTip(hud.tideStrip, `${current.def.name}: ${current.def.effectText}${stormRelic}\nNext, ${next.def.name}: ${next.def.effectText}${nextHint}`);
   }
 
   // Challenge banner in the Light view while a challenge run is active.
@@ -2272,25 +2451,8 @@ function renderDynamic(): void {
     }
   }
 
-  // Supply chain: efficiency line in the Light view + bottleneck banner.
-  const chain = chainStatus(state, nowMs);
-  if (hud.beamEfficiency) {
-    if (!chain.unlocked) {
-      hud.beamEfficiency.textContent = "";
-    } else {
-      const beamPct = Math.round((chain.beamMultiplier.toNumber() - 1) * 100);
-      hud.beamEfficiency.textContent = `Beam efficiency: ${pct(chain.efficiency)}${beamPct > 0 ? ` · Beam +${beamPct}%` : ""}`;
-    }
-  }
-  if (chainBanner) {
-    if (chain.unlocked && chain.efficiency < 1 && chain.bottleneck) {
-      const bn = chain.nodes.find((n) => n.nodeId === chain.bottleneck);
-      chainBanner.textContent = `⚠ ${CHAIN_NODES[chain.bottleneck].name} is the bottleneck: it supports ${fmt(bn?.support ?? 0)}/s of ${fmt(chain.demand)}/s produced (${pct(chain.efficiency)}), so the beam runs at ${Math.round(chain.chainFactor * 100)}% strength. Tap to see the chain board.`;
-      chainBanner.classList.remove("hidden");
-    } else {
-      chainBanner.classList.add("hidden");
-    }
-  }
+  // The supply strip under the scene.
+  updateSupplyStrip(nowMs);
 
   // Lighthouses view: rebuild on structure change, refresh in place after.
   const key2 = lighthouseStructureKey();
@@ -2318,6 +2480,7 @@ function renderDynamic(): void {
       ? `Relight ${chainLighthouseById(waiting).name} and new helpers will answer the light.`
       : `Hire a ${GENERATORS[revealUpTo].name} and you'll see what else answers the light.`;
   }
+  const chainNow = chainStatus(state, nowMs);
   for (const row of genRows) {
     const owned = state.generators[row.def.id] ?? 0;
     row.ring.style.strokeDashoffset = String(100 - milestoneProgress(owned) * 100);
@@ -2328,21 +2491,43 @@ function renderDynamic(): void {
       owned > 0
         ? `${fmt(generatorProduction(state, row.def))} Lumen/s`
         : `${fmt(new Decimal(row.def.baseProduction))} Lumen/s each`;
-    row.milestone.textContent = milestoneHint(owned);
-    const displayCount = state.buyAmount === "max" ? quote.count : state.buyAmount;
-    row.cost.textContent = `×${displayCount} · ${fmt(quote.cost)} Lumen`;
+    setTip(row.milestone, milestoneHint(owned));
     // First Light Only challenge: tiers 4+ are blocked outright.
     const blockedByChallenge = !canBuyGenerator(state, row.def.id);
     const waitingOn = generatorLockedBy(state, row.def.id);
     row.row.classList.toggle("waiting", waitingOn !== null);
     row.buy.disabled = !quote.affordable || blockedByChallenge;
     row.buy.classList.toggle("affordable", quote.affordable && !blockedByChallenge);
+    const count = state.buyAmount === "max" ? Math.max(1, quote.count) : state.buyAmount;
+    setTip(
+      row.buy,
+      `Hire ${count} ${row.def.name}${count === 1 ? "" : row.def.name.endsWith("s") ? "" : "s"} for ${fmt(quote.cost)} Lumen` +
+        (quote.productionGain.gt(0) ? `: +${fmt(quote.productionGain)} Lumen/s.` : ".") +
+        (owned > 0 ? ` You have ${owned}.` : ""),
+    );
+    // The price rides on the button: one line less on every row.
     row.buy.textContent =
       state.buyAmount === "max"
         ? quote.count > 0
-          ? `Buy Max (×${quote.count})`
-          : "Buy Max"
-        : `Buy ×${state.buyAmount}`;
+          ? `Buy ×${quote.count} · ${fmt(quote.cost)}`
+          : `Buy · ${fmt(quote.cost)}`
+        : `Buy ×${state.buyAmount} · ${fmt(quote.cost)}`;
+    // What this purchase does to the supply chain.
+    let warn = "";
+    if (chainNow.unlocked && !waitingOn && quote.affordable && quote.productionGain.gt(0)) {
+      const extra = quote.productionGain.mul(lighthouseMultiplier(state));
+      const after = efficiencyAtDemand(state, extra, nowMs);
+      if (pct(after) !== pct(chainNow.efficiency) && after < chainNow.efficiency) {
+        const node = bottleneckAtDemand(state, extra, nowMs);
+        warn = `⚠ beam ${pct(chainNow.efficiency)} → ${pct(after)}${node ? ` · feed ${CHAIN_NODES[node].name}` : ""}`;
+        setTip(
+          row.chain,
+          `These helpers would add ${fmt(extra)}/s of demand on the supply chain. ${node ? `${CHAIN_NODES[node].name} couldn't keep up, ` : ""}so the beam would drop to ${pct(after)} efficiency. Feed it from the supply strip above${stewardActive(state) ? ", or let the Chain Steward catch up" : ""}.`,
+        );
+      }
+    }
+    row.chain.textContent = warn;
+    row.chain.classList.toggle("hidden", warn === "");
     if (waitingOn) {
       row.note.textContent = `Answers the light of ${chainLighthouseById(waitingOn).name} — relight it to hire`;
     } else if (blockedByChallenge) {
@@ -2551,8 +2736,15 @@ function renderDynamic(): void {
 let renderErrorLogged = false;
 function gameTick(): void {
   const result = advanceToNow(state, Date.now());
+  // The Chain Steward takes its share of what was just earned and feeds the chain.
+  const fed = tendChain(state, result.gain, Date.now());
+  if (fed > 0) {
+    stewardLevels += fed;
+    pulseSupply();
+  }
   if (result.mode === "offline") {
     welcomeBack(result.gain, result.creditedSeconds, result.elapsedSeconds);
+    if (fed > 0) addLog(state, `While you were away, your Chain Steward saw to the supply line: ${fed} level${fed === 1 ? "" : "s"} of supplies.`);
     saveState(state);
   }
   // Story beats fire the moment their moment arrives (cheap predicates).

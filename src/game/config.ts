@@ -251,7 +251,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
   {
     id: WIDOWS_WALK_ID,
     name: "Widow's Walk",
-    hint: "A railed platform above a keeper's cottage, worn smooth by pacing. Whoever waited here kept meticulous stores — relight it and every supply chain you tend runs +50% stronger.",
+    hint: "A railed platform above a keeper's cottage, worn smooth by pacing. Whoever waited here kept meticulous stores — relight it and every supply chain you tend runs +50% stronger, and a Chain Steward starts tending it for you.",
     relightCost: 3.4e12,
     efficiencyRequirement: 0.65,
     productionBonus: 0,
