@@ -74,6 +74,25 @@ export function emberMultiplier(state: GameState): Decimal {
 }
 
 /**
+ * The production bonuses that outlast a run: held Embers, Ember perks,
+ * challenge rules and rewards, moths on duty, relics, the Next Keeping's
+ * legacy and lit lighthouses — everything in production except the
+ * generators themselves and their per-run upgrades. A Rekindle keeps all
+ * of it, so it is exactly how much more a fresh run's first generators
+ * demand of the chain than a new keeper's do. First Light's starting chain
+ * is scaled by it (chain.ts, startingCushion).
+ */
+export function lastingProductionMultiplier(state: GameState): Decimal {
+  return emberMultiplier(state)
+    .mul(emberShopProductionMultiplier(state))
+    .mul(challengeProductionMultiplier(state))
+    .mul(mothProductionMultiplier(state))
+    .mul(relicProductionMultiplier(state))
+    .mul(legacyMultiplier(state))
+    .mul(lighthouseMultiplier(state));
+}
+
+/**
  * Lumen/s a generator type would produce at a given ownership count.
  * Multiplier ordering (kept in one place — see also chain.ts):
  *   base × owned × milestones × its own upgrades × Humble Mastery (tiers 1–3)

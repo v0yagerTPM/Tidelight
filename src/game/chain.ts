@@ -5,6 +5,7 @@ import {
   CHAIN_LIGHTHOUSES,
   CHAIN_NODES,
   CHAIN_UNLOCK_GENERATORS,
+  FIRST_LIGHT_ID,
   GULL_ROCK_ID,
   HOLLOW_LIGHT_ID,
   SUPPLY_NODE_IDS,
@@ -21,7 +22,7 @@ import {
 // chain's demand. Neither module calls the other at load time, and
 // baseProductionPerSecond itself never calls back into the chain.
 import { chainSupportMultiplier, gullRockRelightCost } from "./emberShop";
-import { baseProductionPerSecond } from "./engine";
+import { baseProductionPerSecond, lastingProductionMultiplier } from "./engine";
 import { relicNodeCostMultiplier, relicSupportMultiplier } from "./expeditions";
 import { addLog, startBoard } from "./state";
 import { tideSupportMultiplier } from "./tides";
@@ -88,6 +89,29 @@ export function boardNodeSupport(lighthouseId: string, nodeId: SupplyNodeId, lev
   return levels.mul(def.supportPerLevel).mul(scale);
 }
 
+/**
+ * First Light's warm start: the levels every run begins with (Wick 1,
+ * Oil 1, Lens 1) support their usual amount × the keeper's lasting
+ * production bonuses (engine.lastingProductionMultiplier). Those bonuses
+ * survive a Rekindle and multiply what the first generators demand, so
+ * without this a keeper holding 1,000 Embers (×21) began every run with
+ * the chain at a new keeper's 20/15/10 against twenty-one times the
+ * demand: 2–7% efficiency for the first minutes, 25% at five. With it,
+ * every run starts as fed as a new keeper's first one. Levels bought on
+ * top support their usual amounts, so feeding a growing run costs what it
+ * always did, and late in a run the cushion is small beside demand.
+ * Returns the EXTRA support beyond the starting levels' own, before the
+ * support multipliers (which apply to it like any other support).
+ */
+export function startingCushion(state: GameState, nodeId: SupplyNodeId): Decimal {
+  const startLevel = chainLighthouseById(FIRST_LIGHT_ID).startLevels[nodeId];
+  const counted = Math.min(startLevel, state.chainBoards[FIRST_LIGHT_ID]?.[nodeId] ?? 0);
+  if (counted <= 0) return new Decimal(0);
+  const extra = lastingProductionMultiplier(state).sub(1);
+  if (extra.lte(0)) return new Decimal(0);
+  return boardNodeSupport(FIRST_LIGHT_ID, nodeId, counted).mul(extra);
+}
+
 /** Every support multiplier at once (perks, relics, lighthouses, tide). */
 export function supportMultiplier(state: GameState, now?: number): number {
   return chainSupportMultiplier(state) * relicSupportMultiplier(state) * lighthouseSupportMultiplier(state) * tideSupportMultiplier(now);
@@ -112,7 +136,7 @@ export function nextLevelSupportGain(state: GameState, lighthouseId: string, nod
  * ×1.2, Stormfront ×0.8).
  */
 export function totalSupport(state: GameState, nodeId: SupplyNodeId, now?: number): Decimal {
-  let raw = new Decimal(0);
+  let raw = startingCushion(state, nodeId);
   for (const id of state.litLighthouses) raw = raw.add(boardNodeSupport(id, nodeId, state.chainBoards[id]?.[nodeId] ?? 0));
   return raw
     .mul(chainSupportMultiplier(state))
