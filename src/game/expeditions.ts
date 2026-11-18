@@ -25,7 +25,7 @@ import type { GameState } from "./types";
 //   keepers-coat      → offline rate +5 points (upgrades.offlineRateFor, 90% cap)
 //   gull-feather      → chain node costs ×0.8 (chain.nodeCost)
 //   amber-heart       → Rekindle Ember gain ×1.1, floored (prestige.rekindleGain)
-//   driftwood-cradle  → new moths arrive with +10 glow (moths attract/hatch)
+//   driftwood-cradle  → wild moths arrive with +5 glow (moths attract only)
 //   storm-in-a-bottle → Stormfront production ×1.45 instead of ×1.30 (tides)
 
 export interface ExpeditionRouteDef {
@@ -66,7 +66,7 @@ export const SALT_LENS_CLICK_MULTIPLIER = 1.5;
 export const KEEPERS_COAT_OFFLINE_RATE_BONUS = 0.05;
 export const GULL_FEATHER_NODE_COST_MULTIPLIER = 0.8;
 export const AMBER_HEART_GAIN_MULTIPLIER = 1.1;
-export const DRIFTWOOD_CRADLE_GLOW_BONUS = 10;
+export const DRIFTWOOD_CRADLE_GLOW_BONUS = 5;
 
 export const RELICS: readonly RelicDef[] = [
   { id: "brass-compass",     name: "Brass Compass",     effect: "All production +10%. It points at whatever light needs making." },
@@ -75,7 +75,7 @@ export const RELICS: readonly RelicDef[] = [
   { id: "keepers-coat",      name: "Keeper's Coat",    effect: "Offline earnings rate +5 percentage points (hard cap 90%). It still smells of lamp oil and rain." },
   { id: "gull-feather",      name: "Gull Feather",     effect: "Chain node upgrades cost 20% less. The gulls approve of thrift." },
   { id: "amber-heart",       name: "Amber Heart",      effect: "Rekindle Ember gain +10%. A coal that never finished going out." },
-  { id: "driftwood-cradle",  name: "Driftwood Cradle", effect: "New moths arrive with +10 glow. Something in the wood remembers being warm." },
+  { id: "driftwood-cradle",  name: "Driftwood Cradle", effect: "Wild moths arrive with +5 glow. Something in the wood remembers being warm." },
   { id: "storm-in-a-bottle", name: "Storm in a Bottle", effect: "Stormfront tides boost production ×1.45 instead of ×1.30. It rattles, faintly, at night." },
 ];
 

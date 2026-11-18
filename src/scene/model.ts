@@ -2,7 +2,7 @@ import { CHAIN_LIGHTHOUSES, HOLLOW_LIGHT_ID, type SupplyNodeId } from "../game/c
 import { chainStatus, lighthouseStatus, nextLighthouseId } from "../game/chain";
 import { productionPerSecond } from "../game/engine";
 import { EXPEDITION_ROUTES } from "../game/expeditions";
-import { COCOON_DURATION_MS, dutyMoths, mothsUnlocked, patternById } from "../game/moths";
+import { COCOON_BASE_MS, cocoonDurationMs, dutyMoths, mothById, mothsUnlocked, patternById } from "../game/moths";
 import { tideAt, type TideId } from "../game/tides";
 import type { GameState } from "../game/types";
 
@@ -209,9 +209,12 @@ export interface MeadowModel {
 export function buildMeadowModel(state: GameState, now: number): MeadowModel {
   const duty = new Set(dutyMoths(state).map((m) => m.id));
   const cocoonIds = new Set(state.cocoon?.parentIds ?? []);
+  const cocoonParents = state.cocoon ? state.cocoon.parentIds.map((id) => mothById(state, id)) : [];
+  const cocoonSpan =
+    cocoonParents[0] && cocoonParents[1] ? cocoonDurationMs(cocoonParents[0], cocoonParents[1]) : COCOON_BASE_MS;
   const cocoon = state.cocoon
     ? {
-        progress: Math.max(0, Math.min(1, 1 - (state.cocoon.readyAt - now) / COCOON_DURATION_MS)),
+        progress: Math.max(0, Math.min(1, 1 - (state.cocoon.readyAt - now) / cocoonSpan)),
         ready: now >= state.cocoon.readyAt,
       }
     : null;

@@ -21,9 +21,9 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 6;
-/** Older saves (Sprint 0 = v1 … Sprint 4 = v5) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5];
+export const SAVE_VERSION = 7;
+/** Older saves (Sprint 0 = v1 … the post-launch rebalance = v6) migrate on load. */
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6];
 
 const MAX_LOG_ENTRIES = 60;
 
@@ -75,6 +75,8 @@ function sanitizeChain(
 // ── Sprint 4 (Shore) field sanitizing ────────────────────────────────────────
 
 const MAX_DUTY_MOTHS = 3;
+/** moths.ts LURE_BANK (kept literal here: moths.ts imports this module). */
+const LURE_BANK = 3;
 
 function sanitizeMoth(raw: unknown): Moth | null {
   if (typeof raw !== "object" || raw === null) return null;
@@ -127,6 +129,9 @@ function sanitizeShore(s: Partial<SavedState>): {
   mothDuty: string[];
   roostExpansions: number;
   cocoon: Cocoon | null;
+  mothLures: number;
+  mothLureAnchor: number;
+  mothLureRushes: number;
   expedition: ExpeditionState | null;
   relics: string[];
   storyFragmentIndex: number;
@@ -143,6 +148,11 @@ function sanitizeShore(s: Partial<SavedState>): {
     mothDuty,
     roostExpansions: sanitizeCount(s.roostExpansions),
     cocoon: sanitizeCocoon(s.cocoon, moths),
+    // The moth rebalance (v7) migration: a full lure bank, the clock from now.
+    mothLures: typeof s.mothLures === "number" ? Math.min(LURE_BANK, sanitizeCount(s.mothLures)) : LURE_BANK,
+    mothLureAnchor:
+      typeof s.mothLureAnchor === "number" && Number.isFinite(s.mothLureAnchor) ? s.mothLureAnchor : Date.now(),
+    mothLureRushes: sanitizeCount(s.mothLureRushes),
     expedition: sanitizeExpedition(s.expedition),
     relics: sanitizeIdList(s.relics, RELICS),
     storyFragmentIndex: sanitizeCount(s.storyFragmentIndex),
@@ -169,6 +179,9 @@ export function createInitialState(now: number = Date.now()): GameState {
     mothDuty: [],
     roostExpansions: 0,
     cocoon: null,
+    mothLures: LURE_BANK,
+    mothLureAnchor: now,
+    mothLureRushes: 0,
     expedition: null,
     relics: [],
     storyFragmentIndex: 0,
@@ -217,6 +230,9 @@ export function serializeState(state: GameState): SavedState {
     mothDuty: [...state.mothDuty],
     roostExpansions: state.roostExpansions,
     cocoon: state.cocoon ? { parentIds: [...state.cocoon.parentIds], readyAt: state.cocoon.readyAt } : null,
+    mothLures: state.mothLures,
+    mothLureAnchor: state.mothLureAnchor,
+    mothLureRushes: state.mothLureRushes,
     expedition: state.expedition ? { ...state.expedition } : null,
     relics: [...state.relics],
     storyFragmentIndex: state.storyFragmentIndex,
