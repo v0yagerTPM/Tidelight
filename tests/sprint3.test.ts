@@ -23,7 +23,7 @@ import {
   productionPerSecond,
   tick,
 } from "../src/game/engine";
-import { estimateRecoveryMinutes } from "../src/game/estimate";
+import { createRecoveryEstimator, estimateRecoveryMinutes } from "../src/game/estimate";
 import { canRekindle, rekindle } from "../src/game/prestige";
 import { createInitialState, deserializeState, serializeState } from "../src/game/state";
 import type { GameState } from "../src/game/types";
@@ -221,6 +221,19 @@ describe("recovery preview", () => {
     const before = serializeState(state);
     estimateRecoveryMinutes(state);
     expect(serializeState(state)).toEqual(before);
+  });
+
+  it("the stepped estimator, run a slice at a time, gives the same answer as the whole run", () => {
+    const state = midGameState(8_000_000);
+    let clock = 0;
+    // A fake clock that advances 1 ms per reading: each 3 ms slice does only a step or two.
+    const estimator = createRecoveryEstimator(state, () => clock++);
+    let slices = 0;
+    while (!estimator.step(3)) slices++;
+    expect(slices).toBeGreaterThan(3);
+    expect(estimator.done).toBe(true);
+    expect(estimator.result).toBe(estimateRecoveryMinutes(state));
+    expect(createRecoveryEstimator(createInitialState()).done).toBe(true); // nothing to estimate
   });
 });
 

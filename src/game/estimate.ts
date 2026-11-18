@@ -13,35 +13,78 @@ import type { GameState } from "./types";
 // steps until its production/sec meets or beats the player's current one.
 //
 // Deterministic and bounded: the sim caps at 600 minutes and returns null
-// past it. It is NOT cheap enough to run per frame — callers should
-// compute it when the Rekindle view renders / its inputs change
-// materially, and cache the result.
+// past it. It is NOT cheap enough to run per frame (≈350 ms at 3B Lumen/s):
+// the UI runs it a few milliseconds per frame through
+// createRecoveryEstimator, only while the Rekindle view is open, and only
+// when the Ember gain has moved materially.
 
 /** Hard cap on the recovery simulation, in minutes. */
 export const RECOVERY_CAP_MINUTES = 600;
 const STEP_SECONDS = 10;
 
-export function estimateRecoveryMinutes(state: GameState): number | null {
-  const target = productionPerSecond(state);
-  if (target.lte(0)) return null;
-  if (!canRekindle(state)) return null; // includes "in a challenge" and "< 1 Ember"
+/**
+ * A recovery estimate that runs a slice at a time, so the UI can spread
+ * the simulation over many frames instead of blocking one (late in the
+ * game a full run takes hundreds of milliseconds). `step(budgetMs)`
+ * advances it for about that long and returns true once `result` holds
+ * the answer (minutes, or null past the cap / when no Rekindle is possible).
+ */
+export interface RecoveryEstimator {
+  step(budgetMs: number): boolean;
+  readonly done: boolean;
+  readonly result: number | null;
+}
 
-  const clone = deserializeState(serializeState(state));
-  if (!clone) return null;
-  if (rekindle(clone) < 1) return null;
+export function createRecoveryEstimator(state: GameState, clock: () => number = () => performance.now()): RecoveryEstimator {
+  let done = false;
+  let result: number | null = null;
+  const finish = (value: number | null): boolean => {
+    done = true;
+    result = value;
+    return true;
+  };
+
+  const target = productionPerSecond(state);
+  let clone: GameState | null = null;
+  if (target.gt(0) && canRekindle(state)) {
+    // includes "in a challenge" and "< 1 Ember"
+    clone = deserializeState(serializeState(state));
+    if (clone && rekindle(clone) < 1) clone = null;
+  }
+  if (!clone) finish(null);
 
   const capSeconds = RECOVERY_CAP_MINUTES * 60;
   let t = 0;
-  while (t <= capSeconds) {
-    botBuyPhase(clone, t);
-    if (productionPerSecond(clone).gte(target)) return t / 60;
-    // The bot clicks once per 2s for the first 10 minutes of the new run.
-    if (t < BOT_CLICK_WINDOW_SECONDS) {
-      const clicks = Math.round(STEP_SECONDS * BOT_CLICK_RATE);
-      for (let i = 0; i < clicks; i++) clickBeam(clone);
-    }
-    tick(clone, STEP_SECONDS);
-    t += STEP_SECONDS;
-  }
-  return null;
+  return {
+    get done() {
+      return done;
+    },
+    get result() {
+      return result;
+    },
+    step(budgetMs: number): boolean {
+      if (done || !clone) return true;
+      const until = clock() + budgetMs;
+      do {
+        if (t > capSeconds) return finish(null);
+        botBuyPhase(clone, t);
+        if (productionPerSecond(clone).gte(target)) return finish(t / 60);
+        // The bot clicks once per 2s for the first 10 minutes of the new run.
+        if (t < BOT_CLICK_WINDOW_SECONDS) {
+          const clicks = Math.round(STEP_SECONDS * BOT_CLICK_RATE);
+          for (let i = 0; i < clicks; i++) clickBeam(clone);
+        }
+        tick(clone, STEP_SECONDS);
+        t += STEP_SECONDS;
+      } while (clock() < until);
+      return false;
+    },
+  };
+}
+
+/** The whole estimate in one go (tests and tools; the UI uses the stepped estimator). */
+export function estimateRecoveryMinutes(state: GameState): number | null {
+  const estimator = createRecoveryEstimator(state);
+  estimator.step(Infinity);
+  return estimator.result;
 }

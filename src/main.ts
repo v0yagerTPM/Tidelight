@@ -57,7 +57,7 @@ import {
   productionPerSecond,
   timeToAffordCost,
 } from "./game/engine";
-import { estimateRecoveryMinutes } from "./game/estimate";
+import { createRecoveryEstimator, type RecoveryEstimator } from "./game/estimate";
 import {
   EXPEDITION_ROUTES,
   RELICS,
@@ -404,7 +404,7 @@ function activateTab(name: string): void {
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.querySelector(`#view-${name}`)?.classList.add("active");
   // Opening the Rekindle view always gets a fresh recovery estimate.
-  if (name === "rekindle") recoveryCacheKey = "";
+  if (name === "rekindle") recoveryKey = "";
   renderDynamic();
   syncSceneRunning();
 }
@@ -1285,27 +1285,75 @@ function updateShoreView(now: number): void {
   }
 }
 
-// ── Recovery estimate (cached: it runs a bounded bot sim, not per-frame) ────
-let recoveryCacheKey = "";
-let recoveryCache: number | null = null;
+// ── Recovery estimate ────────────────────────────────────────────────────────
+// It runs a bounded bot sim of a whole new run (≈350 ms late in the game),
+// so it is only computed while the Rekindle tab is open, and restarted only
+// when the Ember gain moves by about 5% (or the Embers, perks, lights or
+// challenge change). It runs in a Web Worker; where a worker can't start,
+// it is stepped a few milliseconds per refresh instead. Either way no frame
+// waits on it, and the last finished answer shows meanwhile.
+let recoveryKey = "";
+let recoveryJob: RecoveryEstimator | null = null;
+/** The last finished estimate; undefined until the first one completes. */
+let recoveryValue: number | null | undefined;
+const RECOVERY_STEP_MS = 6;
+let recoveryWorker: Worker | null = null;
+/** "unstarted" until the Rekindle tab first needs an estimate; "failed" falls back to slicing. */
+let recoveryWorkerState: "unstarted" | "running" | "failed" = "unstarted";
+let recoveryRequest = 0;
 
-function recoveryEstimate(): number | null {
+/** Start the estimate worker on first use (its script is a separate, lazily loaded file). */
+function estimateWorker(): Worker | null {
+  if (recoveryWorkerState === "unstarted") {
+    try {
+      recoveryWorker = new Worker(new URL("./game/estimateWorker.ts", import.meta.url), { type: "module" });
+      recoveryWorker.onmessage = (event: MessageEvent<{ id: number; minutes: number | null }>) => {
+        if (event.data.id === recoveryRequest) recoveryValue = event.data.minutes;
+      };
+      recoveryWorker.onerror = () => {
+        // A worker the page can't load (e.g. the single-file build): slice instead.
+        recoveryWorker?.terminate();
+        recoveryWorker = null;
+        recoveryWorkerState = "failed";
+        recoveryKey = "";
+      };
+      recoveryWorkerState = "running";
+    } catch {
+      recoveryWorkerState = "failed";
+    }
+  }
+  return recoveryWorker;
+}
+
+function recoveryEstimate(): number | null | undefined {
+  const gain = rekindleGain(state);
   const key = [
-    rekindleGain(state),
+    Math.round(Math.log(Math.max(1, gain)) / Math.log(1.05)),
     state.embers,
     state.totalRekindles,
     state.emberPerks.join(","),
     state.litLighthouses.join(","),
     state.activeChallenge ?? "",
   ].join("|");
-  if (key !== recoveryCacheKey) {
-    recoveryCacheKey = key;
-    recoveryCache = estimateRecoveryMinutes(state);
+  if (key !== recoveryKey) {
+    recoveryKey = key;
+    const worker = estimateWorker();
+    if (worker) {
+      recoveryJob = null;
+      worker.postMessage({ id: ++recoveryRequest, save: serializeState(state) });
+      return recoveryValue;
+    }
+    recoveryJob = createRecoveryEstimator(state);
   }
-  return recoveryCache;
+  if (recoveryJob && recoveryJob.step(RECOVERY_STEP_MS)) {
+    recoveryValue = recoveryJob.result;
+    recoveryJob = null;
+  }
+  return recoveryValue;
 }
 
-function formatRecovery(minutes: number | null): string {
+function formatRecovery(minutes: number | null | undefined): string {
+  if (minutes === undefined) return "estimating…";
   if (minutes === null) return "over 10 hours";
   if (minutes < 90) return `~${Math.max(1, Math.round(minutes))} min`;
   return `~${(minutes / 60).toFixed(1)} h`;
@@ -2140,7 +2188,7 @@ function renderDynamic(): void {
     hud.rkHearth.style.setProperty("--heat", heat.toFixed(3));
     hud.rkHearth.classList.toggle("ready", gain >= PRESTIGE_RECOMMENDED_EMBERS && state.activeChallenge === null);
   }
-  if (hud.rkRecovery) {
+  if (hud.rkRecovery && activeTab === "rekindle") {
     hud.rkRecovery.textContent =
       state.activeChallenge !== null
         ? "— (finish or abandon your challenge first)"

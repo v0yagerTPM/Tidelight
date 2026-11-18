@@ -69,8 +69,10 @@ export const MOTH_PATTERNS: readonly MothPatternDef[] = [
   { id: "tidelit",   name: "Tidelit",   tier: 5, weight: 0, glowCeiling: 100, emoji: "🌊", swatch: "repeating-linear-gradient(160deg, #2d6f86 0 5px, #8fd6c4 5px 8px, #1d3f5c 8px 13px)" },
 ];
 
+const PATTERNS_BY_ID: ReadonlyMap<string, MothPatternDef> = new Map(MOTH_PATTERNS.map((p) => [p.id, p]));
+
 export function patternById(id: string): MothPatternDef {
-  return MOTH_PATTERNS.find((p) => p.id === id) ?? MOTH_PATTERNS[0];
+  return PATTERNS_BY_ID.get(id) ?? MOTH_PATTERNS[0];
 }
 
 /** The highest wing tier (Prismatic, and the Tidelit sidegrade). */

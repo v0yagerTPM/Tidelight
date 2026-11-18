@@ -78,8 +78,25 @@ export function totalNodeLevels(state: GameState, nodeId: ChainNodeId): number {
  * multipliers: supportPerLevel × boardScale × (g^L − 1)/(g − 1), where
  * level k adds supportPerLevel × g^(k−1). Level 1 supports supportPerLevel.
  */
+// Memoised: the same few (board, node, level) triples are asked for
+// hundreds of times a second, and the levels only move when bought.
+// Decimals are immutable, so sharing the cached value is safe.
+const supportMemo = new Map<string, Decimal>();
+const ZERO = new Decimal(0);
+
 export function boardNodeSupport(lighthouseId: string, nodeId: SupplyNodeId, level: number): Decimal {
-  if (level <= 0) return new Decimal(0);
+  if (level <= 0) return ZERO;
+  const key = `${lighthouseId}|${nodeId}|${level}`;
+  let cached = supportMemo.get(key);
+  if (cached === undefined) {
+    if (supportMemo.size > 20_000) supportMemo.clear();
+    cached = computeBoardNodeSupport(lighthouseId, nodeId, level);
+    supportMemo.set(key, cached);
+  }
+  return cached;
+}
+
+function computeBoardNodeSupport(lighthouseId: string, nodeId: SupplyNodeId, level: number): Decimal {
   const def = CHAIN_NODES[nodeId];
   const g = def.supportGrowth;
   const scale = chainLighthouseById(lighthouseId).boardScale;
