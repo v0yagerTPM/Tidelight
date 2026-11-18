@@ -276,6 +276,90 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 .lighthouse.locked { opacity: 0.75; background: transparent; border-style: dashed; }
 .lighthouse.lit { border-color: rgba(255, 196, 99, 0.45); box-shadow: inset 0 1px 0 rgba(255, 226, 166, 0.08), 0 0 24px -16px rgba(255, 196, 99, 0.9); }
 
+/* ── The coast panorama ────────────────────────────── */
+.coast {
+  position: relative;
+  height: clamp(220px, 34vw, 300px);
+  margin: 14px 0 16px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--edge-soft);
+  background: #050b16;
+}
+#coast-canvas, #chain-flow-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.coast-pins { position: absolute; inset: 0; }
+.coast-pin {
+  position: absolute;
+  width: 56px;
+  transform: translateX(-50%);
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+}
+.coast-pin:hover { background: rgba(255, 226, 166, 0.06); }
+.coast-pin-label {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+.coast-pin-num {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--edge);
+  background: rgba(8, 16, 30, 0.85);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+}
+.coast-pin-name { background: rgba(8, 16, 30, 0.7); padding: 1px 5px; border-radius: 4px; }
+.coast-pin.lit .coast-pin-num { background: var(--lamp); border-color: var(--lamp); color: #261803; }
+.coast-pin.lit .coast-pin-label { color: var(--lamp-soft); }
+.coast-pin.next .coast-pin-num { border-color: var(--lamp); color: var(--lamp); }
+.coast-pin.selected .coast-pin-num { box-shadow: 0 0 0 2px var(--seafoam); }
+/* Names alternate above/below the waterline so neighbours don't collide. */
+.coast-pin:nth-child(even) .coast-pin-label { top: auto; bottom: calc(100% + 4px); }
+
+.chain-flow {
+  position: relative;
+  height: 120px;
+  margin: 0 0 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--edge-soft);
+  background: linear-gradient(180deg, rgba(13, 26, 46, 0.9), rgba(10, 20, 36, 0.9));
+  overflow: hidden;
+}
+
+.lh-num {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 4px;
+  border-radius: 50%;
+  border: 1px solid var(--edge);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  vertical-align: 2px;
+}
+.lighthouse.lit .lh-num { background: var(--lamp); border-color: var(--lamp); color: #261803; }
+.lighthouse.next { border-color: rgba(255, 196, 99, 0.6); }
+.lighthouse.next .lh-num { border-color: var(--lamp); color: var(--lamp); }
+.lighthouse.compact { padding: 10px 16px; }
+.lighthouse.compact p { margin: 4px 0 0; }
+
 /* ── The supply chain ──────────────────────────────── */
 .flow-board { display: flex; align-items: stretch; gap: 8px; }
 .flow-arrow { align-self: center; color: var(--lamp); font-size: 1.3rem; flex-shrink: 0; }
@@ -419,6 +503,8 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
   .scene { height: 360px; margin-left: -4px; margin-right: -4px; }
   .scene .tide-strip { font-size: 0.76rem; }
   .tide-detail { display: none; }
+  .coast-pin-name { display: none; }
+  .coast-pin:nth-child(even) .coast-pin-label { top: calc(100% + 6px); bottom: auto; }
   /* The lighthouse stands left of centre: keep the lamp clear of the button. */
   .scene-foot { justify-items: end; padding: 24px 12px 10px; background: linear-gradient(rgba(5, 11, 22, 0), rgba(5, 11, 22, 0.7) 60%); }
   .beam { font-size: 1.1rem; padding: 9px 22px; }

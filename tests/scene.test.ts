@@ -1,7 +1,15 @@
+import Decimal from "break_infinity.js";
 import { describe, expect, it } from "vitest";
 import { CHAIN_LIGHTHOUSES, HOLLOW_LIGHT_ID } from "../src/game/config";
 import { createInitialState, startBoard } from "../src/game/state";
-import { MOTH_WING_COLORS, buildSceneModel, reachFor, visibleCount } from "../src/scene/model";
+import {
+  MOTH_WING_COLORS,
+  buildChainFlowModel,
+  buildCoastModel,
+  buildSceneModel,
+  reachFor,
+  visibleCount,
+} from "../src/scene/model";
 
 // The scene model maps game state to what the Light-view scene draws. The
 // renderer itself is canvas drawing; these tests pin the mapping.
@@ -73,5 +81,37 @@ describe("scene model", () => {
     const state = createInitialState();
     state.generators["seventh-light"] = 1;
     expect(buildSceneModel(state, NOW).seventh).toBeGreaterThanOrEqual(0.3);
+  });
+});
+
+describe("coast model", () => {
+  it("marks lit towers, and the next one with how close its gates are", () => {
+    const state = createInitialState();
+    let m = buildCoastModel(state, NOW);
+    expect(m.towers).toHaveLength(7);
+    expect(m.towers[0]).toMatchObject({ lit: true, isNext: false, readiness: 1 });
+    expect(m.towers[1]).toMatchObject({ isNext: true, readiness: 0 }); // chain asleep
+    expect(m.towers.slice(2).every((t) => !t.isNext && t.readiness === 0)).toBe(true);
+
+    state.generators["candle-crab"] = 10; // chain awake, 5/s, fully supported
+    state.lumen = new Decimal(1_000_000); // half of Gull Rock's 2,000,000
+    m = buildCoastModel(state, NOW);
+    expect(m.towers[1].readiness).toBeCloseTo(0.5, 6);
+  });
+});
+
+describe("chain flow model", () => {
+  it("what flows out of each node is capped by the weakest node so far", () => {
+    const state = createInitialState();
+    state.generators["candle-crab"] = 10;
+    state.generators["tide-bell"] = 1; // 22/s: wick 20 (91%), oil 15 (68%), lens 10 (45%)
+    const m = buildChainFlowModel(state, NOW);
+    expect(m.unlocked).toBe(true);
+    const [wick, oil, lens] = m.nodes;
+    expect(wick.flow).toBeCloseTo(20 / 22, 6);
+    expect(oil.flow).toBeCloseTo(15 / 22, 6);
+    expect(lens.flow).toBeCloseTo(10 / 22, 6);
+    expect(lens.bottleneck).toBe(true);
+    expect(m.chainFactor).toBeCloseTo(0.25 + 0.75 * (10 / 22), 6);
   });
 });

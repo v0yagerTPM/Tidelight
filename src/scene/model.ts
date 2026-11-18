@@ -1,5 +1,5 @@
-import { CHAIN_LIGHTHOUSES, HOLLOW_LIGHT_ID } from "../game/config";
-import { chainStatus } from "../game/chain";
+import { CHAIN_LIGHTHOUSES, HOLLOW_LIGHT_ID, type SupplyNodeId } from "../game/config";
+import { chainStatus, lighthouseStatus, nextLighthouseId } from "../game/chain";
 import { productionPerSecond } from "../game/engine";
 import { dutyMoths, patternById } from "../game/moths";
 import { tideAt, type TideId } from "../game/tides";
@@ -100,5 +100,81 @@ export function buildSceneModel(state: GameState, now: number): SceneModel {
       const pattern = patternById(m.pattern);
       return { color: MOTH_WING_COLORS[pattern.id] ?? MOTH_WING_COLORS.plain, glow: m.glow / 100, tier: pattern.tier };
     }),
+  };
+}
+
+// ── The coast (Lighthouses view) ─────────────────────────────────────────────
+
+export interface CoastTower {
+  id: string;
+  name: string;
+  lit: boolean;
+  /** The first dark lighthouse in relight order — the one you can reach for. */
+  isNext: boolean;
+  /**
+   * For the next lighthouse: 0–1, how close every gate is (the weaker of
+   * Lumen saved toward the cost and beam efficiency toward the requirement).
+   * 1 for lit towers, 0 for the rest.
+   */
+  readiness: number;
+}
+
+export interface CoastModel {
+  towers: CoastTower[];
+  seaIsWater: boolean;
+  tide: TideId;
+}
+
+export function buildCoastModel(state: GameState, now: number): CoastModel {
+  const next = nextLighthouseId(state);
+  let nextReadiness = 0;
+  if (next) {
+    const ls = lighthouseStatus(state, next, now);
+    const costPart = ls.cost.lte(0) ? 1 : Math.min(1, state.lumen.div(ls.cost).toNumber());
+    const effPart = !ls.chainUnlocked ? 0 : ls.efficiencyRequired <= 0 ? 1 : Math.min(1, ls.efficiency / ls.efficiencyRequired);
+    nextReadiness = Math.max(0, Math.min(costPart, effPart));
+  }
+  return {
+    towers: CHAIN_LIGHTHOUSES.map((def) => {
+      const lit = state.litLighthouses.includes(def.id);
+      const isNext = def.id === next;
+      return { id: def.id, name: def.name, lit, isNext, readiness: lit ? 1 : isNext ? nextReadiness : 0 };
+    }),
+    seaIsWater: state.litLighthouses.includes(HOLLOW_LIGHT_ID),
+    tide: tideAt(now).def.id,
+  };
+}
+
+// ── The chain flow (Lighthouses view) ────────────────────────────────────────
+
+export interface ChainFlowNode {
+  id: SupplyNodeId;
+  /** This node's own support ÷ demand, 0–1. */
+  efficiency: number;
+  /** What actually flows out of this node: the weakest efficiency so far. */
+  flow: number;
+  bottleneck: boolean;
+}
+
+export interface ChainFlowModel {
+  /** Before the chain wakes, it is drawn asleep. */
+  unlocked: boolean;
+  nodes: ChainFlowNode[];
+  /** 0.25–1, the beam's strength. */
+  chainFactor: number;
+  beamLevels: number;
+}
+
+export function buildChainFlowModel(state: GameState, now: number): ChainFlowModel {
+  const status = chainStatus(state, now);
+  let flow = 1;
+  return {
+    unlocked: status.unlocked,
+    nodes: status.nodes.map((n) => {
+      flow = Math.min(flow, n.efficiency);
+      return { id: n.nodeId, efficiency: n.efficiency, flow, bottleneck: status.bottleneck === n.nodeId };
+    }),
+    chainFactor: status.chainFactor,
+    beamLevels: status.beamLevels,
   };
 }

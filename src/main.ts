@@ -98,7 +98,9 @@ import {
   startBoard,
 } from "./game/state";
 import type { BuyAmount, GameState } from "./game/types";
-import { buildSceneModel } from "./scene/model";
+import { ChainFlowRenderer } from "./scene/chainFlow";
+import { COAST_LAYOUT, CoastRenderer } from "./scene/coast";
+import { buildChainFlowModel, buildCoastModel, buildSceneModel } from "./scene/model";
 import { SceneRenderer } from "./scene/renderer";
 import { BRAND_MARK, GENERATOR_ICONS, TAB_ICONS, UNKNOWN_ICON } from "./ui/icons";
 import {
@@ -248,9 +250,14 @@ ${[
     <section id="view-lighthouses" class="view">
       <h2>The Seven Lighthouses</h2>
       <p class="muted">Lit lighthouses stay lit forever — even through a Rekindle. Their supply chains don't: every board is stripped back to its starting levels when the light gutters. They relight in order, and each demands a beam running at its efficiency — tend the chain, then reach.</p>
+      <div class="coast">
+        <canvas id="coast-canvas" aria-hidden="true"></canvas>
+        <div id="coast-pins" class="coast-pins"></div>
+      </div>
       <div id="ending-panel"></div>
       <div id="lighthouse-list" class="card-list"></div>
-      <h3 class="section-title">Supply Chain — Wick → Oil → Lens → Beam</h3>
+      <h3 class="section-title" id="chain-title">Supply Chain — Wick → Oil → Lens → Beam</h3>
+      <div class="chain-flow"><canvas id="chain-flow-canvas" aria-hidden="true"></canvas></div>
       <div id="chain-area"></div>
     </section>
 
@@ -1120,11 +1127,15 @@ function rebuildLighthouses(): void {
     CHAIN_LIGHTHOUSES.forEach((def, i) => {
       const lit = isLit(state, def.id);
       const card = document.createElement("div");
-      card.className = `card lighthouse${lit ? " lit" : " locked"}`;
+      const isNextCard = !lit && def.id === relightTargetId;
+      card.id = `lh-card-${def.id}`;
+      card.className = `card lighthouse${lit ? " lit compact" : isNextCard ? " next" : " locked compact"}`;
       const bonus = lighthouseBonusText(def);
+      // Lit and far-off lighthouses are one-liners; the next one gets its
+      // full description and the Relight button. The coast above shows all.
       card.innerHTML = `
-        <div class="gen-name">${lit ? "🔥" : "🌑"} ${i + 1}. ${def.name}</div>
-        <p class="muted">${def.hint}</p>
+        <div class="gen-name"><span class="lh-num">${i + 1}</span> ${def.name}</div>
+        ${isNextCard ? `<p class="muted">${def.hint}</p>` : ""}
         ${lit ? `<p class="learned">Lit ✓${bonus ? ` — ${bonus}` : ""}</p>` : ""}`;
       if (!lit && def.id === relightTargetId) {
         const buyWrap = document.createElement("div");
@@ -1147,7 +1158,7 @@ function rebuildLighthouses(): void {
           def.efficiencyRequirement > 0
             ? ` · needs beam efficiency ≥ ${def.efficiencyRequirement < 0.01 ? `${(def.efficiencyRequirement * 100).toFixed(1)}%` : `${Math.round(def.efficiencyRequirement * 100)}%`}`
             : "";
-        card.innerHTML += `<p class="muted">Dark — relight ${prev?.name ?? "the previous light"} first · costs ${fmt(def.relightCost)} Lumen${gate}${bonus ? ` · grants ${bonus}` : ""} · its chain board costs ×${def.boardCostMultiplier}</p>`;
+        card.innerHTML += `<p class="muted">Dark — after ${prev?.name ?? "the previous light"} · ${fmt(def.relightCost)} Lumen${gate}${bonus ? ` · grants ${bonus}` : ""}</p>`;
       }
       lhList.appendChild(card);
     });
@@ -1441,23 +1452,93 @@ if (deskReset) armTwoStep(deskReset, "Are you sure? EVERYTHING goes — moths, r
 // The scene draws only while the Light view is showing; its model is rebuilt
 // from game state with the rest of the UI (10×/s), never per animation frame.
 const sceneCanvas = document.querySelector<HTMLCanvasElement>("#scene-canvas");
-let scene: SceneRenderer | null = null;
-try {
-  scene = sceneCanvas ? new SceneRenderer(sceneCanvas) : null;
-} catch (err) {
-  console.error("Tidelight scene unavailable (the game runs without it):", err);
+
+/** Build a canvas scene; if Canvas 2D is unavailable the game runs without it. */
+function makeScene<T>(canvasId: string, make: (canvas: HTMLCanvasElement) => T): T | null {
+  const canvas = document.querySelector<HTMLCanvasElement>(canvasId);
+  if (!canvas) return null;
+  try {
+    return make(canvas);
+  } catch (err) {
+    console.error(`Tidelight scene ${canvasId} unavailable (the game runs without it):`, err);
+    return null;
+  }
 }
+const scene = makeScene("#scene-canvas", (c) => new SceneRenderer(c));
+const coastScene = makeScene("#coast-canvas", (c) => new CoastRenderer(c));
+const chainFlowScene = makeScene("#chain-flow-canvas", (c) => new ChainFlowRenderer(c));
+
+/**
+ * Every scene, the view it lives in, and how to refresh its model. Only the
+ * scenes of the visible view animate or rebuild their models.
+ */
+interface SceneEntry {
+  tab: string;
+  renderer: { start(): void; stop(): void } | null;
+  refresh: (now: number) => void;
+}
+const SCENES: SceneEntry[] = [
+  { tab: "light", renderer: scene, refresh: (now) => scene?.setModel(buildSceneModel(state, now)) },
+  { tab: "lighthouses", renderer: coastScene, refresh: (now) => coastScene?.setModel(buildCoastModel(state, now), selectedBoardId) },
+  { tab: "lighthouses", renderer: chainFlowScene, refresh: (now) => chainFlowScene?.setModel(buildChainFlowModel(state, now)) },
+];
+
 function refreshScene(): void {
-  if (scene && activeTab === "light") scene.setModel(buildSceneModel(state, Date.now()));
+  const now = Date.now();
+  for (const entry of SCENES) if (entry.renderer && entry.tab === activeTab) entry.refresh(now);
 }
 function syncSceneRunning(): void {
-  if (!scene) return;
-  if (activeTab === "light" && !document.hidden) {
-    refreshScene();
-    scene.start();
-  } else {
-    scene.stop();
+  const now = Date.now();
+  for (const entry of SCENES) {
+    if (!entry.renderer) continue;
+    if (entry.tab === activeTab && !document.hidden) {
+      entry.refresh(now);
+      entry.renderer.start();
+    } else {
+      entry.renderer.stop();
+    }
   }
+}
+
+// The coast's towers are buttons too: a lit one shows its chain board, a dark
+// one scrolls to its card.
+const coastPins = document.querySelector<HTMLDivElement>("#coast-pins");
+const coastPinButtons: HTMLButtonElement[] = [];
+CHAIN_LIGHTHOUSES.forEach((def, i) => {
+  const slot = COAST_LAYOUT[i];
+  const pin = document.createElement("button");
+  pin.className = "coast-pin";
+  pin.style.left = `${slot.x * 100}%`;
+  pin.style.top = `${(slot.base - slot.height - 0.08) * 100}%`;
+  pin.style.height = `${(slot.height + 0.08) * 100}%`;
+  pin.innerHTML = `<span class="coast-pin-label"><span class="coast-pin-num">${i + 1}</span><span class="coast-pin-name">${def.name}</span></span>`;
+  pin.addEventListener("click", () => {
+    if (isLit(state, def.id)) {
+      selectedBoardId = def.id;
+      renderDynamic();
+      refreshScene();
+      document.querySelector("#chain-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      document.querySelector(`#lh-card-${def.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  });
+  coastPins?.appendChild(pin);
+  coastPinButtons.push(pin);
+});
+function updateCoastPins(): void {
+  const next = nextLighthouseId(state);
+  CHAIN_LIGHTHOUSES.forEach((def, i) => {
+    const pin = coastPinButtons[i];
+    if (!pin) return;
+    const lit = isLit(state, def.id);
+    pin.classList.toggle("lit", lit);
+    pin.classList.toggle("next", def.id === next);
+    pin.classList.toggle("selected", lit && def.id === selectedBoardId);
+    pin.setAttribute(
+      "aria-label",
+      lit ? `${def.name}, lit — show its chain board` : def.id === next ? `${def.name}, next to relight` : `${def.name}, dark`,
+    );
+  });
 }
 
 function flashBeam(): void {
@@ -1569,6 +1650,7 @@ function renderDynamic(): void {
     rebuildLighthouses();
   }
   updateChainView();
+  updateCoastPins();
 
   // Buy toggle: reflect the persisted setting.
   for (const btn of toggleBtns) {
