@@ -12,6 +12,12 @@ export interface GeneratorDef {
   baseProduction: number;
   /** Cost multiplier applied per copy already owned (1.13–1.15 band). */
   growth: number;
+  /**
+   * The lighthouse that must be lit before this tier can be hired
+   * (post-launch rebalance; see GENERATOR UNLOCKS below). Copies already
+   * owned keep producing either way.
+   */
+  unlockedBy?: string;
 }
 
 export const GENERATORS: readonly GeneratorDef[] = [
@@ -19,11 +25,21 @@ export const GENERATORS: readonly GeneratorDef[] = [
   { id: "lantern-moth",    name: "Lantern Moth",     flavor: "It followed the light home. It stayed.",    baseCost: 120,       baseProduction: 3,      growth: 1.15 },
   { id: "tide-bell",       name: "Tide Bell",        flavor: "It rings for ships that are mostly memory.", baseCost: 1_300,    baseProduction: 17,     growth: 1.15 },
   { id: "oil-keeper",      name: "Oil Keeper",       flavor: "Trims the wick. Keeps the stories.",        baseCost: 14_000,    baseProduction: 95,     growth: 1.15 },
-  { id: "lens-polisher",   name: "Lens Polisher",    flavor: "Every lens remembers a horizon.",           baseCost: 170_000,   baseProduction: 540,    growth: 1.14 },
-  { id: "storm-lantern",   name: "Storm Lantern",    flavor: "Lit in a gale, on purpose.",                baseCost: 2_100_000, baseProduction: 3_200,  growth: 1.14 },
-  { id: "beacon-whale",    name: "Beacon Whale",     flavor: "The sea's oldest lighthouse keeper.",      baseCost: 31_000_000, baseProduction: 19_000, growth: 1.13 },
-  { id: "seventh-light",   name: "The Seventh Light", flavor: "You don't hire this one. You become it.", baseCost: 460_000_000, baseProduction: 115_000, growth: 1.13 },
+  { id: "lens-polisher",   name: "Lens Polisher",    flavor: "Every lens remembers a horizon.",           baseCost: 170_000,   baseProduction: 540,    growth: 1.14, unlockedBy: "gull-rock" },
+  { id: "storm-lantern",   name: "Storm Lantern",    flavor: "Lit in a gale, on purpose.",                baseCost: 2_100_000, baseProduction: 3_200,  growth: 1.14, unlockedBy: "cormorant-roost" },
+  { id: "beacon-whale",    name: "Beacon Whale",     flavor: "The sea's oldest lighthouse keeper.",      baseCost: 31_000_000, baseProduction: 19_000, growth: 1.13, unlockedBy: "widows-walk" },
+  { id: "seventh-light",   name: "The Seventh Light", flavor: "You don't hire this one. You become it.", baseCost: 460_000_000, baseProduction: 115_000, growth: 1.13, unlockedBy: "sirens-rest" },
 ];
+
+// ── GENERATOR UNLOCKS (post-launch rebalance) ───────────────────────────────
+// The upper four tiers answer the light of a relit lighthouse: Lens
+// Polishers come with Gull Rock, Storm Lanterns with Cormorant Roost,
+// Beacon Whales with Widow's Walk, The Seventh Light with Siren's Rest.
+// Why: each tier out-produces the last ~6× for ~12× the price, so once
+// Embers could buy the whole ladder, one run jumped production by seven
+// orders of magnitude and the game flattened into a plateau after it. With
+// the ladder tied to the coast, production climbs a staircase — steady
+// Rekindle growth under a ceiling, and a higher ceiling with each relight.
 
 export function generatorById(id: string): GeneratorDef {
   const def = GENERATORS.find((g) => g.id === id);
@@ -73,24 +89,40 @@ export interface ChainNodeDef {
   id: ChainNodeId;
   name: string;
   flavor: string;
-  /** Lumen/s of production one level supports (0 for Beam — it gives a bonus, not support). */
+  /**
+   * Lumen/s of production the FIRST level supports (0 for Beam — it gives
+   * a bonus, not support). Each further level supports supportGrowth×
+   * more than the one before it.
+   */
   supportPerLevel: number;
+  /** Per-level growth of the support each new level adds (1 for Beam). */
+  supportGrowth: number;
   /** Cost of the first upgrade level (level 0 → 1): ceil(baseCost × growth^level). */
   baseCost: number;
   growth: number;
 }
 
-// Node costs/growth were tuned down hard in the Sprint 2 balance pass
-// (from 1,000/1.22, 5,000/1.24, 25,000/1.26, 100,000/1.30): support grows
-// linearly per level while generator demand grows exponentially, so at the
-// original prices the greedy-bot sim rode the 25% floor almost the whole
-// run and reached the first Rekindle in 146 min — outside the 40–120 band.
-// At these prices it lands at 115.0 min. See docs/SPRINTS.md.
+// ── Support grows geometrically (post-launch rebalance) ─────────────────────
+// Level k of a node adds supportPerLevel × supportGrowth^(k−1), so L levels
+// support supportPerLevel × (supportGrowth^L − 1) / (supportGrowth − 1),
+// times the board's scale. Costs grow at `growth`, a little faster than
+// support, so a deep board slowly gets pricier per Lumen/s supported.
+//
+// Why: Sprints 2–5 gave every level the SAME support while costs grew
+// geometrically and demand exponentially. Support could never keep pace,
+// efficiency sat near 0% for most of the game, and every generator bought
+// pushed the lighthouse gates further away — the sim's bot reached the
+// ending only by refusing to grow, never owning a tier above Lens Polisher.
+// Geometric support makes feeding the chain cost a fairly steady slice of
+// production at every scale, so it stays a live decision all game, the
+// gates can sit at real efficiencies, and growing never locks the ending.
+// Level 1 is unchanged (20 / 15 / 10), so the first minutes play as before.
+// See docs/SPRINTS.md for the before/after sim.
 export const CHAIN_NODES: Record<ChainNodeId, ChainNodeDef> = {
-  wick: { id: "wick", name: "Wick", flavor: "The flame itself. No wick, no light.", supportPerLevel: 20, baseCost: 100, growth: 1.10 },
-  oil:  { id: "oil",  name: "Oil",  flavor: "Fuel for the long night.",              supportPerLevel: 15, baseCost: 200, growth: 1.11 },
-  lens: { id: "lens", name: "Lens", flavor: "Glass that throws light across the sea.", supportPerLevel: 10, baseCost: 400, growth: 1.12 },
-  beam: { id: "beam", name: "Beam", flavor: "The light, aimed and thrown far.",      supportPerLevel: 0,  baseCost: 25_000, growth: 1.22 },
+  wick: { id: "wick", name: "Wick", flavor: "The flame itself. No wick, no light.", supportPerLevel: 20, supportGrowth: 1.095, baseCost: 500, growth: 1.10 },
+  oil:  { id: "oil",  name: "Oil",  flavor: "Fuel for the long night.",              supportPerLevel: 15, supportGrowth: 1.105, baseCost: 1_000, growth: 1.11 },
+  lens: { id: "lens", name: "Lens", flavor: "Glass that throws light across the sea.", supportPerLevel: 10, supportGrowth: 1.115, baseCost: 2_000, growth: 1.12 },
+  beam: { id: "beam", name: "Beam", flavor: "The light, aimed and thrown far.",      supportPerLevel: 0,  supportGrowth: 1,     baseCost: 25_000, growth: 1.22 },
 };
 
 export const SUPPLY_NODE_IDS: readonly SupplyNodeId[] = ["wick", "oil", "lens"];
@@ -110,16 +142,15 @@ export const BEAM_BONUS_PER_LEVEL = 0.05;
 // Lumen cost. Lit state and bonuses are PERMANENT (they survive Rekindle;
 // only New Game+ darkens them again).
 //
-// GATE TUNING (Sprint 5 balance pass — see docs/SPRINTS.md): the gates
-// below LH2 descend steeply (20% → 5% → 2% → 0.5% → 0.2%) because of the
-// chain's physics, unchanged since Sprint 2: support grows LINEARLY per
-// node level, node costs grow GEOMETRICALLY, and demand (base production)
-// grows EXPONENTIALLY — so at endgame demand (millions of Lumen/s) the
-// most support any purse can buy is a few thousand Lumen/s, and even a
-// 0.2% gate demands ~130 Lens levels and billions of Lumen of feeding.
-// The gates still bite hard in absolute terms; the percentages are small
-// because the sea is big. The full-game bot sim verifies every gate is
-// reachable in order. Bonuses come in several flavours:
+// GATES (post-launch rebalance): 50% → 60% → 65% → 70% → 75% → 80%. Until
+// the rebalance they had to fall to 0.2%, because support grew linearly
+// per level against exponential demand; with geometric support (see
+// CHAIN_NODES) an hour of production fed to the chain clears even the 80%
+// gate at any scale (tests/balance.test.ts), so the gates can ask for a
+// genuinely well-fed beam. Relight costs are paced by the sim so the bot
+// relights steadily up the coast (docs/SPRINTS.md); each relight from Gull
+// Rock to Siren's Rest also brings the next generator tier (GENERATOR
+// UNLOCKS above). Bonuses come in several flavours:
 //   productionBonus        ×(1 + bonus) to all production, multiplicative
 //   supportBonus           ×(1 + bonus) to every supply node's support
 //   emberGainBonus         ×(1 + bonus) to Embers gained at Rekindle
@@ -150,8 +181,13 @@ export interface ChainLighthouseDef {
   triggersEnding: boolean;
   /** Node levels a fresh board starts at (and Rekindle resets to). */
   startLevels: Record<ChainNodeId, number>;
-  /** Node upgrade costs on this board are multiplied by this. */
-  boardCostMultiplier: number;
+  /**
+   * The scale this lighthouse's board works at: its node costs AND the
+   * support its levels give are both multiplied by this. Further lights
+   * run bigger boards — and a fresh board's first levels are the cheapest
+   * support per Lumen there is, so each relight renews the chain.
+   */
+  boardScale: number;
 }
 
 export const FIRST_LIGHT_ID = "first-light";
@@ -181,7 +217,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     productionBonus: 0,
     ...NO_BONUS,
     startLevels: { wick: 1, oil: 1, lens: 1, beam: 0 },
-    boardCostMultiplier: 1,
+    boardScale: 1,
   },
   {
     id: GULL_ROCK_ID,
@@ -192,67 +228,67 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     productionBonus: 0.5,
     ...NO_BONUS,
     startLevels: { ...EMPTY_BOARD },
-    boardCostMultiplier: 8,
+    boardScale: 8,
   },
   {
     id: CORMORANT_ROOST_ID,
     name: "Cormorant Roost",
     hint: "A tall, narrow tower the cormorants adopted as a cliff. They have been keeping the lens clean for a century, out of habit. Relight it for +75% production.",
     relightCost: 25_000_000,
-    efficiencyRequirement: 0.2,
+    efficiencyRequirement: 0.6,
     productionBonus: 0.75,
     ...NO_BONUS,
     startLevels: { ...EMPTY_BOARD },
-    boardCostMultiplier: 20,
+    boardScale: 20,
   },
   {
     id: WIDOWS_WALK_ID,
     name: "Widow's Walk",
     hint: "A railed platform above a keeper's cottage, worn smooth by pacing. Whoever waited here kept meticulous stores — relight it and every supply chain you tend runs +50% stronger.",
     relightCost: 150_000_000,
-    efficiencyRequirement: 0.05,
+    efficiencyRequirement: 0.65,
     productionBonus: 0,
     ...NO_BONUS,
     supportBonus: 0.5,
     startLevels: { ...EMPTY_BOARD },
-    boardCostMultiplier: 50,
+    boardScale: 50,
   },
   {
     id: BELLWETHER_ID,
     name: "The Bellwether",
     hint: "The lead light — the one the others were lit from, in the old order of things. Its bell still knows the way home. Relight it and every Rekindle banks +25% more Embers.",
     relightCost: 1_000_000_000,
-    efficiencyRequirement: 0.02,
+    efficiencyRequirement: 0.7,
     productionBonus: 0,
     ...NO_BONUS,
     emberGainBonus: 0.25,
     startLevels: { ...EMPTY_BOARD },
-    boardCostMultiplier: 120,
+    boardScale: 120,
   },
   {
     id: SIRENS_REST_ID,
     name: "Siren's Rest",
     hint: "A low, lovely tower on the last rock before the deep glass. The sirens sleep here now, retired and harmless. Relight it and the night works harder for you: offline rate +10 points and the offline cap grows by 4 hours.",
     relightCost: 8_000_000_000,
-    efficiencyRequirement: 0.005,
+    efficiencyRequirement: 0.75,
     productionBonus: 0,
     ...NO_BONUS,
     offlineRateBonus: 0.1,
     offlineCapBonusSeconds: 4 * 60 * 60,
     startLevels: { ...EMPTY_BOARD },
-    boardCostMultiplier: 300,
+    boardScale: 300,
   },
   {
     id: HOLLOW_LIGHT_ID,
     name: "The Hollow Light",
     hint: "The last tower, at the heart of the Hollow Sea — the light the sea itself was named for. No keeper has relit it. No keeper has come back from trying. Yet. +150% production, and whatever waits beyond it.",
     relightCost: 60_000_000_000,
-    efficiencyRequirement: 0.002,
+    efficiencyRequirement: 0.8,
     productionBonus: 1.5,
     ...NO_BONUS,
     triggersEnding: true,
     startLevels: { ...EMPTY_BOARD },
-    boardCostMultiplier: 750,
+    boardScale: 750,
   },
 ];
 

@@ -99,29 +99,30 @@ describe("chain lock", () => {
 
 describe("node costs", () => {
   it("grow as ceil(base × growth^level)", () => {
-    // (Prices after the Sprint 2 balance tune — see config.ts / SPRINTS.md.)
-    expect(nodeCost(FIRST_LIGHT_ID, "wick", 0).toNumber()).toBe(100);
-    expect(nodeCost(FIRST_LIGHT_ID, "wick", 1).toNumber()).toBe(110); // 100 × 1.10
-    expect(nodeCost(FIRST_LIGHT_ID, "oil", 2).toNumber()).toBe(247); // ceil(200 × 1.11²)
-    expect(nodeCost(FIRST_LIGHT_ID, "lens", 2).toNumber()).toBe(502); // ceil(400 × 1.12²)
+    // (Prices after the post-launch rebalance — see config.ts / SPRINTS.md.)
+    expect(nodeCost(FIRST_LIGHT_ID, "wick", 0).toNumber()).toBe(500);
+    expect(nodeCost(FIRST_LIGHT_ID, "wick", 1).toNumber()).toBe(550); // 500 × 1.10
+    expect(nodeCost(FIRST_LIGHT_ID, "oil", 2).toNumber()).toBe(1_233); // ceil(1000 × 1.11²)
+    expect(nodeCost(FIRST_LIGHT_ID, "lens", 2).toNumber()).toBe(2_509); // ceil(2000 × 1.12²)
     expect(nodeCost(FIRST_LIGHT_ID, "beam", 0).toNumber()).toBe(25_000);
     expect(nodeCost(FIRST_LIGHT_ID, "beam", 1).toNumber()).toBe(30_500); // × 1.22
   });
 
   it("cost ×8 on the second lighthouse's board", () => {
-    expect(nodeCost(GULL_ROCK_ID, "wick", 1).toNumber()).toBe(880); // 110 × 8
-    expect(nodeCost(GULL_ROCK_ID, "lens", 0).toNumber()).toBe(3_200); // 400 × 8
+    expect(nodeCost(GULL_ROCK_ID, "wick", 1).toNumber()).toBe(4_400); // 550 × 8
+    expect(nodeCost(GULL_ROCK_ID, "lens", 0).toNumber()).toBe(16_000); // 2000 × 8
     expect(nodeCost(GULL_ROCK_ID, "beam", 0).toNumber()).toBe(200_000); // 25000 × 8
   });
 
   it("buying a node level deducts the cost and raises support", () => {
     const state = crabState(10, 100_000);
     expect(buyNodeUpgrade(state, FIRST_LIGHT_ID, "wick")).toBe(true);
-    expect(state.lumen.toNumber()).toBe(100_000 - 110);
+    expect(state.lumen.toNumber()).toBe(100_000 - 550);
     expect(state.chainBoards[FIRST_LIGHT_ID].wick).toBe(2);
-    expect(totalSupport(state, "wick").toNumber()).toBe(40);
-    // Too poor for the lens (448 at level 1):
-    const poor = crabState(10, 100);
+    // Geometric support: level 2 adds 20 × 1.095 on top of level 1's 20.
+    expect(totalSupport(state, "wick").toNumber()).toBeCloseTo(20 + 20 * 1.095, 9);
+    // Too poor for the lens (2,240 at level 1):
+    const poor = crabState(10, 1_000);
     expect(buyNodeUpgrade(poor, FIRST_LIGHT_ID, "lens")).toBe(false);
     // A dark lighthouse's board can't be upgraded:
     expect(buyNodeUpgrade(state, GULL_ROCK_ID, "wick")).toBe(false);
@@ -181,10 +182,11 @@ describe("Gull Rock Light", () => {
     // (Lit by hand here because this state's efficiency is under the
     // relight gate; the gate itself is covered above.)
     expect(totalSupport(state, "wick").toNumber()).toBe(20); // unchanged
-    expect(buyNodeUpgrade(state, GULL_ROCK_ID, "wick")).toBe(true); // 800 at level 0 (×8 board)
-    expect(buyNodeUpgrade(state, GULL_ROCK_ID, "wick")).toBe(true); // 880 at level 1
+    expect(buyNodeUpgrade(state, GULL_ROCK_ID, "wick")).toBe(true); // 4,000 at level 0 (×8 board)
+    expect(buyNodeUpgrade(state, GULL_ROCK_ID, "wick")).toBe(true); // 4,400 at level 1
     expect(totalNodeLevels(state, "wick")).toBe(3); // 1 + 2
-    expect(totalSupport(state, "wick").toNumber()).toBe(60);
+    // First Light's 20, plus Gull Rock's two levels at ×8 scale: 8 × (20 + 20 × 1.095).
+    expect(totalSupport(state, "wick").toNumber()).toBeCloseTo(20 + 8 * (20 + 20 * 1.095), 9);
   });
 });
 

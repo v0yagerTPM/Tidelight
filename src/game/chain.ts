@@ -41,8 +41,10 @@ import { totalGeneratorsOwned } from "./upgrades";
 //   =  final production.
 //
 // Each supply node's efficiency is min(1, totalSupport / demand), where
-// totalSupport sums that node's levels across every lit lighthouse's board
-// and is scaled by Deep Wicks (×1.25), the Tide Chart relic (×1.15),
+// totalSupport sums that node's support across every lit lighthouse's
+// board — L levels on a board support supportPerLevel × boardScale ×
+// (supportGrowth^L − 1)/(supportGrowth − 1), geometric since the
+// post-launch rebalance (see config.ts) — and is scaled by Deep Wicks (×1.25), the Tide Chart relic (×1.15),
 // Widow's Walk lit (×1.5, Sprint 5) and the tide (Low Tide ×1.2,
 // Stormfront ×0.8 — only when a time is passed).
 // The chain is only as strong as its weakest supply node.
@@ -70,6 +72,39 @@ export function totalNodeLevels(state: GameState, nodeId: ChainNodeId): number {
 }
 
 /**
+ * Lumen/s a supply node supports on one board at a given level, before any
+ * multipliers: supportPerLevel × boardScale × (g^L − 1)/(g − 1), where
+ * level k adds supportPerLevel × g^(k−1). Level 1 supports supportPerLevel.
+ */
+export function boardNodeSupport(lighthouseId: string, nodeId: SupplyNodeId, level: number): Decimal {
+  if (level <= 0) return new Decimal(0);
+  const def = CHAIN_NODES[nodeId];
+  const g = def.supportGrowth;
+  const scale = chainLighthouseById(lighthouseId).boardScale;
+  // Rounded to 12 significant digits so the closed form doesn't leave
+  // float dust (level 1 is exactly supportPerLevel, not 1.0000000000000009×).
+  const sum = g === 1 ? level : (Math.pow(g, level) - 1) / (g - 1);
+  const levels = Number.isFinite(sum) ? new Decimal(Number(sum.toPrecision(12))) : new Decimal(g).pow(level).sub(1).div(g - 1);
+  return levels.mul(def.supportPerLevel).mul(scale);
+}
+
+/** Every support multiplier at once (perks, relics, lighthouses, tide). */
+export function supportMultiplier(state: GameState, now?: number): number {
+  return chainSupportMultiplier(state) * relicSupportMultiplier(state) * lighthouseSupportMultiplier(state) * tideSupportMultiplier(now);
+}
+
+/**
+ * Lumen/s of support the NEXT level of a supply node adds on a board, with
+ * every multiplier applied (what its Upgrade button buys).
+ */
+export function nextLevelSupportGain(state: GameState, lighthouseId: string, nodeId: SupplyNodeId, now?: number): Decimal {
+  const level = state.chainBoards[lighthouseId]?.[nodeId] ?? 0;
+  return boardNodeSupport(lighthouseId, nodeId, level + 1)
+    .sub(boardNodeSupport(lighthouseId, nodeId, level))
+    .mul(supportMultiplier(state, now));
+}
+
+/**
  * Total Lumen/s a supply node supports across all boards.
  * Deep Wicks (Ember perk, Sprint 3) raises every node's support by +25%;
  * the Tide Chart relic (Sprint 4) adds +15%; Widow's Walk lit (Sprint 5)
@@ -77,8 +112,9 @@ export function totalNodeLevels(state: GameState, nodeId: ChainNodeId): number {
  * ×1.2, Stormfront ×0.8).
  */
 export function totalSupport(state: GameState, nodeId: SupplyNodeId, now?: number): Decimal {
-  return new Decimal(CHAIN_NODES[nodeId].supportPerLevel)
-    .mul(totalNodeLevels(state, nodeId))
+  let raw = new Decimal(0);
+  for (const id of state.litLighthouses) raw = raw.add(boardNodeSupport(id, nodeId, state.chainBoards[id]?.[nodeId] ?? 0));
+  return raw
     .mul(chainSupportMultiplier(state))
     .mul(relicSupportMultiplier(state))
     .mul(lighthouseSupportMultiplier(state))
@@ -92,16 +128,16 @@ export function lighthouseSupportMultiplier(state: GameState): number {
 
 /**
  * Cost of raising a node from `level` to `level + 1` on a given board:
- * ceil(baseCost × growth^level × boardCostMultiplier). The second
- * lighthouse's board costs ×8. When the keeper's state is passed, the
- * Gull Feather relic (Sprint 4) takes 20% off.
+ * ceil(baseCost × growth^level × boardScale). Gull Rock's board works at
+ * ×8. When the keeper's state is passed, the Gull Feather relic (Sprint 4)
+ * takes 20% off.
  */
 export function nodeCost(lighthouseId: string, nodeId: ChainNodeId, level: number, state?: GameState): Decimal {
   const def = CHAIN_NODES[nodeId];
   const lh = chainLighthouseById(lighthouseId);
   return new Decimal(def.baseCost)
     .mul(new Decimal(def.growth).pow(level))
-    .mul(lh.boardCostMultiplier)
+    .mul(lh.boardScale)
     .mul(state ? relicNodeCostMultiplier(state) : 1)
     .ceil();
 }

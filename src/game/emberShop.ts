@@ -43,7 +43,7 @@ export const SECOND_WIND_MULTIPLIER = 1.5;
 export const EMBER_PERKS: readonly EmberPerkDef[] = [
   { id: "head-start",   name: "Head Start",      effect: "Every new run starts with 1,000 Lumen in hand.",                          costEmbers: 5 },
   { id: "warm-lamp",    name: "Warm Lamp Oil",   effect: "Flash the Beam click power ×2.",                                          costEmbers: 8 },
-  { id: "gull-friend",  name: "Friend of Gulls", effect: "Relighting Gull Rock Light costs half as much Lumen (1,000,000).",        costEmbers: 10 },
+  { id: "gull-friend",  name: "Friend of Gulls", effect: "Relighting Gull Rock Light costs half as much Lumen.",                    costEmbers: 10 },
   { id: "deep-wicks",   name: "Deep Wicks",      effect: "Every supply-chain node supports +25% more production (both boards).",    costEmbers: 12 },
   { id: "long-night",   name: "The Long Night",  effect: "Offline earnings cap rises from 8 hours to 12 hours.",                    costEmbers: 20 },
   { id: "full-lamp",    name: "Full Reservoir",  effect: "Offline earnings rate +10 percentage points (hard cap 90%).",             costEmbers: 25 },

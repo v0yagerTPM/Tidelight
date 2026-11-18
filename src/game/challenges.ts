@@ -105,11 +105,25 @@ export function challengeClickMultiplier(state: GameState): number {
   return state.activeChallenge === "still-hands" ? 0 : 1;
 }
 
-/** Buy gating: First Light Only blocks every generator past tier 3. */
+/**
+ * Buy gating: a tier still waiting on its lighthouse cannot be hired, and
+ * First Light Only blocks every generator past tier 3.
+ */
 export function canBuyGenerator(state: GameState, generatorId: string): boolean {
-  if (state.activeChallenge !== "first-light-only") return true;
   const tier = GENERATORS.findIndex((g) => g.id === generatorId);
-  return tier >= 0 && tier < EARLY_TIER_COUNT;
+  if (tier < 0) return false;
+  // The upper tiers answer a relit lighthouse (config.ts, GENERATOR UNLOCKS).
+  const lockedBy = GENERATORS[tier].unlockedBy;
+  if (lockedBy && !state.litLighthouses.includes(lockedBy)) return false;
+  if (state.activeChallenge !== "first-light-only") return true;
+  return tier < EARLY_TIER_COUNT;
+}
+
+/** The lighthouse a generator tier is waiting on, or null when it can be hired. */
+export function generatorLockedBy(state: GameState, generatorId: string): string | null {
+  const def = GENERATORS.find((g) => g.id === generatorId);
+  if (!def?.unlockedBy || state.litLighthouses.includes(def.unlockedBy)) return null;
+  return def.unlockedBy;
 }
 
 // ── Progress & lifecycle ─────────────────────────────────────────────────────
