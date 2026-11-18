@@ -1,6 +1,19 @@
 import Decimal from "break_infinity.js";
+import { CHAIN_LIGHTHOUSES } from "./config";
 import { relicMothGlowBonus } from "./expeditions";
 import { formatNumber } from "./format";
+import {
+  DUTY_GLOW_BONUS,
+  FERTILE_COCOON_MULTIPLIER,
+  MAX_DUTY_MOTHS,
+  MOTH_TRAITS,
+  dutyGlowOf,
+  dutyMothsOf,
+  dutyProductionMultiplier,
+  hasTrait,
+  postOf,
+  traitById,
+} from "./mothTraits";
 import { addLog } from "./state";
 import type { GameState, Moth } from "./types";
 
@@ -111,9 +124,13 @@ function clampGlow(value: number, patternId: string): number {
 export const MOTH_GENERATOR_ID = "lantern-moth";
 export const BASE_MOTH_CAPACITY = 6;
 export const ROOST_CAPACITY_PER_EXPANSION = 2;
-export const MAX_DUTY_MOTHS = 3;
-/** Each duty moth grants +(glow × this)% production — glow 50 → +10%. */
-export const DUTY_GLOW_BONUS = 0.002;
+export { DUTY_GLOW_BONUS, MAX_DUTY_MOTHS };
+/** A wild moth carries a trait this often (mothTraits.ts). */
+export const WILD_TRAIT_CHANCE = 0.25;
+/** A child takes one of its parents' traits this often, when they have any… */
+export const TRAIT_INHERIT_CHANCE = 0.5;
+/** …and otherwise gains a new trait this often. */
+export const TRAIT_MUTATION_CHANCE = 0.03;
 /** Lures held at most; one regrows every LURE_REGROW_MS, offline too. */
 export const LURE_BANK = 3;
 export const LURE_REGROW_MS = 20 * 60 * 1000;
@@ -221,30 +238,27 @@ export function mothById(state: GameState, id: string): Moth | undefined {
 
 /** The moths actually on duty (ids sanitized against the collection, max 3). */
 export function dutyMoths(state: GameState): Moth[] {
-  const duty: Moth[] = [];
-  for (const id of state.mothDuty) {
-    const moth = mothById(state, id);
-    if (moth && !duty.includes(moth)) duty.push(moth);
-    if (duty.length >= MAX_DUTY_MOTHS) break;
-  }
-  return duty;
+  return dutyMothsOf(state);
 }
 
+/** The duty roster's working glow: each moth's glow, ×1.5 for a Lamp-loyal one. */
 export function dutyGlowTotal(state: GameState): number {
-  return dutyMoths(state).reduce((sum, m) => sum + m.glow, 0);
+  return dutyMoths(state).reduce((sum, m) => sum + dutyGlowOf(m), 0);
 }
 
-/** Production multiplier from the duty roster: 1 + total duty glow × 0.002. */
+/** Production multiplier from the duty roster: 1 + duty glow × 0.002. */
 export function mothProductionMultiplier(state: GameState): number {
-  return 1 + dutyGlowTotal(state) * DUTY_GLOW_BONUS;
+  return dutyProductionMultiplier(state);
 }
 
 /**
- * Toggle a moth on/off duty. Returns false when the moth doesn't exist or
- * the roster is already full (3) and this moth isn't on it.
+ * Toggle a moth on/off duty. Returns false when the moth doesn't exist, is
+ * at a lighthouse post, or the roster is already full (3) and this moth
+ * isn't on it.
  */
 export function toggleDuty(state: GameState, mothId: string): boolean {
   if (!mothById(state, mothId)) return false;
+  if (postOf(state, mothId) !== null) return false;
   const idx = state.mothDuty.indexOf(mothId);
   if (idx >= 0) {
     state.mothDuty.splice(idx, 1);
@@ -303,11 +317,37 @@ export function rushAttractMoth(state: GameState, rng: () => number, now: number
 function wildMoth(state: GameState, rng: () => number): Moth {
   const pattern = rollPattern(rng);
   const glow = clampGlow(1 + Math.floor(rng() * WILD_GLOW_SHARE * pattern.glowCeiling) + wildGlowBonus(state), pattern.id);
+  // rng order: pattern, glow, name prefix, name suffix, id, then the trait rolls.
   const name = generateName(rng);
   const moth: Moth = { id: generateId(state, rng), name, pattern: pattern.id, glow, generation: 1 };
+  const trait = rng() < WILD_TRAIT_CHANCE ? randomTrait(rng) : null;
+  if (trait) moth.trait = trait;
   state.moths.push(moth);
-  addLog(state, `A lantern moth settles by the lamp: ${moth.name}, ${pattern.name.toLowerCase()}-winged and glowing at ${glow}. It followed the light home. It stayed.`);
+  addLog(state, `A lantern moth settles by the lamp: ${moth.name}, ${pattern.name.toLowerCase()}-winged and glowing at ${glow}${traitPhrase(moth)}. It followed the light home. It stayed.`);
   return moth;
+}
+
+function randomTrait(rng: () => number): string {
+  return MOTH_TRAITS[Math.min(MOTH_TRAITS.length - 1, Math.floor(rng() * MOTH_TRAITS.length))].id;
+}
+
+/**
+ * A child's trait: one of its parents' traits half the time (when they have
+ * any), otherwise a new trait 3% of the time. Rolls in order: inherit,
+ * which parent's (only when inheriting), mutate, which trait (only when
+ * mutating).
+ */
+function childTrait(rng: () => number, parentA: Moth, parentB: Moth): string | null {
+  const inherited = [parentA.trait, parentB.trait].filter((t): t is string => traitById(t) !== null);
+  if (rng() < TRAIT_INHERIT_CHANCE && inherited.length > 0) {
+    return inherited[Math.min(inherited.length - 1, Math.floor(rng() * inherited.length))];
+  }
+  return rng() < TRAIT_MUTATION_CHANCE ? randomTrait(rng) : null;
+}
+
+function traitPhrase(moth: Moth): string {
+  const trait = traitById(moth.trait);
+  return trait ? `, and ${trait.name.toLowerCase()}` : "";
 }
 
 /** Expand the roost: +2 collection capacity, at roostExpansionCost(). */
@@ -333,7 +373,8 @@ export function isCocoonParent(state: GameState, mothId: string): boolean {
  */
 export function cocoonDurationMs(parentA: Moth, parentB: Moth): number {
   const tier = Math.max(patternById(parentA.pattern).tier, patternById(parentB.pattern).tier);
-  return Math.round(COCOON_BASE_MS * (1 + COCOON_PER_TIER * tier));
+  const fertile = hasTrait(parentA, "fertile") || hasTrait(parentB, "fertile") ? FERTILE_COCOON_MULTIPLIER : 1;
+  return Math.round(COCOON_BASE_MS * (1 + COCOON_PER_TIER * tier) * fertile);
 }
 
 /**
@@ -346,6 +387,7 @@ export function startBreeding(state: GameState, parentAId: string, parentBId: st
   if (state.cocoon !== null) return false;
   if (parentAId === parentBId) return false;
   if (!mothById(state, parentAId) || !mothById(state, parentBId)) return false;
+  if (postOf(state, parentAId) !== null || postOf(state, parentBId) !== null) return false; // on watch
   const a = mothById(state, parentAId)!;
   const b = mothById(state, parentBId)!;
   const duration = cocoonDurationMs(a, b);
@@ -408,9 +450,11 @@ export function hatchCocoon(state: GameState, rng: () => number, now: number = D
     glow,
     generation: Math.max(parentA.generation, parentB.generation) + 1,
   };
+  const trait = childTrait(rng, parentA, parentB);
+  if (trait) child.trait = trait;
   state.cocoon = null;
   state.moths.push(child);
-  addLog(state, `The cocoon opens: ${child.name}, ${pattern.name.toLowerCase()}-winged, generation ${child.generation}, glowing at ${glow}. ${parentA.name} and ${parentB.name} look insufferably proud.`);
+  addLog(state, `The cocoon opens: ${child.name}, ${pattern.name.toLowerCase()}-winged, generation ${child.generation}, glowing at ${glow}${traitPhrase(child)}. ${parentA.name} and ${parentB.name} look insufferably proud.`);
   return child;
 }
 
@@ -438,7 +482,51 @@ export function releaseMoth(state: GameState, mothId: string): Decimal | null {
   const value = releasePayout(state, moth);
   state.moths = state.moths.filter((m) => m.id !== mothId);
   state.mothDuty = state.mothDuty.filter((id) => id !== mothId);
+  const post = postOf(state, mothId);
+  if (post) delete state.mothPosts[post];
   state.lumen = state.lumen.add(value);
   addLog(state, `${moth.name} drifts out over the glass sea, unhurried. The lamp is dimmer for it. (+${formatNumber(value, state.notation)} Lumen of stored lamplight)`);
   return value;
+}
+
+// ── Lighthouse posts ─────────────────────────────────────────────────────────
+
+/**
+ * Post a moth at a lit lighthouse (see mothTraits.ts for the support it
+ * gives). It stands down from duty; a moth in the cocoon can't go. A moth
+ * already posted elsewhere moves; the lighthouse's previous moth returns to
+ * the roost. Returns false when nothing changed.
+ */
+export function postMoth(state: GameState, mothId: string, lighthouseId: string): boolean {
+  const moth = mothById(state, mothId);
+  if (!moth || !state.litLighthouses.includes(lighthouseId)) return false;
+  if (isCocoonParent(state, mothId)) return false;
+  if (state.mothPosts[lighthouseId] === mothId) return false;
+  const previous = postOf(state, mothId);
+  if (previous) delete state.mothPosts[previous];
+  state.mothDuty = state.mothDuty.filter((id) => id !== mothId);
+  state.mothPosts[lighthouseId] = mothId;
+  addLog(state, `${moth.name} takes up a post at the lamp of ${lighthouseName(lighthouseId)}, wings folded, watching the glass.`);
+  return true;
+}
+
+/** Bring a lighthouse's posted moth home to the roost. */
+export function recallMoth(state: GameState, lighthouseId: string): boolean {
+  const id = state.mothPosts[lighthouseId];
+  if (!id) return false;
+  delete state.mothPosts[lighthouseId];
+  const moth = mothById(state, id);
+  if (moth) addLog(state, `${moth.name} comes home from ${lighthouseName(lighthouseId)} and settles back into the roost.`);
+  return true;
+}
+
+/** Posts at lighthouses that have gone dark (the Next Keeping) are vacated. */
+export function vacateDarkPosts(state: GameState): void {
+  for (const id of Object.keys(state.mothPosts)) {
+    if (!state.litLighthouses.includes(id)) delete state.mothPosts[id];
+  }
+}
+
+function lighthouseName(id: string): string {
+  return CHAIN_LIGHTHOUSES.find((l) => l.id === id)?.name ?? "the lighthouse";
 }

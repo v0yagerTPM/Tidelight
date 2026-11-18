@@ -556,3 +556,34 @@ with the game's own moth code (breed the two best, keep the best six).
 Hours are cocoon time, which also passes offline. The game's ending
 lands near 64 hours, so a perfect trio is a New Game+ goal. Traits,
 lighthouse posts, the Wing Almanac and new patterns follow in later PRs.
+
+## ✅ Post-launch — moth traits and lighthouse posts
+
+The second moth PR: a reason to keep breeding after glow and pattern,
+and a use for good moths beyond the three duty slots.
+
+- [x] **Traits** (`src/game/mothTraits.ts`). A wild moth carries one 25%
+      of the time; a child takes a parent's trait 50% of the time and
+      otherwise gains a new one 3% of the time.
+
+      | Trait        | Effect                                                         |
+      | ------------ | -------------------------------------------------------------- |
+      | Lamp-loyal   | On duty, its glow counts ×1.5                                  |
+      | Night-flier  | On duty, offline rate +5 points (90% cap stands)               |
+      | Chain-tender | Its lighthouse-post bonus is doubled                           |
+      | Seeker       | On duty, bottle relic chance +5 points                         |
+      | Fertile      | Its cocoons take 25% less time                                 |
+      | Tidewise     | On duty in High Tide or a Stormfront, its bonus lifts the beam again (final rate only, never chain demand) |
+
+- [x] **Lighthouse posts.** One moth per lit lighthouse (First Light
+      included) adds +(glow × 0.2)% to that board's support, ×2 for a
+      Chain-tender. A posted moth leaves duty and can't breed; releasing
+      it clears the post; the Next Keeping sends moths at darkened lights
+      home. Managed from the Shore's new Lighthouse posts card.
+- [x] **Saves → v8**: traits on moths, `mothPosts`; a loaded save keeps
+      one post per moth, at lit lighthouses only, and never a posted moth
+      on duty.
+
+The duty ceiling rises from +60% to +90% with three glow-100 Lamp-loyal
+moths. The Wing Almanac, Tidelit, moths on expeditions, Hollow moths and
+the story beats follow in later PRs.

@@ -65,6 +65,7 @@ import {
   expeditionReady,
   routeById,
   sendExpedition,
+  relicChanceFor,
 } from "./game/expeditions";
 import { formatDuration, formatNumber } from "./game/format";
 import {
@@ -91,7 +92,10 @@ import {
   cocoonDurationMs,
   startBreeding,
   toggleDuty,
+  postMoth,
+  recallMoth,
 } from "./game/moths";
+import { dutyBonusOf, postBonusOf, postOf, postedMoth, traitById } from "./game/mothTraits";
 import { legacyMultiplier, startNgPlus } from "./game/ngplus";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
 import { STORY_ACTS, STORY_BEATS, checkStory } from "./game/story";
@@ -827,6 +831,8 @@ function shoreKey(): string {
     mothsUnlocked(state) ? "U" : "L",
     state.moths.map((m) => m.id).join(","),
     state.mothDuty.join(","),
+    Object.entries(state.mothPosts).map(([l, m]) => `${l}=${m}`).join(","),
+    state.litLighthouses.join(","),
     state.roostExpansions,
     state.cocoon ? `${state.cocoon.parentIds.join("+")}@${state.cocoon.readyAt}` : "-",
     state.expedition ? `${state.expedition.routeId}@${state.expedition.returnsAt}` : "-",
@@ -896,16 +902,18 @@ function rebuildShore(): void {
         const pattern = patternById(moth.pattern);
         const isDuty = onDuty.some((m) => m.id === moth.id);
         const inCocoon = isCocoonParent(state, moth.id);
+        const post = postOf(state, moth.id);
+        const trait = traitById(moth.trait);
         const card = document.createElement("div");
-        card.className = `gen moth${isDuty ? " purchased" : ""}`;
+        card.className = `gen moth${isDuty || post ? " purchased" : ""}`;
         card.innerHTML = `
           <div class="moth-portrait"><div class="moth-swatch" style="background:${pattern.swatch}"></div></div>
           <div class="gen-main">
-            <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}</div>
-            <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow}${isOldLight(moth) ? ` <span class="perm" title="From before the moth rebalance: it keeps its glow above the ${pattern.name} ceiling. Its children are held to theirs.">old light</span>` : ` of ${pattern.glowCeiling}`} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(moth.glow * 0.2).toFixed(1)}%` : ""}</div>
+            <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${post ? ` <span class="perm">at ${chainLighthouseById(post).name}</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}${trait ? ` <span class="moth-trait" title="${trait.effect}">${trait.name}</span>` : ""}</div>
+            <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow}${isOldLight(moth) ? ` <span class="perm" title="From before the moth rebalance: it keeps its glow above the ${pattern.name} ceiling. Its children are held to theirs.">old light</span>` : ` of ${pattern.glowCeiling}`} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(dutyBonusOf(moth) * 100).toFixed(1)}%` : ""}${post ? ` · post bonus +${(postBonusOf(moth) * 100).toFixed(1)}% support` : ""}</div>${trait ? `<div class="gen-flavor moth-trait-line">${trait.name}: ${trait.effect}</div>` : ""}
           </div>
           <div class="gen-buy moth-actions">
-            <button class="buy moth-duty">${isDuty ? "Stand down" : "Put on duty"}</button>
+            <button class="buy moth-duty"${post ? ` disabled title="Recall it from its post first"` : ""}>${isDuty ? "Stand down" : "Put on duty"}</button>
             <button class="buy moth-release">Release (+${fmt(releasePayout(state, moth))})</button>
           </div>`;
         const dutyBtn = card.querySelector<HTMLButtonElement>(".moth-duty");
@@ -932,6 +940,56 @@ function rebuildShore(): void {
       }
       mothArea.appendChild(list);
 
+      // Lighthouse posts: one moth per lit lighthouse.
+      if (state.moths.length > 0) {
+        const posts = document.createElement("div");
+        posts.className = "card";
+        const lit = CHAIN_LIGHTHOUSES.filter((l) => state.litLighthouses.includes(l.id));
+        const rows = lit.map((l) => {
+          const here = postedMoth(state, l.id);
+          const options = state.moths
+            .filter((m) => m.id !== here?.id && !isCocoonParent(state, m.id))
+            .map((m) => {
+              const elsewhere = postOf(state, m.id);
+              const note = elsewhere ? `, at ${chainLighthouseById(elsewhere).name}` : onDuty.some((d) => d.id === m.id) ? ", on duty" : "";
+              const t = traitById(m.trait);
+              return `<option value="${m.id}">${m.name} (glow ${m.glow}${t ? `, ${t.name}` : ""}${note}) → +${(postBonusOf(m) * 100).toFixed(1)}%</option>`;
+            })
+            .join("");
+          return `
+            <div class="moth-post" data-lighthouse="${l.id}">
+              <div class="moth-post-name">${l.name}</div>
+              <div class="muted moth-post-who">${here ? `${here.name} keeps watch: +${(postBonusOf(here) * 100).toFixed(1)}% support on this board` : "No moth on watch"}</div>
+              <div class="shore-actions">
+                ${options ? `<select class="breed-select post-select">${options}</select><button class="buy post-send">${here ? "Swap in" : "Post"}</button>` : ""}
+                ${here ? `<button class="buy post-recall">Recall</button>` : ""}
+              </div>
+            </div>`;
+        });
+        posts.innerHTML = `
+          <div class="gen-name">🗼 Lighthouse posts</div>
+          <p class="muted">Each lit lighthouse has room for one moth. A posted moth strengthens that lighthouse's supply board: +(glow × 0.2)% support, doubled for a Chain-tender. It leaves duty while it keeps watch, and can't breed until it comes home.</p>
+          ${rows.join("")}`;
+        posts.querySelectorAll<HTMLElement>(".moth-post").forEach((row) => {
+          const lighthouseId = row.dataset.lighthouse ?? "";
+          const select = row.querySelector<HTMLSelectElement>(".post-select");
+          row.querySelector<HTMLButtonElement>(".post-send")?.addEventListener("click", () => {
+            if (select && postMoth(state, select.value, lighthouseId)) {
+              sound.buy();
+              saveState(state);
+              renderDynamic();
+            }
+          });
+          row.querySelector<HTMLButtonElement>(".post-recall")?.addEventListener("click", () => {
+            if (recallMoth(state, lighthouseId)) {
+              saveState(state);
+              renderDynamic();
+            }
+          });
+        });
+        mothArea.appendChild(posts);
+      }
+
       // Breeding: two selects + cocoon card.
       const breed = document.createElement("div");
       breed.className = "card";
@@ -952,13 +1010,14 @@ function rebuildShore(): void {
             renderDynamic();
           }
         });
-      } else if (state.moths.length >= 2) {
-        if (!state.moths.some((m) => m.id === breedParentA)) breedParentA = state.moths[0].id;
-        if (!state.moths.some((m) => m.id === breedParentB) || breedParentB === breedParentA) {
-          breedParentB = state.moths.find((m) => m.id !== breedParentA)?.id ?? "";
+      } else if (state.moths.filter((m) => postOf(state, m.id) === null).length >= 2) {
+        const home = state.moths.filter((m) => postOf(state, m.id) === null);
+        if (!home.some((m) => m.id === breedParentA)) breedParentA = home[0].id;
+        if (!home.some((m) => m.id === breedParentB) || breedParentB === breedParentA) {
+          breedParentB = home.find((m) => m.id !== breedParentA)?.id ?? "";
         }
-        const options = state.moths
-          .map((m) => `<option value="${m.id}">${m.name} (${patternById(m.pattern).name}, glow ${m.glow})</option>`)
+        const options = home
+          .map((m) => `<option value="${m.id}">${m.name} (${patternById(m.pattern).name}, glow ${m.glow}${traitById(m.trait) ? `, ${traitById(m.trait)!.name}` : ""})</option>`)
           .join("");
         breed.innerHTML = `
           <div class="gen-name">🌀 Breeding</div>
@@ -996,7 +1055,7 @@ function rebuildShore(): void {
       } else {
         breed.innerHTML = `
           <div class="gen-name">🌀 Breeding</div>
-          <p class="muted">Breeding needs two moths. Attract another, and the roost gets interesting.</p>`;
+          <p class="muted">Breeding needs two moths at home in the roost. Attract another (or recall one from its post), and the roost gets interesting.</p>`;
       }
       mothArea.appendChild(breed);
     }
@@ -1032,7 +1091,7 @@ function rebuildShore(): void {
       card.innerHTML = `
         <div class="gen-name">${route.name}</div>
         <p class="muted">${route.flavor}</p>
-        <p class="muted">${route.durationMinutes >= 60 ? `${route.durationMinutes / 60} hour${route.durationMinutes > 60 ? "s" : ""}` : `${route.durationMinutes} minutes`} · relic chance ${Math.round(route.relicChance * 100)}% · cache at least ${fmt(route.minCache)} Lumen</p>
+        <p class="muted">${route.durationMinutes >= 60 ? `${route.durationMinutes / 60} hour${route.durationMinutes > 60 ? "s" : ""}` : `${route.durationMinutes} minutes`} · relic chance ${Math.round(relicChanceFor(state, route) * 100)}% · cache at least ${fmt(route.minCache)} Lumen</p>
         <button class="buy route-send">Send a bottle — ${fmt(route.cost)} Lumen</button>
         <span class="gen-note muted route-note"></span>`;
       const btn = card.querySelector<HTMLButtonElement>(".route-send");
@@ -1072,7 +1131,7 @@ function updateShoreView(now: number): void {
   const roostLine = mothArea?.querySelector<HTMLElement>(".moth-roost-line");
   if (roostLine) {
     const duty = dutyMoths(state);
-    roostLine.textContent = `Roost: ${state.moths.length}/${mothCapacity(state)} moths · ${duty.length}/${MAX_DUTY_MOTHS} on duty (duty glow ${dutyGlowTotal(state)} → +${(dutyGlowTotal(state) * 0.2).toFixed(1)}% production). Moths are permanent — Rekindle can't touch them.`;
+    roostLine.textContent = `Roost: ${state.moths.length}/${mothCapacity(state)} moths · ${duty.length}/${MAX_DUTY_MOTHS} on duty (duty glow ${Math.round(dutyGlowTotal(state) * 10) / 10} → +${(dutyGlowTotal(state) * 0.2).toFixed(1)}% production). Moths are permanent — Rekindle can't touch them.`;
   }
   if (shoreRefs.attractBtn && shoreRefs.attractNote) {
     const lures = lureStatus(state, now);

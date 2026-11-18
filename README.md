@@ -113,7 +113,11 @@ a hearth whose fire grows with the Embers you'd bank.
   cocoon) and the child inherits their wings — usually the rarer
   parent's pattern, about the average of their glows, and a little
   chaos. Prismatic wings are unstable. A perfect roster is a long chase.
-  Moths are permanent: Rekindle can't touch the roost.
+  Some moths carry a **trait** (Lamp-loyal, Night-flier, Chain-tender,
+  Seeker, Fertile, Tidewise) that children can inherit, and every lit
+  lighthouse has a **moth post**: a posted moth adds +(glow × 0.2)% to
+  that lighthouse's chain support. Moths are permanent: Rekindle can't
+  touch the roost.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache, a
   story fragment for the Log, and maybe one of eight permanent RELICS —
