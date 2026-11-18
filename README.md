@@ -105,11 +105,15 @@ a hearth whose fire grows with the Embers you'd bank.
   Only (tiers 1–3 only). Starting resets your run with no Embers;
   finishing banks the reward and the run continues.
 - **Lantern moths** — hire a Lantern Moth and the wild ones follow your
-  light home (Shore tab). Six wing patterns from Plain to Prismatic,
-  each with its own glow; put up to 3 on duty for +(glow × 0.2)%
-  production each. Breed two moths and the child inherits their wings —
-  usually the rarer parent's pattern, the average of their glows, and a
-  little chaos. Moths are permanent: Rekindle can't touch the roost.
+  light home (Shore tab). Each one costs a lure: you hold up to 3 and one
+  regrows every 20 minutes, even offline (a rush lure costs Lumen when
+  you can't wait). Six wing patterns from Plain to Prismatic, each with a
+  glow ceiling (Plain 40 … Prismatic 100); put up to 3 on duty for
+  +(glow × 0.2)% production each. Breed two moths (30–75 minutes a
+  cocoon) and the child inherits their wings — usually the rarer
+  parent's pattern, about the average of their glows, and a little
+  chaos. Prismatic wings are unstable. A perfect roster is a long chase.
+  Moths are permanent: Rekindle can't touch the roost.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache, a
   story fragment for the Log, and maybe one of eight permanent RELICS —

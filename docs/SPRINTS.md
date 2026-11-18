@@ -516,3 +516,43 @@ hour, and the game flattened into a plateau after it.
 
 Existing saves load unchanged, but a keeper partway up the coast meets
 the new prices from their next relight on.
+
+## ✅ Post-launch — the moth rebalance
+
+Three Prismatic moths at glow 100 took 0.8–2.4 hours and at most 2.5M
+Lumen, half the price of Gull Rock: the whole moth system was done
+before the second lighthouse, then had nothing left to give. Measured
+with the game's own moth code (breed the two best, keep the best six).
+
+- [x] **Lures, not Lumen.** Attracting spends a lure: a bank of 3, one
+      regrowing every 20 minutes, offline too. A rush lure (only with an
+      empty bank) costs 0.5% of all-time Lumen, at least 500, tripling per
+      rush until a lure regrows. All-time Lumen only grows, so a fresh
+      Rekindle never makes moth prices cheap.
+- [x] **Wild odds** 44 / 26 / 16 / 9 / 4.5 / 0.5 (Prismatic was 3%).
+- [x] **Glow ceilings** per pattern: Plain 40, Spotted 55, Striped 70,
+      Crescent 80, Starlit 90, Prismatic 100. Wild glow rolls 1 to 60% of
+      the ceiling.
+- [x] **Hatching:** glow is the parents' average − 1 ± 10 (a bright
+      +8..+15 3% of the time, was ±15 and +20..+35 at 5%); above an
+      average of 90 gains are halved; held to the child's ceiling. Tiers
+      shift 8% up / 12% down; a Prismatic child stays Prismatic 60% of the
+      time (was 90%), otherwise Starlit.
+- [x] **Cocoons** take 30 min × (1 + 0.3 × the higher parent's tier):
+      Plain 30 minutes, Prismatic 75 (were 5 minutes).
+- [x] **Driftwood Cradle** +5 glow on wild moths only (was +10 on every
+      moth). **Release** gives 10 × glow × (tier + 1) Lumen (was up to
+      40% of the attract price). **Roost expansions** cost the larger of
+      10,000 × 6ⁿ and 3% of all-time Lumen × 3ⁿ.
+- [x] **Saves → v7.** Every keeper starts with a full lure bank; a
+      cocoon already spinning keeps its finish time; moths above the new
+      ceilings keep their glow, shown as "old light".
+
+| Keeper breeding the two best, spending every lure | Before   | After (median, 400 runs) |
+| ------------------------------------------------- | -------- | ------------------------ |
+| First Prismatic                                   | minutes  | 13.8h (1 in 10 by 3.6h)  |
+| Three Prismatics at glow 100                      | 0.8–2.4h | 100h (93h with the Cradle) |
+
+Hours are cocoon time, which also passes offline. The game's ending
+lands near 64 hours, so a perfect trio is a New Game+ goal. Traits,
+lighthouse posts, the Wing Almanac and new patterns follow in later PRs.

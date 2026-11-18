@@ -91,6 +91,12 @@ export interface GameState {
   roostExpansions: number;
   /** The breeding cocoon in progress, or null. */
   cocoon: Cocoon | null;
+  /** Moth lures ready to spend (0–3); see moths.ts. */
+  mothLures: number;
+  /** Unix ms the lure regrow clock counts from (meaningless with a full bank). */
+  mothLureAnchor: number;
+  /** Rush lures bought since the bank last regrew one (prices the next). */
+  mothLureRushes: number;
   /** The bottle expedition currently out, or null. */
   expedition: ExpeditionState | null;
   /** Relic ids claimed from expeditions (unique, permanent). */
@@ -138,6 +144,9 @@ export interface SavedState {
   mothDuty: string[];
   roostExpansions: number;
   cocoon: Cocoon | null;
+  mothLures: number;
+  mothLureAnchor: number;
+  mothLureRushes: number;
   expedition: ExpeditionState | null;
   relics: string[];
   storyFragmentIndex: number;

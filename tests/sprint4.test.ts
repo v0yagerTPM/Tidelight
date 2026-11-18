@@ -16,10 +16,15 @@ import {
   sendExpedition,
 } from "../src/game/expeditions";
 import {
+  LURE_BANK,
+  LURE_REGROW_MS,
   MOTH_PATTERNS,
-  attractCost,
   attractMoth,
+  cocoonDurationMs,
   cocoonReady,
+  glowCeiling,
+  isOldLight,
+  lureStatus,
   dutyGlowTotal,
   expandRoost,
   hatchCocoon,
@@ -29,8 +34,9 @@ import {
   patternById,
   releaseMoth,
   releasePayout,
-  releaseValue,
   roostExpansionCost,
+  rushAttractMoth,
+  rushLureCost,
   startBreeding,
   toggleDuty,
 } from "../src/game/moths";
@@ -82,53 +88,92 @@ describe("seeded rng", () => {
   });
 });
 
-describe("lantern moths — attracting", () => {
+describe("lantern moths — attracting with lures", () => {
   it("the garden is locked until a Lantern Moth generator is hired", () => {
     const state = createInitialState();
-    state.lumen = new Decimal(100_000);
     expect(mothsUnlocked(state)).toBe(false);
     expect(attractMoth(state, mulberry32(1))).toBeNull();
-    expect(state.lumen.toNumber()).toBe(100_000); // no charge
+    expect(state.mothLures).toBe(LURE_BANK); // nothing spent
     state.generators[mothGen.id] = 1;
     expect(mothsUnlocked(state)).toBe(true);
   });
 
-  it("a seeded attract yields a moth from the pattern table, glow 1–100, generation 1", () => {
+  it("a seeded attract yields a generation-1 moth from the pattern table, deterministically", () => {
     const state = gardenState();
-    const moth = attractMoth(state, mulberry32(42));
+    const moth = attractMoth(state, mulberry32(42), 0);
     expect(moth).not.toBeNull();
     expect(MOTH_PATTERNS.map((p) => p.id)).toContain(moth!.pattern);
     expect(Number.isInteger(moth!.glow)).toBe(true);
     expect(moth!.glow).toBeGreaterThanOrEqual(1);
-    expect(moth!.glow).toBeLessThanOrEqual(100);
     expect(moth!.generation).toBe(1);
-    expect(moth!.name.length).toBeGreaterThan(0);
     expect(state.moths).toEqual([moth]);
-    // Same seed, fresh state → the very same moth (deterministic given rng):
-    const twin = attractMoth(gardenState(), mulberry32(42));
-    expect(twin).toEqual(moth);
+    expect(state.lumen.toNumber()).toBe(1_000_000); // lures, not Lumen
+    expect(attractMoth(gardenState(), mulberry32(42), 0)).toEqual(moth);
   });
 
-  it("attract cost scales with moths currently owned: 500 × 2.2^owned", () => {
+  it("a keeper holds 3 lures; one regrows every 20 minutes, offline too, up to 3", () => {
     const state = gardenState();
-    expect(attractCost(state).toNumber()).toBe(500);
-    attractMoth(state, mulberry32(7));
-    expect(state.lumen.toNumber()).toBeCloseTo(1_000_000 - 500, 6);
-    expect(attractCost(state).toNumber()).toBe(1_100);
-    attractMoth(state, mulberry32(8));
-    expect(attractCost(state).toNumber()).toBe(2_420);
+    const t0 = 5_000_000;
+    expect(lureStatus(state, t0)).toEqual({ held: 3, nextInMs: null, rushes: 0 });
+    for (let i = 0; i < 3; i++) expect(attractMoth(state, mulberry32(i + 1), t0)).not.toBeNull();
+    expect(attractMoth(state, mulberry32(9), t0)).toBeNull(); // the bank is empty
+    // The clock started when the full bank was first spent.
+    expect(lureStatus(state, t0)).toEqual({ held: 0, nextInMs: LURE_REGROW_MS, rushes: 0 });
+    expect(lureStatus(state, t0 + 19 * 60_000).held).toBe(0);
+    expect(attractMoth(state, mulberry32(9), t0 + 19 * 60_000)).toBeNull();
+    expect(attractMoth(state, mulberry32(9), t0 + 20 * 60_000)).not.toBeNull();
+    expect(lureStatus(state, t0 + 30 * 60_000)).toEqual({ held: 0, nextInMs: 10 * 60_000, rushes: 0 });
+    // Hours away fill the bank, never past 3.
+    expect(lureStatus(state, t0 + 10 * 3_600_000)).toEqual({ held: 3, nextInMs: null, rushes: 0 });
   });
 
-  it("the roost holds 6; a full roost blocks attracting until it expands", () => {
+  it("odds: a wild Prismatic is 1 in 200, and the six weights sum to 100", () => {
+    expect(MOTH_PATTERNS.map((p) => p.weight)).toEqual([44, 26, 16, 9, 4.5, 0.5]);
+    expect(MOTH_PATTERNS.reduce((sum, p) => sum + p.weight, 0)).toBe(100);
+    expect(attractMoth(gardenState(), stubRng([0.996, 0.5, 0, 0, 0.25]), 0)!.pattern).toBe("prismatic");
+    expect(attractMoth(gardenState(), stubRng([0.994, 0.5, 0, 0, 0.25]), 0)!.pattern).toBe("starlit");
+  });
+
+  it("wild glow rolls 1 to 60% of the pattern's ceiling, so nothing arrives perfect", () => {
+    expect(MOTH_PATTERNS.map((p) => p.glowCeiling)).toEqual([40, 55, 70, 80, 90, 100]);
+    const rng = mulberry32(2026);
+    for (let i = 0; i < 600; i++) {
+      const state = gardenState();
+      const m = attractMoth(state, rng, 0)!;
+      expect(m.glow).toBeLessThanOrEqual(Math.ceil(0.6 * glowCeiling(m.pattern)));
+    }
+    // The top roll on a Prismatic: 1 + floor(0.999 × 60) = 60.
+    expect(attractMoth(gardenState(), stubRng([0.999, 0.999, 0, 0, 0.25]), 0)!.glow).toBe(60);
+  });
+
+  it("a rush lure costs 0.5% of all-time Lumen (at least 500), only with an empty bank, tripling until a lure regrows", () => {
+    const state = gardenState(20_000_000);
+    state.allTimeLumen = new Decimal(1e9);
+    const t0 = 0;
+    expect(rushAttractMoth(state, mulberry32(1), t0)).toBeNull(); // spend the lures first
+    for (let i = 0; i < 3; i++) attractMoth(state, mulberry32(i + 1), t0);
+    expect(rushLureCost(state, t0).toNumber()).toBe(5_000_000);
+    expect(rushAttractMoth(state, mulberry32(4), t0)).not.toBeNull();
+    expect(state.lumen.toNumber()).toBe(15_000_000);
+    expect(rushLureCost(state, t0).toNumber()).toBe(15_000_000);
+    // One regrown lure forgives one rush.
+    expect(rushLureCost(state, t0 + LURE_REGROW_MS).toNumber()).toBe(5_000_000);
+    // A new keeper pays the 500 floor.
+    expect(rushLureCost(gardenState(), 0).toNumber()).toBe(500);
+  });
+
+  it("the roost holds 6; expansions cost 10,000 × 6ⁿ or 3% of all-time Lumen × 3ⁿ, whichever is more", () => {
     const state = gardenState();
     for (let i = 0; i < 6; i++) state.moths.push(moth(`m${i}`, "plain", 10));
     expect(mothCapacity(state)).toBe(6);
-    expect(attractMoth(state, mulberry32(3))).toBeNull();
+    expect(attractMoth(state, mulberry32(3), 0)).toBeNull();
     expect(roostExpansionCost(state).toNumber()).toBe(10_000);
     expect(expandRoost(state)).toBe(true);
     expect(mothCapacity(state)).toBe(8);
-    expect(roostExpansionCost(state).toNumber()).toBe(60_000); // ×6 growth
-    expect(attractMoth(state, mulberry32(3))).not.toBeNull();
+    expect(roostExpansionCost(state).toNumber()).toBe(60_000);
+    expect(attractMoth(state, mulberry32(3), 0)).not.toBeNull();
+    state.allTimeLumen = new Decimal(1e12);
+    expect(roostExpansionCost(state).toNumber()).toBe(9e10); // 3% × 1e12 × 3
   });
 });
 
@@ -173,120 +218,139 @@ describe("lantern moths — breeding", () => {
     return state;
   }
 
-  it("a cocoon takes 5 minutes: not ready before, ready at, parents kept", () => {
-    const state = parents();
-    const t0 = 1_000_000;
-    expect(startBreeding(state, "a", "b", t0)).toBe(true);
-    expect(startBreeding(state, "a", "b", t0)).toBe(false); // one cocoon at a time
-    expect(cocoonReady(state, t0 + 4 * 60_000)).toBe(false);
-    expect(hatchCocoon(state, mulberry32(1), t0 + 4 * 60_000)).toBeNull();
-    expect(cocoonReady(state, t0 + 5 * 60_000)).toBe(true);
-    // rng: pick higher tier (0.5 < 0.65), no shift (0.5), plain mutation (0.5), delta 0 (0.5)
-    const child = hatchCocoon(state, stubRng([0.5, 0.5, 0.5, 0.5, 0, 0, 0.25]), t0 + 5 * 60_000);
-    expect(child).not.toBeNull();
-    expect(child!.pattern).toBe("crescent"); // the higher-tier parent's pattern
-    expect(child!.glow).toBe(50); // average of 40 and 60, no mutation drift
-    expect(child!.generation).toBe(3); // max(1, 2) + 1
-    expect(state.cocoon).toBeNull();
-    expect(state.moths.map((m) => m.id)).toEqual(["a", "b", child!.id]); // parents NOT consumed
+  it("a cocoon takes 30 min × (1 + 0.3 × the higher tier): Plain 30, Crescent 57, Prismatic 75", () => {
+    expect(cocoonDurationMs(moth("x", "plain", 1), moth("y", "plain", 1))).toBe(30 * 60_000);
+    expect(cocoonDurationMs(moth("x", "plain", 1), moth("y", "crescent", 1))).toBe(57 * 60_000);
+    expect(cocoonDurationMs(moth("x", "prismatic", 1), moth("y", "spotted", 1))).toBe(75 * 60_000);
   });
 
-  it("inheritance: pattern can shift a tier up or down (clamped), seeded sweep stays within ±1 of a parent", () => {
-    // Shift up: pick the LOWER tier parent (0.9), then +1 shift (0.05).
+  it("not ready before its time, ready at it; parents kept; child at about the average glow", () => {
+    const state = parents();
+    const t0 = 1_000_000;
+    const ready = t0 + 57 * 60_000;
+    expect(startBreeding(state, "a", "b", t0)).toBe(true);
+    expect(startBreeding(state, "a", "b", t0)).toBe(false); // one cocoon at a time
+    expect(cocoonReady(state, ready - 1)).toBe(false);
+    expect(hatchCocoon(state, mulberry32(1), ready - 1)).toBeNull();
+    expect(cocoonReady(state, ready)).toBe(true);
+    // rng: higher tier (0.5 < 0.65), no shift (0.5), no bright (0.5), drift round(10) − 10 − 1 = −1
+    const child = hatchCocoon(state, stubRng([0.5, 0.5, 0.5, 0.5, 0, 0, 0.25]), ready);
+    expect(child!.pattern).toBe("crescent");
+    expect(child!.glow).toBe(49); // average 50, regression −1
+    expect(child!.generation).toBe(3);
+    expect(state.cocoon).toBeNull();
+    expect(state.moths.map((m) => m.id)).toEqual(["a", "b", child!.id]);
+  });
+
+  it("tier shifts: 8% up, 12% down, clamped at Plain", () => {
     const up = parents();
     startBreeding(up, "a", "b", 0);
-    const upChild = hatchCocoon(up, stubRng([0.9, 0.05, 0.5, 0.5, 0, 0, 0.3]), 300_000);
-    expect(patternById(upChild!.pattern).tier).toBe(3); // 2 + 1
-
-    // Shift down past the floor clamps at tier 0:
+    const upChild = hatchCocoon(up, stubRng([0.9, 0.05, 0.5, 0.5, 0, 0, 0.3]), 1e9);
+    expect(patternById(upChild!.pattern).tier).toBe(3); // the lower parent (2) + 1
+    const none = parents();
+    startBreeding(none, "a", "b", 0);
+    expect(hatchCocoon(none, stubRng([0.9, 0.09, 0.5, 0.5, 0, 0, 0.3]), 1e9)!.pattern).toBe("spotted"); // 0.09 → down
     const down = gardenState();
-    down.moths = [moth("a", "plain", 50), moth("b", "plain", 50)];
+    down.moths = [moth("a", "plain", 30), moth("b", "plain", 30)];
     startBreeding(down, "a", "b", 0);
-    const downChild = hatchCocoon(down, stubRng([0.5, 0.15, 0.5, 0.5, 0, 0, 0.3]), 300_000);
-    expect(downChild!.pattern).toBe("plain");
+    expect(hatchCocoon(down, stubRng([0.5, 0.15, 0.5, 0.5, 0, 0, 0.3]), 1e9)!.pattern).toBe("plain");
+  });
 
-    // Seeded sweep: every child is within ±1 tier of at least one parent,
-    // glow stays in 1–100, generation is max(parents) + 1.
-    for (let seed = 1; seed <= 40; seed++) {
+  it("Prismatic is unstable: a Prismatic child stays Prismatic 60% of the time, otherwise Starlit", () => {
+    const pair = () => {
+      const state = gardenState();
+      state.moths = [moth("a", "prismatic", 80), moth("b", "prismatic", 80)];
+      startBreeding(state, "a", "b", 0);
+      return state;
+    };
+    expect(hatchCocoon(pair(), stubRng([0.5, 0.59, 0.5, 0.5, 0, 0, 0.3]), 1e9)!.pattern).toBe("prismatic");
+    expect(hatchCocoon(pair(), stubRng([0.5, 0.6, 0.5, 0.5, 0, 0, 0.3]), 1e9)!.pattern).toBe("starlit");
+    let prismatic = 0;
+    const rng = mulberry32(77);
+    for (let i = 0; i < 4000; i++) if (hatchCocoon(pair(), rng, 1e9)!.pattern === "prismatic") prismatic++;
+    expect(prismatic / 4000).toBeGreaterThan(0.57);
+    expect(prismatic / 4000).toBeLessThan(0.63);
+  });
+
+  it("glow is held to the child's pattern ceiling", () => {
+    const state = gardenState();
+    state.moths = [moth("a", "prismatic", 100), moth("b", "prismatic", 100)];
+    startBreeding(state, "a", "b", 0);
+    // Falls to Starlit (0.7): average 100 − 1 = 99, held to Starlit's 90.
+    expect(hatchCocoon(state, stubRng([0.5, 0.7, 0.5, 0.5, 0, 0, 0.3]), 1e9)!.glow).toBe(90);
+  });
+
+  it("a bright mutation (3%) adds +8..+15; above an average of 90 every gain is halved", () => {
+    const state = parents(); // average 50
+    startBreeding(state, "a", "b", 0);
+    // mutation kind 0.02 < 0.03 → bright; amount 0.5 → 8 + 4 = +12
+    expect(hatchCocoon(state, stubRng([0.5, 0.5, 0.02, 0.5, 0, 0, 0.3]), 1e9)!.glow).toBe(62);
+    const high = gardenState();
+    high.moths = [moth("a", "prismatic", 90), moth("b", "prismatic", 90)];
+    startBreeding(high, "a", "b", 0);
+    // drift round(18) − 11 = +7, halved → 93.5 → 94 (it would be 97 below 90)
+    expect(hatchCocoon(high, stubRng([0.5, 0.5, 0.5, 0.9, 0, 0, 0.3]), 1e9)!.glow).toBe(94);
+  });
+
+  it("a seeded sweep stays within ±1 tier of a parent and within the child's ceiling", () => {
+    for (let seed = 1; seed <= 60; seed++) {
       const state = gardenState();
       const pa = MOTH_PATTERNS[seed % 6];
       const pb = MOTH_PATTERNS[(seed * 3) % 6];
       state.moths = [moth("a", pa.id, (seed * 37) % 100 + 1, 2), moth("b", pb.id, (seed * 53) % 100 + 1, 4)];
       expect(startBreeding(state, "a", "b", 0)).toBe(true);
-      const child = hatchCocoon(state, mulberry32(seed), 300_000);
-      expect(child).not.toBeNull();
+      const child = hatchCocoon(state, mulberry32(seed), 1e9);
       const tier = patternById(child!.pattern).tier;
       expect(Math.abs(tier - pa.tier) <= 1 || Math.abs(tier - pb.tier) <= 1).toBe(true);
       expect(child!.glow).toBeGreaterThanOrEqual(1);
-      expect(child!.glow).toBeLessThanOrEqual(100);
+      expect(child!.glow).toBeLessThanOrEqual(glowCeiling(child!.pattern));
       expect(child!.generation).toBe(5);
     }
   });
 
-  it("a bright mutation (5%) adds +20..+35 glow instead of the usual drift", () => {
-    const state = parents(); // glows 40 and 60, average 50
-    startBreeding(state, "a", "b", 0);
-    // rng: pick (0.5), shift (0.5), mutation kind 0.02 < 0.05 → bright; amount 0.5 → +28
-    const child = hatchCocoon(state, stubRng([0.5, 0.5, 0.02, 0.5, 0, 0, 0.3]), 300_000);
-    expect(child!.glow).toBe(78);
+  it("moths from before the rebalance keep their glow above the new ceilings (old light)", () => {
+    const old = moth("o", "plain", 95);
+    expect(isOldLight(old)).toBe(true);
+    expect(isOldLight(moth("n", "plain", 40))).toBe(false);
+    const restored = deserializeState(JSON.parse(JSON.stringify({ ...serializeState(gardenState()), moths: [old] })));
+    expect(restored!.moths[0].glow).toBe(95);
   });
 
   it("hatching needs a free roost slot", () => {
     const state = parents();
     state.moths.push(moth("c", "plain", 10), moth("d", "plain", 10), moth("e", "plain", 10), moth("f", "plain", 10));
-    expect(state.moths.length).toBe(6); // full
+    expect(state.moths.length).toBe(6);
     startBreeding(state, "a", "b", 0);
-    expect(hatchCocoon(state, mulberry32(5), 300_000)).toBeNull(); // no room
-    expect(releaseMoth(state, "f")).not.toBeNull(); // make room (not a parent)
-    expect(hatchCocoon(state, mulberry32(5), 300_000)).not.toBeNull();
+    expect(hatchCocoon(state, mulberry32(5), 1e9)).toBeNull();
+    expect(releaseMoth(state, "f")).not.toBeNull();
+    expect(hatchCocoon(state, mulberry32(5), 1e9)).not.toBeNull();
   });
 
   it("breeding validates its parents", () => {
     const state = parents();
-    expect(startBreeding(state, "a", "a", 0)).toBe(false); // distinct parents
+    expect(startBreeding(state, "a", "a", 0)).toBe(false);
     expect(startBreeding(state, "a", "ghost", 0)).toBe(false);
     expect(state.cocoon).toBeNull();
   });
 });
 
 describe("lantern moths — release", () => {
-  it("release pays 100 × glow × (tier + 1), to the purse only, and clears duty", () => {
+  it("release gives a small gift, 10 × glow × (tier + 1), to the purse only, and clears duty", () => {
     const state = gardenState(0);
-    // A full roost: re-attracting would cost 500 × 2.2^5, so the 40% cap
-    // (≈10.3K) doesn't bind on this moth's 6,000 base value.
-    state.moths = [moth("a", "striped", 20), ...["b", "c", "d", "e", "f"].map((id) => moth(id, "plain", 10))];
+    state.moths = [moth("a", "striped", 20), moth("b", "plain", 10)];
     toggleDuty(state, "a");
-    expect(releaseValue(state.moths[0]).toNumber()).toBe(100 * 20 * 3);
-    const gained = releaseMoth(state, "a");
-    expect(gained!.toNumber()).toBe(6_000);
-    expect(state.lumen.toNumber()).toBe(6_000);
-    expect(state.lifetimeLumen.toNumber()).toBe(0); // a trade-in, not earnings
-    expect(state.moths.map((m) => m.id)).toEqual(["b", "c", "d", "e", "f"]);
+    expect(releasePayout(state, state.moths[0]).toNumber()).toBe(10 * 20 * 3);
+    expect(releaseMoth(state, "a")!.toNumber()).toBe(600);
+    expect(state.lumen.toNumber()).toBe(600);
+    expect(state.lifetimeLumen.toNumber()).toBe(0);
+    expect(state.moths.map((m) => m.id)).toEqual(["b"]);
     expect(state.mothDuty).toEqual([]);
-    expect(releaseMoth(state, "a")).toBeNull(); // already gone
-  });
-
-  it("release pays at most 40% of the re-attract price, so attract-and-release always loses", () => {
-    const state = gardenState(0);
-    state.moths = [moth("a", "striped", 40)]; // base value 12,000
-    // After release the roost is empty: re-attracting costs 500 → cap 200.
-    expect(releasePayout(state, state.moths[0]).toNumber()).toBe(200);
-    expect(releaseMoth(state, "a")!.toNumber()).toBe(200);
-
-    // The loop that used to print Lumen: 200 cycles from a 500 purse.
-    const loop = gardenState(500);
-    const rng = mulberry32(42);
-    for (let i = 0; i < 200; i++) {
-      const m = attractMoth(loop, rng);
-      if (!m) break;
-      releaseMoth(loop, m.id);
-    }
-    expect(loop.lumen.toNumber()).toBeLessThan(500);
+    expect(releaseMoth(state, "a")).toBeNull();
   });
 
   it("a moth in the cocoon cannot be released", () => {
     const state = gardenState();
-    state.moths = [moth("a", "plain", 50), moth("b", "plain", 50)];
+    state.moths = [moth("a", "plain", 30), moth("b", "plain", 30)];
     startBreeding(state, "a", "b", 0);
     expect(releaseMoth(state, "a")).toBeNull();
     expect(state.moths.length).toBe(2);
@@ -412,14 +476,18 @@ describe("relic effects", () => {
     expect(state.embers).toBe(44);
   });
 
-  it("Driftwood Cradle: new moths arrive with +10 glow", () => {
-    // rng: pattern plain (0), glow roll 0.5 → 51, then name/id rolls.
-    const plain = attractMoth(gardenState(), stubRng([0, 0.5, 0, 0, 0.25]));
-    expect(plain!.glow).toBe(51);
+  it("Driftwood Cradle: wild moths arrive with +5 glow (hatchlings get nothing extra)", () => {
+    // rng: pattern plain (0), glow roll 0.5 → 1 + floor(0.5 × 24) = 13, then name/id rolls.
+    const plain = attractMoth(gardenState(), stubRng([0, 0.5, 0, 0, 0.25]), 0);
+    expect(plain!.glow).toBe(13);
     const state = gardenState();
     state.relics = ["driftwood-cradle"];
-    const cradled = attractMoth(state, stubRng([0, 0.5, 0, 0, 0.25]));
-    expect(cradled!.glow).toBe(61);
+    const cradled = attractMoth(state, stubRng([0, 0.5, 0, 0, 0.25]), 0);
+    expect(cradled!.glow).toBe(18);
+    // Still held to the ceiling: Plain's top roll 24 + 5 = 29 ≤ 40.
+    state.moths = [moth("a", "plain", 30), moth("b", "plain", 30)];
+    startBreeding(state, "a", "b", 0);
+    expect(hatchCocoon(state, stubRng([0.5, 0.5, 0.5, 0.55, 0, 0, 0.3]), 1e9)!.glow).toBe(30); // 30 + 11 − 11, no Cradle
   });
 });
 
@@ -542,7 +610,7 @@ describe("permanence & save migration (v4 → v5)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v4Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(6);
+    expect(restored?.version).toBe(7);
     expect(restored?.moths).toEqual([]);
     expect(restored?.mothDuty).toEqual([]);
     expect(restored?.roostExpansions).toBe(0);
@@ -563,7 +631,7 @@ describe("permanence & save migration (v4 → v5)", () => {
     state.expedition = { routeId: "coastal", startedAt: 100, returnsAt: 200 };
     state.cocoon = { parentIds: ["m1", "m2"], readyAt: 999 };
     const saved = serializeState(state);
-    expect(saved.version).toBe(6);
+    expect(saved.version).toBe(7);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.moths).toEqual(state.moths);
     expect(restored?.mothDuty).toEqual(["m1"]);

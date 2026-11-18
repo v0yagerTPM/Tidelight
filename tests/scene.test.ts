@@ -127,7 +127,7 @@ describe("meadow model", () => {
       { id: "c", name: "Cob", pattern: "spotted", glow: 30, generation: 1 },
     ];
     state.mothDuty = ["a"];
-    state.cocoon = { parentIds: ["b", "c"], readyAt: NOW + 150_000 }; // halfway through 5 min
+    state.cocoon = { parentIds: ["b", "c"], readyAt: NOW + 33 * 60_000 }; // halfway: a Starlit parent makes it 66 min
     state.expedition = { routeId: "crossing", startedAt: NOW - 1_000, returnsAt: NOW + 3_000 };
     const m = buildMeadowModel(state, NOW);
     expect(m.unlocked).toBe(true);

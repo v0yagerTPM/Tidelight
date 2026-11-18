@@ -69,7 +69,6 @@ import {
 import { formatDuration, formatNumber } from "./game/format";
 import {
   MAX_DUTY_MOTHS,
-  attractCost,
   attractMoth,
   cocoonReady,
   dutyGlowTotal,
@@ -84,6 +83,12 @@ import {
   releaseMoth,
   releasePayout,
   roostExpansionCost,
+  rushAttractMoth,
+  rushLureCost,
+  lureStatus,
+  LURE_BANK,
+  isOldLight,
+  cocoonDurationMs,
   startBreeding,
   toggleDuty,
 } from "./game/moths";
@@ -803,6 +808,7 @@ let breedParentB = "";
 interface ShoreRefs {
   attractBtn: HTMLButtonElement | null;
   attractNote: HTMLElement | null;
+  rushBtn: HTMLButtonElement | null;
   roostBtn: HTMLButtonElement | null;
   roostNote: HTMLElement | null;
   cocoonNote: HTMLElement | null;
@@ -812,7 +818,7 @@ interface ShoreRefs {
   sendBtns: { routeId: string; btn: HTMLButtonElement; note: HTMLElement | null }[];
 }
 let shoreRefs: ShoreRefs = {
-  attractBtn: null, attractNote: null, roostBtn: null, roostNote: null,
+  attractBtn: null, attractNote: null, rushBtn: null, roostBtn: null, roostNote: null,
   cocoonNote: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
 };
 
@@ -830,7 +836,7 @@ function shoreKey(): string {
 
 function rebuildShore(): void {
   shoreRefs = {
-    attractBtn: null, attractNote: null, roostBtn: null, roostNote: null,
+    attractBtn: null, attractNote: null, rushBtn: null, roostBtn: null, roostNote: null,
     cocoonNote: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
   };
 
@@ -852,15 +858,23 @@ function rebuildShore(): void {
         <div class="gen-name">🦋 The Roost</div>
         <p class="muted moth-roost-line"></p>
         <div class="shore-actions">
-          <span class="shore-action"><button class="buy moth-attract">Attract a moth</button><span class="gen-note muted moth-attract-note"></span></span>
+          <span class="shore-action"><button class="buy moth-attract">Attract a moth</button><button class="buy moth-rush">Rush lure</button><span class="gen-note muted moth-attract-note"></span></span>
           <span class="shore-action"><button class="buy moth-roost">Expand the roost (+2)</button><span class="gen-note muted moth-roost-note"></span></span>
         </div>`;
       shoreRefs.attractBtn = controls.querySelector<HTMLButtonElement>(".moth-attract");
       shoreRefs.attractNote = controls.querySelector<HTMLElement>(".moth-attract-note");
+      shoreRefs.rushBtn = controls.querySelector<HTMLButtonElement>(".moth-rush");
       shoreRefs.roostBtn = controls.querySelector<HTMLButtonElement>(".moth-roost");
       shoreRefs.roostNote = controls.querySelector<HTMLElement>(".moth-roost-note");
       shoreRefs.attractBtn?.addEventListener("click", () => {
         if (attractMoth(state, Math.random)) {
+          sound.chime();
+          saveState(state);
+          renderDynamic();
+        }
+      });
+      shoreRefs.rushBtn?.addEventListener("click", () => {
+        if (rushAttractMoth(state, Math.random)) {
           sound.chime();
           saveState(state);
           renderDynamic();
@@ -888,7 +902,7 @@ function rebuildShore(): void {
           <div class="moth-portrait"><div class="moth-swatch" style="background:${pattern.swatch}"></div></div>
           <div class="gen-main">
             <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}</div>
-            <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(moth.glow * 0.2).toFixed(1)}%` : ""}</div>
+            <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow}${isOldLight(moth) ? ` <span class="perm" title="From before the moth rebalance: it keeps its glow above the ${pattern.name} ceiling. Its children are held to theirs.">old light</span>` : ` of ${pattern.glowCeiling}`} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(moth.glow * 0.2).toFixed(1)}%` : ""}</div>
           </div>
           <div class="gen-buy moth-actions">
             <button class="buy moth-duty">${isDuty ? "Stand down" : "Put on duty"}</button>
@@ -948,7 +962,8 @@ function rebuildShore(): void {
           .join("");
         breed.innerHTML = `
           <div class="gen-name">🌀 Breeding</div>
-          <p class="muted">Choose two moths. The child inherits a parent's wing pattern (usually the rarer one, ± a tier of luck), the average of their glows, and a little chaos. Parents keep their wings — nobody is consumed. A cocoon takes 5 minutes, even while you're away.</p>
+          <p class="muted">Choose two moths. The child inherits a parent's wing pattern (usually the rarer one, ± a tier of luck) and about the average of their glows, never above its own pattern's ceiling. Prismatic wings are unstable: two Prismatics give a Prismatic only 3 times in 5. Parents keep their wings — nobody is consumed. A cocoon takes 30 minutes for Plain parents up to 75 for Prismatic, even while you're away.</p>
+          <p class="muted breed-time"></p>
           <div class="shore-actions">
             <select class="breed-select breed-a">${options}</select>
             <select class="breed-select breed-b">${options}</select>
@@ -956,14 +971,21 @@ function rebuildShore(): void {
           </div>`;
         const selA = breed.querySelector<HTMLSelectElement>(".breed-a");
         const selB = breed.querySelector<HTMLSelectElement>(".breed-b");
+        const timeNote = breed.querySelector<HTMLElement>(".breed-time");
+        const showTime = () => {
+          const a = mothById(state, breedParentA);
+          const b = mothById(state, breedParentB);
+          if (timeNote) timeNote.textContent = a && b && a !== b ? `This pair's cocoon: ${formatDuration(cocoonDurationMs(a, b) / 1000)}.` : "";
+        };
         if (selA) {
           selA.value = breedParentA;
-          selA.addEventListener("change", () => { breedParentA = selA.value; });
+          selA.addEventListener("change", () => { breedParentA = selA.value; showTime(); });
         }
         if (selB) {
           selB.value = breedParentB;
-          selB.addEventListener("change", () => { breedParentB = selB.value; });
+          selB.addEventListener("change", () => { breedParentB = selB.value; showTime(); });
         }
+        showTime();
         breed.querySelector<HTMLButtonElement>(".breed-start")?.addEventListener("click", () => {
           if (startBreeding(state, breedParentA, breedParentB)) {
             sound.buy();
@@ -1053,19 +1075,28 @@ function updateShoreView(now: number): void {
     roostLine.textContent = `Roost: ${state.moths.length}/${mothCapacity(state)} moths · ${duty.length}/${MAX_DUTY_MOTHS} on duty (duty glow ${dutyGlowTotal(state)} → +${(dutyGlowTotal(state) * 0.2).toFixed(1)}% production). Moths are permanent — Rekindle can't touch them.`;
   }
   if (shoreRefs.attractBtn && shoreRefs.attractNote) {
-    const cost = attractCost(state);
+    const lures = lureStatus(state, now);
     const full = state.moths.length >= mothCapacity(state);
-    const affordable = state.lumen.gte(cost);
-    shoreRefs.attractBtn.disabled = full || !affordable;
-    shoreRefs.attractBtn.classList.toggle("affordable", !full && affordable);
-    shoreRefs.attractBtn.textContent = `Attract a moth — ${fmt(cost)} Lumen`;
+    const ready = lures.held > 0;
+    shoreRefs.attractBtn.disabled = full || !ready;
+    shoreRefs.attractBtn.classList.toggle("affordable", !full && ready);
+    shoreRefs.attractBtn.textContent = `Attract a moth — ${lures.held}/${LURE_BANK} lures`;
+    if (shoreRefs.rushBtn) {
+      const cost = rushLureCost(state, now);
+      const show = !ready;
+      shoreRefs.rushBtn.classList.toggle("hidden", !show);
+      const affordable = state.lumen.gte(cost);
+      shoreRefs.rushBtn.disabled = full || !affordable;
+      shoreRefs.rushBtn.classList.toggle("affordable", show && !full && affordable);
+      shoreRefs.rushBtn.textContent = `Rush lure — ${fmt(cost)} Lumen`;
+    }
+    const next = lures.nextInMs === null ? "the lure bank is full" : `next lure in ${formatDuration(lures.nextInMs / 1000)}`;
     if (full) {
-      shoreRefs.attractNote.textContent = "the roost is full — expand it, release a moth, or make room by hatching later";
-    } else if (!affordable) {
-      const tta = timeToAffordCost(state, cost);
-      shoreRefs.attractNote.textContent = Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : "earn Lumen first";
+      shoreRefs.attractNote.textContent = `the roost is full — expand it or release a moth · ${next}`;
+    } else if (!ready) {
+      shoreRefs.attractNote.textContent = `${next} (lures regrow even while you're away)${lures.rushes > 0 ? " · each rush triples the next until a lure regrows" : ""}`;
     } else {
-      shoreRefs.attractNote.textContent = "a new moth follows the light home";
+      shoreRefs.attractNote.textContent = `a new moth follows the light home · ${next}`;
     }
   }
   if (shoreRefs.roostBtn && shoreRefs.roostNote) {
