@@ -4,10 +4,12 @@ import {
   buyNodeUpgrade,
   chainStatus,
   nextLighthouseId,
+  nextLevelSupportGain,
   nodeCost,
   relightLighthouse,
 } from "./chain";
 import { baseProductionPerSecond, buyGenerator, clickValue, costFor, productionPerSecond } from "./engine";
+import { canBuyGenerator } from "./challenges";
 import type { GameState } from "./types";
 import { UPGRADES, buyUpgrade, isUnlocked } from "./upgrades";
 
@@ -20,8 +22,8 @@ import { UPGRADES, buyUpgrade, isUnlocked } from "./upgrades";
 //     node level on any lit board;
 //   • once the supply chain is unlocked, keep it fed first: whenever
 //     efficiency drops under 95%, buy the bottleneck node's next level
-//     on the CHEAPEST lit board before other purchases that step
-//     (support sums across boards, so the cheap board is the smart one);
+//     on the lit board giving the most support per Lumen, before other
+//     purchases that step (support sums across boards);
 //   • relight the next lighthouse (in order) the moment it is eligible;
 //   • in "savings mode" (used by the endgame sim) it buys nothing but
 //     chain feeding — the caller is saving for a lighthouse;
@@ -64,17 +66,26 @@ function productionWithNodeUpgrade(state: GameState, lighthouseId: string, nodeI
   return p;
 }
 
-/** The lit board where raising `nodeId` costs the least right now. */
-export function cheapestBoardFor(state: GameState, nodeId: ChainNodeId): string | null {
+/**
+ * The lit board where raising `nodeId` is the best value right now: most
+ * support per Lumen for a supply node (boards work at different scales,
+ * and deep levels cost more per Lumen/s), the cheapest level for Beam
+ * (every Beam level adds the same +5%, whatever its board).
+ */
+export function bestBoardFor(state: GameState, nodeId: ChainNodeId): string | null {
   let best: string | null = null;
-  let bestCost: Decimal | null = null;
+  let bestValue = -Infinity;
   for (const id of state.litLighthouses) {
     const board = state.chainBoards[id];
     if (!board) continue;
     const cost = nodeCost(id, nodeId, board[nodeId], state);
-    if (bestCost === null || cost.lt(bestCost)) {
+    const value =
+      nodeId === "beam"
+        ? -cost.toNumber()
+        : nextLevelSupportGain(state, id, nodeId).div(cost).toNumber();
+    if (value > bestValue) {
       best = id;
-      bestCost = cost;
+      bestValue = value;
     }
   }
   return best;
@@ -100,6 +111,7 @@ export function bestBotAction(state: GameState, tSeconds: number): BotAction | n
   };
 
   for (const def of GENERATORS) {
+    if (!canBuyGenerator(state, def.id)) continue; // a tier still waiting on its lighthouse
     const owned = state.generators[def.id] ?? 0;
     const cost = costFor(def, owned);
     if (state.lumen.lt(cost)) continue;
@@ -176,6 +188,14 @@ export interface BotBuyOptions {
    * most this many seconds (cheap growth that barely moves demand).
    */
   growthPaybackCapSeconds?: number;
+  /**
+   * Feed patience (growth mode): when the chain is short and the next
+   * bottleneck level costs no more than this many seconds of production,
+   * save for it instead of spending on generators first. Without it, a bot
+   * that spends every Lumen each step never affords a chain level and runs
+   * starved however well feeding would pay.
+   */
+  saveToFeedSeconds?: number;
   /** Savings mode only: never let a purchase drop the purse below this. */
   reserveLumen?: Decimal;
   /**
@@ -211,7 +231,7 @@ export function botBuyPhase(
     // target — and, when a discipline is set, only at a sane payback.
     const status = chainStatus(state);
     if (status.unlocked && status.efficiency < feedUntil && status.bottleneck) {
-      const boardId = cheapestBoardFor(state, status.bottleneck);
+      const boardId = bestBoardFor(state, status.bottleneck);
       const board = boardId ? state.chainBoards[boardId] : undefined;
       if (boardId && board) {
         const cost = nodeCost(boardId, status.bottleneck, board[status.bottleneck], state);
@@ -223,6 +243,14 @@ export function botBuyPhase(
           worthIt = gain.gt(0) && cost.div(gain).toNumber() <= options.feedPaybackCapSeconds;
         }
         if (worthIt && buyNodeUpgrade(state, boardId, status.bottleneck)) continue;
+        if (
+          !options.saveForLighthouse &&
+          options.saveToFeedSeconds !== undefined &&
+          state.lumen.lt(cost) &&
+          cost.lte(productionPerSecond(state).mul(options.saveToFeedSeconds))
+        ) {
+          break; // wait a moment for a chain level worth more than more generators
+        }
       }
     }
     // Purchases.

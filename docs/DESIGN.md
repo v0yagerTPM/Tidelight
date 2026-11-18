@@ -24,7 +24,11 @@ hit the wall → **Rekindle** → relight faster and further.
    always visible and named. Every lit lighthouse runs its own board;
    support sums across boards, efficiency is support ÷ production, and
    the chain factor (0.25 + 0.75 × efficiency) never cuts production
-   below 25%.
+   below 25%. Each level supports a little more than the last (geometric
+   support, growing just slower than cost), so keeping the chain fed
+   costs a steady slice of production at every scale — it stays a live
+   decision all game, and a fresh lighthouse board is the best-value
+   support there is.
 2. **Tide & weather planning** — a deterministic 30-minute tide (Low /
    High / Glass Calm / Stormfront) bends production, clicking and chain
    support; the forecast is exact, so what you queue before bed matters.
@@ -36,11 +40,14 @@ hit the wall → **Rekindle** → relight faster and further.
 5. **The seven lighthouses** — relit in order, each gated on the
    previous light, chain efficiency and cost, each granting a different
    permanent bonus (production, chain support, Ember gain, offline
-   earnings). Efficiency gates descend steeply down the coast (50% →
-   0.2%): at endgame demand, support (linear per level, geometric cost)
-   can only ever be a sliver of production (exponential) — the gates
-   bite in absolute terms; the percentages are small because the sea
-   is big. Full derivation in `config.ts`.
+   earnings). Efficiency gates climb down the coast (50% → 80%): only a
+   well-fed beam reaches the far lights, and an hour of production fed
+   to the chain clears even 80% at any scale, so growing never locks the
+   ending. Relights also bring the upper generator tiers: Lens Polishers
+   with Gull Rock, Storm Lanterns with Cormorant Roost, Beacon Whales
+   with Widow's Walk, The Seventh Light with Siren's Rest — so the
+   economy climbs a staircase with the story instead of leaping ahead
+   of it.
 
 ## Prestige — Rekindle
 
@@ -74,11 +81,15 @@ returned bottle, when the Shore has news.
   5–15 seconds early, every 1–5 minutes late.
 - First Rekindle in the 45–90 minute band for an engaged first session
   (recommended threshold: 40 Embers). The pessimistic bot bound
-  (`npm run sim`, no perks/moths/relics/tides): 103 minutes to the
-  first Rekindle, +69 to the second.
+  (`npm run sim`, no perks/moths/relics/tides): 85 minutes to the
+  first Rekindle, +60 to the second.
 - Full story: **35–50 hours** of engaged play to the ending, then the
-  Next Keeping endless mode. The same no-everything bot needs ~201
-  hours — it is the floor, not the expectation.
+  Next Keeping endless mode. The same no-everything bot relights the
+  coast at 3.5 / 6.7 / 12.4 / 21.8 / 37.5 hours and reaches the ending
+  at ~65 — each light taking a little under twice as long as the last.
+  It is the floor, not the expectation; perks, moths, relics, tides and
+  a keeper's own clicking should bring a real playthrough in around
+  half that, though no player has measured it yet.
 
 ## Story
 

@@ -381,9 +381,9 @@ describe("relic effects", () => {
 
   it("Gull Feather takes 20% off chain node costs", () => {
     const state = createInitialState();
-    expect(nodeCost("first-light", "wick", 0, state).toNumber()).toBe(100);
+    expect(nodeCost("first-light", "wick", 0, state).toNumber()).toBe(500);
     state.relics = ["gull-feather"];
-    expect(nodeCost("first-light", "wick", 0, state).toNumber()).toBe(80);
+    expect(nodeCost("first-light", "wick", 0, state).toNumber()).toBe(400);
     expect(nodeCost("first-light", "beam", 0, state).toNumber()).toBe(20_000);
   });
 

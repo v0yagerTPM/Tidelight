@@ -2,6 +2,7 @@ import Decimal from "break_infinity.js";
 import { CHAIN_NODE_IDS, PRESTIGE_DIVISOR, litEmberGainMultiplier } from "./config";
 import { headStartLumen, perkById } from "./emberShop";
 import { relicEmberGainMultiplier } from "./expeditions";
+import { formatNumber } from "./format";
 import { addLog, startBoard } from "./state";
 import type { GameState } from "./types";
 import { isPermanentUpgrade, upgradeById } from "./upgrades";
@@ -82,7 +83,7 @@ export function rekindle(state: GameState): number {
   state.embersTotalEarned += gain;
   state.totalRekindles++;
   resetRun(state);
-  addLog(state, `The light gutters, and is lit again — stronger. +${gain} Embers (${state.embers} held, ${state.embersTotalEarned} earned all-time).`);
+  addLog(state, `The light gutters, and is lit again — stronger. +${formatNumber(gain, state.notation)} Embers (${formatNumber(state.embers, state.notation)} held, ${formatNumber(state.embersTotalEarned, state.notation)} earned all-time).`);
   if (kept.length > 0) {
     const names = kept.map((id) => upgradeById(id).name).join(", ");
     addLog(state, `Keeper knowledge survives the dark: ${names}.`);

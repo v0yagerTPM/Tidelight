@@ -39,11 +39,12 @@ const ALL_RELIGHTABLE = [
 ];
 
 /**
- * A keeper who can relight anything: 10 Candle Crabs (chain awake,
- * demand 5/s — the starting board's 20/15/10 support gives efficiency
- * 1.0, clearing every gate) and a bottomless purse.
+ * A keeper who can afford anything: 10 Candle Crabs (chain awake, demand
+ * 5/s — fully supported by the starting board's 20/15/10) and a bottomless
+ * purse. Each lighthouse lit raises demand, so lightAll() feeds the chain
+ * before every relight to clear the 50–80% gates.
  */
-function richState(lumen = 1_000_000_000_000): GameState {
+function richState(lumen: number | string = "1e60"): GameState {
   const state = createInitialState();
   state.generators[crab.id] = 10;
   state.totalGeneratorsBought = 10;
@@ -51,8 +52,20 @@ function richState(lumen = 1_000_000_000_000): GameState {
   return state;
 }
 
+/**
+ * Feed First Light's board well past any gate a ten-crab keeper meets. The
+ * gates sit at 50–80% since the post-launch rebalance, and each lit
+ * lighthouse raises demand, so the shore is relit the way a keeper would:
+ * chain fed first.
+ */
+function feedChain(state: GameState): void {
+  const board = state.chainBoards[FIRST_LIGHT_ID];
+  for (const node of ["wick", "oil", "lens"] as const) board[node] = Math.max(board[node], 20);
+}
+
 function lightAll(state: GameState): void {
   for (const id of ALL_RELIGHTABLE) {
+    feedChain(state);
     expect(relightLighthouse(state, id)).toBe(true);
   }
 }
@@ -85,19 +98,19 @@ describe("lighthouse order gating", () => {
     expect(relightLighthouse(state, WIDOWS_WALK_ID)).toBe(false);
   });
 
-  it("board cost multipliers: ×20 Cormorant, ×50 Widow's, ×750 Hollow", () => {
-    expect(nodeCost(CORMORANT_ROOST_ID, "wick", 0).toNumber()).toBe(2_000); // 100 × 20
+  it("board scales: ×20 Cormorant, ×50 Widow's, ×750 Hollow", () => {
+    expect(nodeCost(CORMORANT_ROOST_ID, "wick", 0).toNumber()).toBe(10_000); // 500 × 20
     expect(nodeCost(WIDOWS_WALK_ID, "beam", 0).toNumber()).toBe(1_250_000); // 25,000 × 50
-    expect(nodeCost(HOLLOW_LIGHT_ID, "lens", 0).toNumber()).toBe(300_000); // 400 × 750
-    expect(nodeCost(BELLWETHER_ID, "oil", 0).toNumber()).toBe(24_000); // 200 × 120
-    expect(nodeCost(SIRENS_REST_ID, "wick", 0).toNumber()).toBe(30_000); // 100 × 300
+    expect(nodeCost(HOLLOW_LIGHT_ID, "lens", 0).toNumber()).toBe(1_500_000); // 2,000 × 750
+    expect(nodeCost(BELLWETHER_ID, "oil", 0).toNumber()).toBe(120_000); // 1,000 × 120
+    expect(nodeCost(SIRENS_REST_ID, "wick", 0).toNumber()).toBe(150_000); // 500 × 300
   });
 
   it("Friend of Gulls halves Gull Rock only — never the later lights", () => {
     const state = richState();
     state.emberPerks.push("gull-friend");
-    expect(relightCost(state, GULL_ROCK_ID).toNumber()).toBe(1_000_000);
-    expect(relightCost(state, CORMORANT_ROOST_ID).toNumber()).toBe(25_000_000);
+    expect(relightCost(state, GULL_ROCK_ID).toNumber()).toBe(2_500_000);
+    expect(relightCost(state, CORMORANT_ROOST_ID).toNumber()).toBe(840_000_000);
   });
 });
 
@@ -278,7 +291,7 @@ describe("the ending and the Next Keeping (NG+)", () => {
     expect(startNgPlus(state)).toBe(true);
     // Relight the shore in the new Keeping:
     state.generators[crab.id] = 10;
-    state.lumen = new Decimal(1_000_000_000_000);
+    state.lumen = new Decimal("1e60");
     lightAll(state);
     expect(startNgPlus(state)).toBe(true);
     expect(state.ngPlusCount).toBe(2);

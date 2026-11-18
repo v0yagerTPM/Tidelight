@@ -108,15 +108,15 @@ describe("ember perk effects", () => {
     expect(state.lumen.toNumber()).toBe(before + 2);
   });
 
-  it("Friend of Gulls: Gull Rock's relight cost halves to 1,000,000", () => {
+  it("Friend of Gulls: Gull Rock's relight cost halves to 2,500,000", () => {
     const state = emberState(10);
     state.generators[crab.id] = 10; // chain unlocked, full efficiency
-    state.lumen = new Decimal(1_000_000);
-    expect(gullRockRelightCost(state).toNumber()).toBe(2_000_000);
-    expect(gullRockStatus(state).canRelight).toBe(false); // can't afford 2M
+    state.lumen = new Decimal(2_500_000);
+    expect(gullRockRelightCost(state).toNumber()).toBe(5_000_000);
+    expect(gullRockStatus(state).canRelight).toBe(false); // can't afford 5M
     expect(buyPerk(state, "gull-friend")).toBe(true);
-    expect(gullRockRelightCost(state).toNumber()).toBe(1_000_000);
-    expect(gullRockStatus(state).cost.toNumber()).toBe(1_000_000);
+    expect(gullRockRelightCost(state).toNumber()).toBe(2_500_000);
+    expect(gullRockStatus(state).cost.toNumber()).toBe(2_500_000);
     expect(relightGullRock(state)).toBe(true);
     expect(state.lumen.toNumber()).toBe(0);
   });

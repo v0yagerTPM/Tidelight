@@ -125,7 +125,7 @@ Player instructions to ship in the Steam community hub / FAQ:
 **Before the first build**
 
 - [ ] `npm run typecheck && npm test && npm run build` all green on a
-      clean checkout (153 tests after the post-launch fixes).
+      clean checkout (162 tests after the post-launch rebalance).
 - [ ] Version bumped in three places that must agree: `package.json`,
       `tauri.conf.json` (`version`), and the Steam build description.
 - [ ] Game tested from the *packaged* binary (not `tauri dev`) on a

@@ -207,6 +207,8 @@ p { max-width: 70ch; }
 .gen.bought { animation: bought 0.5s ease-out; }
 @keyframes bought { from { box-shadow: 0 0 0 1px var(--lamp), 0 0 26px -6px rgba(255, 196, 99, 0.8); } to { box-shadow: 0 0 0 0 transparent; } }
 .gen-teaser { border-style: dashed; background: transparent; justify-content: flex-start; }
+.gen.waiting { border-style: dashed; background: transparent; }
+.gen.waiting .gen-icon { opacity: 0.55; }
 .gen-teaser .gen-name { color: var(--muted); }
 
 /* ── Buy-amount toggle ─────────────────────────────── */
@@ -254,6 +256,8 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 .upgrade.purchased { opacity: 0.85; }
 .perm { color: var(--seafoam); font-size: 0.76rem; font-weight: 500; white-space: nowrap; }
 .learned { color: var(--seafoam); font-weight: 600; white-space: nowrap; }
+/* Inside a card the line can be long ("Lit ✓ — Beacon Whales answer its light · …"): let it wrap. */
+.card p.learned { white-space: normal; }
 .perk-warning { color: var(--coral); font-size: 0.82rem; margin-top: 4px; }
 
 /* ── Banners ───────────────────────────────────────── */
@@ -358,6 +362,7 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 .lighthouse.next { border-color: rgba(255, 196, 99, 0.6); }
 .lighthouse.next .lh-num { border-color: var(--lamp); color: var(--lamp); }
 .lighthouse.compact { padding: 10px 16px; }
+.lh-grants { color: var(--lamp-soft); font-size: 0.92rem; margin: 6px 0 0; }
 .lighthouse.compact p { margin: 4px 0 0; }
 
 /* ── The supply chain ──────────────────────────────── */

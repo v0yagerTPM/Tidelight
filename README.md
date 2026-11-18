@@ -34,9 +34,12 @@ and synthesised sound (toggle in the header).
 
 ## What's playable
 
-- **The full early loop** — Flash the Beam, hire all 8 generator tiers,
-  and watch milestones double production at 25/50/100 owned (progress to
-  the next one is shown on every row).
+- **The full early loop** — Flash the Beam, hire the first four generator
+  tiers, and watch milestones double production at 25/50/100 owned
+  (progress to the next one is shown on every row). The upper four answer
+  the relit lighthouses: Lens Polishers come with Gull Rock, Storm
+  Lanterns with Cormorant Roost, Beacon Whales with Widow's Walk, and The
+  Seventh Light with Siren's Rest.
 - **Buy amounts** — a ×1 / ×10 / ×100 / Max toggle prices the whole batch
   (cost + production gain on every row) and remembers your choice.
 - **22 upgrades** in their own tab — per-generator ×2s, click tiers that
@@ -44,7 +47,10 @@ and synthesised sound (toggle in the header).
   appear as silhouettes with their unlock conditions.
 - **The supply chain** — at 10 generators the chain wakes: Wick, Oil and
   Lens levels support your production rate, and the weakest node caps
-  your beam efficiency (never below 25%). The flow board in the
+  your beam efficiency (never below 25%). Each level supports a little
+  more than the last, so keeping the chain fed costs a steady slice of
+  production however large the light grows; each Upgrade button shows
+  the support its next level adds. The flow board in the
   Lighthouses tab names the bottleneck and its shortfall; Beam levels
   add +5% production each. A banner in the Light view warns you when a
   node is starving the beam.
@@ -54,8 +60,10 @@ and synthesised sound (toggle in the header).
   production), Cormorant Roost (+75%), Widow's Walk (chain support
   +50%), The Bellwether (Ember gain +25%), Siren's Rest (better offline
   earnings, +4h cap), and The Hollow Light (+150% — and the ending).
-  Every lit lighthouse adds its own pricier chain board. Lighthouses
-  stay lit through Rekindle; chain boards reset.
+  The gates climb from 50% to 80% beam efficiency, so the far lights
+  need a well-fed chain. Every lit lighthouse adds its own chain board,
+  working at a bigger scale. Lighthouses stay lit through Rekindle;
+  chain boards reset.
 - **The story** — 21 beats in three acts ("The Dark Shore", "The Hollow
   Sea", "The Relighting") that arrive as you play: the first moth, the
   first relic, each lighthouse, the ending itself. Collected beats live
@@ -112,12 +120,14 @@ and synthesised sound (toggle in the header).
   to hatch or a bottle waiting on the glass. Cocoons hatch and bottles
   wash back while you're away, too.
 - Balance-checked end to end: the greedy-bot simulation (`npm run sim`)
-  reaches the first Rekindle in ~103 minutes, the second ~69 minutes
-  later, and — playing whole save-and-relight campaigns up the coast —
-  lights The Hollow Light and reaches the ending in ~201 simulated
-  hours, without buying perks, running challenges, keeping moths,
-  sending bottles or minding the tides. Real keepers will be far
-  faster; the bot is the pessimistic bound.
+  reaches the first Rekindle in ~85 minutes and the second ~60 minutes
+  later, then simply plays on — growing, keeping the chain fed, saving
+  for each light as it comes within reach — and relights the coast at
+  3.5h, 6.7h, 12.4h, 21.8h and 37.5h, reaching the ending at ~65
+  simulated hours with all eight generator tiers hired, without buying
+  perks, running challenges, keeping moths, sending bottles or minding
+  the tides. Real keepers will be faster; the bot is the pessimistic
+  bound.
 
 ## Run it
 

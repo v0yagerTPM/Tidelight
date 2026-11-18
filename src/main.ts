@@ -29,6 +29,7 @@ import {
   canBuyGenerator,
   challengeById,
   challengeProgress,
+  generatorLockedBy,
   startChallenge,
   CHALLENGES,
 } from "./game/challenges";
@@ -38,6 +39,7 @@ import {
   isLit,
   lighthouseStatus,
   nextLighthouseId,
+  nextLevelSupportGain,
   nextNodeCost,
   relightLighthouse,
   totalSupport,
@@ -1069,6 +1071,8 @@ let endingStats: HTMLElement | null = null;
 /** Plain-words summary of what a lit lighthouse grants, from its def. */
 function lighthouseBonusText(def: (typeof CHAIN_LIGHTHOUSES)[number]): string {
   const parts: string[] = [];
+  const brings = GENERATORS.find((g) => g.unlockedBy === def.id);
+  if (brings) parts.push(brings.name.startsWith("The ") ? `${brings.name} answers its light` : `${brings.name}s answer its light`);
   if (def.productionBonus > 0) parts.push(`+${Math.round(def.productionBonus * 100)}% production`);
   if (def.supportBonus > 0) parts.push(`chain support +${Math.round(def.supportBonus * 100)}%`);
   if (def.emberGainBonus > 0) parts.push(`Ember gain +${Math.round(def.emberGainBonus * 100)}%`);
@@ -1119,7 +1123,7 @@ function rebuildEndingPanel(): void {
         "rekindle",
         "The Next Keeping",
         "A new keeper takes the lamp",
-        `Keeping № ${state.ngPlusCount + 1} begins at a cold lamp, with ${state.embers} inherited Embers and a legacy of ×${legacyMultiplier(state).toFixed(2)} production. The moths remember you.`,
+        `Keeping № ${state.ngPlusCount + 1} begins at a cold lamp, with ${fmt(state.embers)} inherited Embers and a legacy of ×${legacyMultiplier(state).toFixed(2)} production. The moths remember you.`,
       );
     }
   });
@@ -1170,7 +1174,7 @@ function rebuildLighthouses(): void {
       // full description and the Relight button. The coast above shows all.
       card.innerHTML = `
         <div class="gen-name"><span class="lh-num">${i + 1}</span> ${def.name}</div>
-        ${isNextCard ? `<p class="muted">${def.hint}</p>` : ""}
+        ${isNextCard ? `<p class="muted">${def.hint}</p>${bonus ? `<p class="lh-grants">Relighting it grants: ${bonus}</p>` : ""}` : ""}
         ${lit ? `<p class="learned">Lit ✓${bonus ? ` — ${bonus}` : ""}</p>` : ""}`;
       if (!lit && def.id === relightTargetId) {
         const buyWrap = document.createElement("div");
@@ -1357,7 +1361,10 @@ function updateChainView(): void {
     refs.buy.disabled = !affordable;
     refs.buy.classList.toggle("affordable", affordable);
     if (affordable) {
-      refs.note.textContent = `→ Level ${level + 1}`;
+      refs.note.textContent =
+        nodeId === "beam"
+          ? `→ Level ${level + 1}`
+          : `→ Level ${level + 1} · +${fmt(nextLevelSupportGain(state, selectedBoardId, nodeId, Date.now()))}/s support`;
     } else {
       const tta = timeToAffordCost(state, cost);
       refs.note.textContent = Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : "earn Lumen first";
@@ -1391,7 +1398,7 @@ function updateChainView(): void {
     chainSummary.textContent =
       `${boardDef.name} board · Beam efficiency ${pct(status.efficiency)} ` +
       `(chain factor ×${status.chainFactor.toFixed(2)}${beamPct > 0 ? `, Beam +${beamPct}%` : ""}). ` +
-      `Support sums across every lit lighthouse; node costs on this board are ×${boardDef.boardCostMultiplier}.`;
+      `Support sums across every lit lighthouse. This board works at ×${boardDef.boardScale} scale: its levels cost and support ×${boardDef.boardScale}.`;
   }
 }
 
@@ -1671,7 +1678,7 @@ showSoundState();
 // ── Rekindle (two-step confirm so nobody resets by accident) ────────────────
 const rkButton = document.querySelector<HTMLButtonElement>("#rk-button");
 if (rkButton) {
-  armTwoStep(rkButton, () => `Are you sure? Click again to Rekindle for +${rekindleGain(state)} Embers`, () => {
+  armTwoStep(rkButton, () => `Are you sure? Click again to Rekindle for +${fmt(rekindleGain(state))} Embers`, () => {
     if (!canRekindle(state)) return;
     const gained = rekindle(state);
     saveState(state);
@@ -1681,7 +1688,7 @@ if (rkButton) {
       "rekindle",
       "Rekindle",
       "The light catches again",
-      `+${gained} Embers banked. You hold ${state.embers}, and every flame burns +${state.embers * Math.round(emberBonusPerEmber(state) * 100)}% brighter.`,
+      `+${fmt(gained)} Embers banked. You hold ${fmt(state.embers)}, and every flame burns +${fmt(state.embers * Math.round(emberBonusPerEmber(state) * 100))}% brighter.`,
     );
   });
 }
@@ -1714,7 +1721,7 @@ function renderDynamic(): void {
   const nowMs = Date.now();
   if (hud.lumen) hud.lumen.textContent = fmt(state.lumen);
   if (hud.rate) hud.rate.textContent = `${fmt(productionPerSecond(state, nowMs))}/s`;
-  if (hud.embers) hud.embers.textContent = String(state.embers);
+  if (hud.embers) hud.embers.textContent = fmt(state.embers);
   if (hud.beamHint) {
     hud.beamHint.textContent = `+${fmt(clickValue(state, nowMs))} Lumen per flash. Hire help below and the light keeps itself.`;
   }
@@ -1785,7 +1792,10 @@ function renderDynamic(): void {
   const nextHidden = GENERATORS[revealUpTo + 1];
   genTeaser.classList.toggle("hidden", !nextHidden);
   if (nextHidden && genTeaserText) {
-    genTeaserText.textContent = `Hire a ${GENERATORS[revealUpTo].name} and you'll see what else answers the light.`;
+    const waiting = generatorLockedBy(state, GENERATORS[revealUpTo].id);
+    genTeaserText.textContent = waiting
+      ? `Relight ${chainLighthouseById(waiting).name} and new helpers will answer the light.`
+      : `Hire a ${GENERATORS[revealUpTo].name} and you'll see what else answers the light.`;
   }
   for (const row of genRows) {
     const owned = state.generators[row.def.id] ?? 0;
@@ -1802,6 +1812,8 @@ function renderDynamic(): void {
     row.cost.textContent = `×${displayCount} · ${fmt(quote.cost)} Lumen`;
     // First Light Only challenge: tiers 4+ are blocked outright.
     const blockedByChallenge = !canBuyGenerator(state, row.def.id);
+    const waitingOn = generatorLockedBy(state, row.def.id);
+    row.row.classList.toggle("waiting", waitingOn !== null);
     row.buy.disabled = !quote.affordable || blockedByChallenge;
     row.buy.classList.toggle("affordable", quote.affordable && !blockedByChallenge);
     row.buy.textContent =
@@ -1810,7 +1822,9 @@ function renderDynamic(): void {
           ? `Buy Max (×${quote.count})`
           : "Buy Max"
         : `Buy ×${state.buyAmount}`;
-    if (blockedByChallenge) {
+    if (waitingOn) {
+      row.note.textContent = `Answers the light of ${chainLighthouseById(waitingOn).name} — relight it to hire`;
+    } else if (blockedByChallenge) {
       row.note.textContent = "Blocked — First Light Only challenge";
     } else if (quote.affordable) {
       row.note.textContent = quote.productionGain.gt(0) ? `+${fmt(quote.productionGain)} Lumen/s` : "";
@@ -1835,11 +1849,11 @@ function renderDynamic(): void {
   // Rekindle view
   const gain = rekindleGain(state);
   const perEmberPct = Math.round(emberBonusPerEmber(state) * 100);
-  if (hud.rkGain) hud.rkGain.textContent = String(gain);
-  if (hud.rkHeld) hud.rkHeld.textContent = String(state.embers);
+  if (hud.rkGain) hud.rkGain.textContent = fmt(gain);
+  if (hud.rkHeld) hud.rkHeld.textContent = fmt(state.embers);
   if (hud.rkHeldLabel) hud.rkHeldLabel.textContent = `Embers held (each: +${perEmberPct}% production)`;
-  if (hud.rkTotal) hud.rkTotal.textContent = String(state.embersTotalEarned);
-  if (hud.rkBonus) hud.rkBonus.textContent = `+${state.embers * perEmberPct}%`;
+  if (hud.rkTotal) hud.rkTotal.textContent = fmt(state.embersTotalEarned);
+  if (hud.rkBonus) hud.rkBonus.textContent = `+${fmt(state.embers * perEmberPct)}%`;
   if (hud.rkRecovery) {
     hud.rkRecovery.textContent =
       state.activeChallenge !== null
@@ -1852,7 +1866,7 @@ function renderDynamic(): void {
     hud.rkLabel.textContent =
       gain >= PRESTIGE_RECOMMENDED_EMBERS
         ? `Recommended first Rekindle: ${PRESTIGE_RECOMMENDED_EMBERS} Embers — reached ✓`
-        : `Recommended first Rekindle: ${PRESTIGE_RECOMMENDED_EMBERS} Embers (${gain} so far — early Rekindles pay very little)`;
+        : `Recommended first Rekindle: ${PRESTIGE_RECOMMENDED_EMBERS} Embers (${fmt(gain)} so far — early Rekindles pay very little)`;
   }
   if (hud.rkBar) {
     hud.rkBar.style.width = `${Math.min(100, (gain / PRESTIGE_RECOMMENDED_EMBERS) * 100)}%`;
@@ -1902,7 +1916,7 @@ function renderDynamic(): void {
         rkButton.textContent = `Rekindle unavailable — the ${activeChallenge(state)?.name} challenge is in progress (finish or abandon it first)`;
       } else {
         rkButton.textContent = canRekindle(state)
-          ? `Rekindle the Light (+${gain} Embers)`
+          ? `Rekindle the Light (+${fmt(gain)} Embers)`
           : "Rekindle the Light (earn 5,000 lifetime Lumen for your first Ember)";
       }
     }
@@ -1915,14 +1929,14 @@ function renderDynamic(): void {
     rebuildEmberShop();
   }
   if (hud.shopHeld) {
-    hud.shopHeld.textContent = `You hold ${state.embers} Embers (${state.embersTotalEarned} earned all-time).`;
+    hud.shopHeld.textContent = `You hold ${fmt(state.embers)} Embers (${fmt(state.embersTotalEarned)} earned all-time).`;
   }
   for (const row of shopRows) {
     const affordable = state.embers >= row.def.costEmbers;
     row.buy.disabled = !affordable;
     row.buy.classList.toggle("affordable", affordable);
     const bonusLoss = row.def.costEmbers * perEmberPct;
-    row.warning.textContent = `Spending ${row.def.costEmbers} Embers lowers your held bonus by ${bonusLoss}% (from +${state.embers * perEmberPct}% to +${(state.embers - row.def.costEmbers) * perEmberPct}%).`;
+    row.warning.textContent = `Spending ${row.def.costEmbers} Embers lowers your held bonus by ${bonusLoss}% (from +${fmt(state.embers * perEmberPct)}% to +${fmt((state.embers - row.def.costEmbers) * perEmberPct)}%).`;
   }
 
   // The Shore: rebuild on structure change, refresh costs/countdowns in place.
