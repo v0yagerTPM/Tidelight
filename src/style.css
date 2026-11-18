@@ -162,9 +162,6 @@ p { max-width: 70ch; }
 }
 .beam:hover { box-shadow: 0 0 40px rgba(255, 196, 99, 0.6); }
 .beam:active { transform: scale(0.96); }
-.beam-hint { margin: 0; color: var(--muted); font-size: 0.84rem; text-align: center; }
-.beam-efficiency { margin: 0; color: var(--lamp-soft); font-family: var(--mono); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
-.beam-efficiency:empty { display: none; }
 
 /* ── Generators ───────────────────────────────────── */
 .gen-list { display: flex; flex-direction: column; gap: 8px; }
@@ -261,14 +258,13 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 
 /* ── Banners ───────────────────────────────────────── */
 .hidden { display: none !important; }
-.chain-banner, .challenge-banner {
+.challenge-banner {
   border-radius: var(--radius);
   padding: 11px 16px;
   margin-bottom: 12px;
   cursor: pointer;
   font-size: 0.93rem;
 }
-.chain-banner { background: rgba(255, 127, 99, 0.1); border: 1px solid rgba(255, 127, 99, 0.6); color: #ffc2b4; }
 .challenge-banner { background: rgba(255, 196, 99, 0.08); border: 1px solid rgba(255, 196, 99, 0.6); color: var(--lamp-soft); }
 
 /* ── Challenges & lighthouses ──────────────────────── */
@@ -795,7 +791,6 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
   /* The lighthouse stands left of centre: keep the lamp clear of the button. */
   .scene-foot { justify-items: end; padding: 24px 12px 10px; background: linear-gradient(rgba(5, 11, 22, 0), rgba(5, 11, 22, 0.7) 60%); }
   .beam { font-size: 1.1rem; padding: 9px 22px; }
-  .beam-hint { display: none; }
   #generators .gen { display: grid; grid-template-columns: 52px 1fr; align-items: start; }
   #generators .gen-buy { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; text-align: left; }
   #generators .gen-buy .gen-cost { margin-top: 0; }
@@ -1061,3 +1056,81 @@ html, body { overflow-x: clip; }
   .hud-stats .stat:last-child { text-align: right; }
   .help-toggle, .sound-toggle { width: 36px; height: 36px; }
 }
+
+/* ── Tips: information on demand ───────────────────── */
+.tip-bubble {
+  position: fixed;
+  z-index: 200;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 8px 11px;
+  border: 1px solid var(--edge);
+  border-radius: 9px;
+  background: #0c1a2c;
+  color: var(--text);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  white-space: pre-line;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  animation: tip-in 0.12s ease-out;
+}
+@keyframes tip-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+[data-tip] { -webkit-touch-callout: none; }
+.tip-i {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  border: 1px solid var(--edge-soft);
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1;
+  vertical-align: middle;
+  cursor: help;
+}
+.tip-i:hover, .tip-i:focus-visible { color: var(--lamp-soft); border-color: var(--lamp-deep); }
+@media (prefers-reduced-motion: reduce) { .tip-bubble { animation: none; } }
+
+/* ── The supply strip (Light view) ─────────────────── */
+.supply-strip { display: grid; gap: 10px; padding: 12px 14px; margin: 12px 0; }
+.supply-strip.tended { animation: tended 0.9s ease-out; }
+@keyframes tended { 0% { box-shadow: 0 0 0 0 rgba(143, 214, 196, 0.45); } 100% { box-shadow: 0 0 0 10px rgba(143, 214, 196, 0); } }
+.supply-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.supply-title { font-family: var(--display); font-size: 1.15rem; color: var(--lamp-soft); }
+.supply-title strong { font-family: var(--mono); font-weight: 500; font-size: 1rem; color: var(--seafoam); margin-left: 6px; }
+.supply-title strong.starved { color: var(--coral); }
+.supply-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.supply-actions button.buy, .supply-actions .toggle-btn { min-height: 34px; padding: 4px 12px; font-size: 0.84rem; }
+.supply-steward[aria-disabled="true"] { opacity: 0.6; }
+.supply-nodes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.supply-node { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--edge-soft); border-radius: 10px; background: rgba(10, 20, 36, 0.45); }
+.supply-node.bottleneck { border-color: var(--coral); box-shadow: 0 0 14px -4px rgba(255, 127, 99, 0.6); animation: bottleneck-glow 2.4s ease-in-out infinite; }
+@keyframes bottleneck-glow { 50% { box-shadow: 0 0 20px -2px rgba(255, 127, 99, 0.55); } }
+.sn-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.sn-name { font-family: var(--display); color: var(--lamp-soft); font-size: 1rem; }
+.sn-pct { font-family: var(--mono); font-size: 0.82rem; color: var(--muted); }
+.supply-node.bottleneck .sn-pct { color: var(--coral); }
+.sn-gauge { height: 6px; border-radius: 999px; background: var(--ink-2); overflow: hidden; }
+.sn-gauge > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--lamp-deep), var(--lamp)); transition: width 0.3s ease; }
+.supply-node.bottleneck .sn-gauge > span { background: linear-gradient(90deg, #b5452f, var(--coral)); }
+.supply-node[data-node="beam"] .sn-gauge { visibility: hidden; }
+.supply-node button.sn-feed { min-height: 34px; padding: 4px 8px; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.steward-panel { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--edge-soft); }
+.steward-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 0.88rem; }
+.steward-toggle { margin: 0; }
+.steward-toggle .toggle-btn { min-height: 32px; padding: 2px 12px; font-size: 0.82rem; }
+.steward-status { margin: 0; font-size: 0.8rem; }
+@media (max-width: 560px) {
+  .supply-nodes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { .supply-node.bottleneck, .supply-strip.tended { animation: none; } }
+
+/* Helper rows: chain warnings, and the name and ring that carry tips. */
+.gen-chain { font-size: 0.78rem; color: var(--coral); margin-top: 2px; cursor: help; }
+.gen-title[data-tip] { cursor: help; text-decoration: underline dotted rgba(255, 226, 166, 0.35); text-underline-offset: 3px; }
+.gen-icon[data-tip] { cursor: help; }
+.lh-name[data-tip], .node-name[data-tip] { cursor: help; text-decoration: underline dotted rgba(255, 226, 166, 0.35); text-underline-offset: 3px; }
+.scene .tide-strip[data-tip] { cursor: help; pointer-events: auto; }
+h2 .tip-i, h3 .tip-i { font-family: var(--body); font-size: 0.72rem; }

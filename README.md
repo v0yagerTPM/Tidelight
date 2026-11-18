@@ -171,6 +171,14 @@ npm run build      # typecheck + production build to dist/
   Keeping there.
 - **Rekindle tab** — Rekindle for Embers (with a recovery-time preview),
   spend held Embers in the Ember Shop, and start or abandon challenges.
+- **The supply strip** — under the scene on the Light view: Wick, Oil
+  and Lens as gauges (the bottleneck glows), the Beam bonus, a one-tap
+  **Feed** on each (the best-value level on any lit board) and **Fill the
+  chain**. Relight Widow's Walk and the **Chain Steward** feeds the chain
+  from a share of your income. Helper rows warn when a purchase would
+  starve the beam. The Lighthouses tab keeps the board-by-board view.
+- **Tips** — hover (or press and hold on a phone) anything with a dotted
+  underline or an ⓘ for more about it.
 - **How to play** — new keepers start with an eight-page guide to the
   game; reopen it any time with the **?** button at the top or from the
   Keeper's Desk.

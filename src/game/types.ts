@@ -109,6 +109,11 @@ export interface GameState {
   almanac: string[];
   /** Wing Scales from released moths, spent on scented lures. */
   wingScales: number;
+  /** The Chain Steward (supply.ts): on/off, share of income, target efficiency, purse. */
+  stewardOn: boolean;
+  stewardShare: number;
+  stewardTarget: number;
+  stewardPurse: Decimal;
   /** The bottle expedition currently out, or null. */
   expedition: ExpeditionState | null;
   /** Relic ids claimed from expeditions (unique, permanent). */
@@ -162,6 +167,10 @@ export interface SavedState {
   mothPosts: Record<string, string>;
   almanac: string[];
   wingScales: number;
+  stewardOn: boolean;
+  stewardShare: number;
+  stewardTarget: number;
+  stewardPurse: string;
   expedition: ExpeditionState | null;
   relics: string[];
   storyFragmentIndex: number;

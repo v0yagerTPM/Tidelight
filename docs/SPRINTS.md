@@ -746,3 +746,40 @@ The Bellwether (lighthouse 5) brought no helper, so after Beacon Whales
       anything ever widening it again. Checked on iPhone SE, iPhone 13 and
       Pixel 5 with saves up to 8.88e44 Lumen and ~1T Embers, in both
       notations: the page is exactly the screen's width on every tap.
+
+## ✅ Post-launch — the chain on the main screen, and tips
+
+Feeding the supply chain was the most frequent late-game decision, and it
+lived on another tab, board by board: find the weakest of Wick, Oil and
+Lens, then work out which lit board gives the most support per Lumen. The
+second half is arithmetic the sim's bot already did (`bestBoardFor`).
+
+- [x] **The supply strip** (Light view, `src/game/supply.ts`): Wick, Oil
+      and Lens gauges (support ÷ demand; the bottleneck glows), the Beam
+      bonus, **Feed** on each (the best-value level on any lit board; its
+      tip names the board, the support and the efficiency it reaches) and
+      **Fill the chain** (feed the bottleneck until the beam is full or the
+      Lumen runs out, one log line). Replaces the bottleneck banner and the
+      efficiency line. **Boards** jumps to the Lighthouses tab.
+- [x] **The Chain Steward**, unlocked by Widow's Walk ("whoever waited
+      here kept meticulous stores"): on by default; sets aside 10 / 25 /
+      50% of income and feeds the bottleneck until the beam reaches 80 / 90
+      / 100%. Its purse holds at most 10 minutes of production; it buys
+      quietly (no log line per level); it works while you're away too.
+- [x] **Helper rows** warn when an affordable purchase would starve the
+      beam: "⚠ beam 100% → 84% · feed Oil".
+- [x] **Tips** (`src/ui/tips.ts`): `data-tip` on anything shows a bubble on
+      hover (mouse), focus (keyboard) or press-and-hold (touch; the tap
+      that ends a hold doesn't act, so holding Buy explains without
+      buying). ⓘ marks open on a tap. Screen readers get the same words
+      (aria-description).
+- [x] **Decluttered with tips:** helper flavour lines (on the name), the
+      milestone line (on the ring), the price line (now on the Buy button),
+      the tide's effect, the beam hint, the long intros on the Upgrades,
+      Lighthouses, Shore and Rekindle tabs (ⓘ), the next lighthouse's
+      description and the chain nodes' flavour. Page heights at 1280×900:
+      Light 1618 → 1639 with the new strip and warnings showing (1536
+      without), Lighthouses 2132 → 1896, Rekindle 2838 → 2655, Upgrades
+      2078 → 2054.
+- [x] **Saves → v11:** `stewardOn`, `stewardShare`, `stewardTarget`,
+      `stewardPurse` (a corrupt purse loads as 0, never bricks a save).

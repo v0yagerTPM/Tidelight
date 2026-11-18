@@ -22,9 +22,12 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 10;
-/** Older saves (Sprint 0 = v1 … the Wing Almanac = v9) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+export const SAVE_VERSION = 11;
+/** Older saves (Sprint 0 = v1 … Hollow moths = v10) migrate on load. */
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+/** supply.ts STEWARD_SHARES / STEWARD_TARGETS (literal: this module stays a leaf). */
+const STEWARD_SHARE_CHOICES: readonly number[] = [0.1, 0.25, 0.5];
+const STEWARD_TARGET_CHOICES: readonly number[] = [0.8, 0.9, 1];
 
 const MAX_LOG_ENTRIES = 60;
 
@@ -129,6 +132,17 @@ function sanitizeExpedition(raw: unknown, mothIds: Set<string> = new Set()): Exp
   return { routeId: e.routeId, startedAt: e.startedAt, returnsAt: e.returnsAt, ...rider };
 }
 
+/** A Decimal from a saved string; anything unreadable or negative is 0 (never bricks a save). */
+function safeDecimal(raw: unknown): Decimal {
+  if (typeof raw !== "string") return new Decimal(0);
+  try {
+    const d = new Decimal(raw);
+    return Number.isFinite(d.mantissa) && Number.isFinite(d.exponent) && d.gte(0) ? d : new Decimal(0);
+  } catch {
+    return new Decimal(0);
+  }
+}
+
 function sanitizeAlmanac(raw: unknown, moths: Moth[]): string[] {
   const keys = Array.isArray(raw) ? raw.filter((k): k is string => typeof k === "string" && isAlmanacKey(k)) : [];
   for (const m of moths) keys.push(...almanacKeysOf(m));
@@ -223,6 +237,10 @@ export function createInitialState(now: number = Date.now()): GameState {
     mothPosts: {},
     almanac: [],
     wingScales: 0,
+    stewardOn: true,
+    stewardShare: 0.25,
+    stewardTarget: 1,
+    stewardPurse: new Decimal(0),
     expedition: null,
     relics: [],
     storyFragmentIndex: 0,
@@ -277,6 +295,10 @@ export function serializeState(state: GameState): SavedState {
     mothPosts: { ...state.mothPosts },
     almanac: [...state.almanac],
     wingScales: state.wingScales,
+    stewardOn: state.stewardOn,
+    stewardShare: state.stewardShare,
+    stewardTarget: state.stewardTarget,
+    stewardPurse: state.stewardPurse.toString(),
     expedition: state.expedition ? { ...state.expedition } : null,
     relics: [...state.relics],
     storyFragmentIndex: state.storyFragmentIndex,
@@ -375,6 +397,11 @@ export function deserializeState(raw: unknown): GameState | null {
       buyAmount: validBuyAmount(s.buyAmount),
       ...sanitizeChain(s.litLighthouses, s.chainBoards),
       ...sanitizeShore(s),
+      // v11: the Chain Steward — on by default, a quarter of income, a full beam.
+      stewardOn: s.stewardOn !== false,
+      stewardShare: typeof s.stewardShare === "number" && STEWARD_SHARE_CHOICES.includes(s.stewardShare) ? s.stewardShare : 0.25,
+      stewardTarget: typeof s.stewardTarget === "number" && STEWARD_TARGET_CHOICES.includes(s.stewardTarget) ? s.stewardTarget : 1,
+      stewardPurse: safeDecimal(s.stewardPurse),
       // Sprint 5 migration: story unseen, ending unwitnessed, no Keepings
       // yet, standard notation — unless the save says otherwise.
       storySeen: sanitizeIdList(s.storySeen, STORY_BEATS),

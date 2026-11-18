@@ -56,14 +56,14 @@ export function tutorialPages(): SplashPage[] {
     },
     {
       art: TAB_ICONS.lighthouses,
-      eyebrow: "The Lighthouses tab · 4 of 8",
+      eyebrow: "The supply chain · 4 of 8",
       title: "Feed the supply chain",
       html: `
         <p>Once you own ${CHAIN_UNLOCK_GENERATORS} helpers, the lamp needs supplies: <strong>Wick → Oil → Lens</strong> must each carry your production.</p>
         <ul>
           <li><strong>Efficiency</strong> is set by the weakest node. The beam runs at 25% + 75% × efficiency, so a starved chain throttles everything.</li>
-          <li>Upgrade the <strong>bottleneck</strong>: a banner on the Light tab names it when it slips.</li>
-          <li><strong>Beam</strong> levels add +${pct(BEAM_BONUS_PER_LEVEL)} production each.</li>
+          <li>The <strong>supply strip</strong> under the scene shows all three. The weakest one glows: press its <strong>Feed</strong>, or <strong>Fill the chain</strong> to feed it until the beam is full.</li>
+          <li><strong>Beam</strong> levels add +${pct(BEAM_BONUS_PER_LEVEL)} production each. Relight Widow's Walk and a <strong>Chain Steward</strong> feeds the chain for you.</li>
         </ul>`,
     },
     {
@@ -108,6 +108,7 @@ export function tutorialPages(): SplashPage[] {
           <li><strong>Away from the lamp</strong>, your keepers earn ${pct(OFFLINE_RATE)} of your production for up to ${hours} hours (upgrades, relics and lighthouses raise both). Cocoons, lures and bottles keep going too.</li>
           <li>The game <strong>saves itself</strong> in this browser. Export a copy from the Keeper's Desk in the Log tab.</li>
         </ul>
+        <p>Hover over (or press and hold) anything with a dotted underline or an ⓘ for more about it.</p>
         <p class="splash-reopen">Open this guide again any time with the <strong>?</strong> button at the top, or from the Keeper's Desk.</p>`,
     },
   ];
