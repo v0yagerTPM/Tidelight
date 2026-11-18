@@ -57,7 +57,7 @@ import {
   productionPerSecond,
   timeToAffordCost,
 } from "./game/engine";
-import { estimateRecoveryMinutes } from "./game/estimate";
+import { createRecoveryEstimator, type RecoveryEstimator } from "./game/estimate";
 import {
   EXPEDITION_ROUTES,
   RELICS,
@@ -96,7 +96,7 @@ import {
   postMoth,
   recallMoth,
 } from "./game/moths";
-import { MOTH_TRAITS, dutyBonusOf, isAtSea, postBonusOf, postOf, postedMoth, riderOf, traitById } from "./game/mothTraits";
+import { MOTH_TRAITS, dutyBonusOf, isAtSea, postBonusOf, postOf, postedMoth, riderOf, traitsOf } from "./game/mothTraits";
 import { ALMANAC_PATTERNS, ALMANAC_REWARDS, ALMANAC_SIZE, almanacHas, dutySlots, lureBankSize } from "./game/almanac";
 import { legacyMultiplier, startNgPlus } from "./game/ngplus";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
@@ -404,7 +404,7 @@ function activateTab(name: string): void {
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.querySelector(`#view-${name}`)?.classList.add("active");
   // Opening the Rekindle view always gets a fresh recovery estimate.
-  if (name === "rekindle") recoveryCacheKey = "";
+  if (name === "rekindle") recoveryKey = "";
   renderDynamic();
   syncSceneRunning();
 }
@@ -831,6 +831,11 @@ let shoreRefs: ShoreRefs = {
   cocoonNote: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
 };
 
+/** ", Seeker" / ", Seeker, Fertile" for a moth's select option; "" with no trait. */
+function traitList(moth: Moth): string {
+  return traitsOf(moth).map((t) => `, ${t.name}`).join("");
+}
+
 function shoreKey(): string {
   return [
     mothsUnlocked(state) ? "U" : "L",
@@ -840,7 +845,7 @@ function shoreKey(): string {
     state.litLighthouses.join(","),
     state.roostExpansions,
     state.almanac.length,
-    state.moths.map((m) => m.trait ?? "").join(","),
+    state.moths.map((m) => `${m.trait ?? ""}+${m.trait2 ?? ""}`).join(","),
     state.cocoon ? `${state.cocoon.parentIds.join("+")}@${state.cocoon.readyAt}` : "-",
     state.expedition ? `${state.expedition.routeId}@${state.expedition.returnsAt}:${state.expedition.riderId ?? ""}` : "-",
     state.relics.join(","),
@@ -919,14 +924,14 @@ function rebuildShore(): void {
         const inCocoon = isCocoonParent(state, moth.id);
         const post = postOf(state, moth.id);
         const atSea = isAtSea(state, moth.id);
-        const trait = traitById(moth.trait);
+        const traits = traitsOf(moth);
         const card = document.createElement("div");
         card.className = `gen moth${isDuty || post ? " purchased" : ""}`;
         card.innerHTML = `
           <div class="moth-portrait"><div class="moth-swatch" style="background:${pattern.swatch}"></div></div>
           <div class="gen-main">
-            <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${post ? ` <span class="perm">at ${chainLighthouseById(post).name}</span>` : ""}${atSea ? ` <span class="perm">riding a bottle</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}${trait ? ` <span class="moth-trait" title="${trait.effect}">${trait.name}</span>` : ""}</div>
-            <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow}${isOldLight(moth) ? ` <span class="perm" title="From before the moth rebalance: it keeps its glow above the ${pattern.name} ceiling. Its children are held to theirs.">old light</span>` : ` of ${pattern.glowCeiling}`} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(dutyBonusOf(moth) * 100).toFixed(1)}%` : ""}${post ? ` · post bonus +${(postBonusOf(moth) * 100).toFixed(1)}% support` : ""}</div>${trait ? `<div class="gen-flavor moth-trait-line">${trait.name}: ${trait.effect}</div>` : ""}
+            <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${post ? ` <span class="perm">at ${chainLighthouseById(post).name}</span>` : ""}${atSea ? ` <span class="perm">riding a bottle</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}${traits.map((t) => ` <span class="moth-trait" title="${t.effect}">${t.name}</span>`).join("")}</div>
+            <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow}${isOldLight(moth) ? ` <span class="perm" title="From before the moth rebalance: it keeps its glow above the ${pattern.name} ceiling. Its children are held to theirs.">old light</span>` : ` of ${pattern.glowCeiling}`} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(dutyBonusOf(moth) * 100).toFixed(1)}%` : ""}${post ? ` · post bonus +${(postBonusOf(moth) * 100).toFixed(1)}% support` : ""}</div>${traits.map((t) => `<div class="gen-flavor moth-trait-line">${t.name}: ${t.effect}</div>`).join("")}
           </div>
           <div class="gen-buy moth-actions">
             <button class="buy moth-duty"${post ? ` disabled title="Recall it from its post first"` : atSea ? ` disabled title="It is out at sea"` : ""}>${isDuty ? "Stand down" : "Put on duty"}</button>
@@ -968,8 +973,7 @@ function rebuildShore(): void {
             .map((m) => {
               const elsewhere = postOf(state, m.id);
               const note = elsewhere ? `, at ${chainLighthouseById(elsewhere).name}` : onDuty.some((d) => d.id === m.id) ? ", on duty" : "";
-              const t = traitById(m.trait);
-              return `<option value="${m.id}">${m.name} (glow ${m.glow}${t ? `, ${t.name}` : ""}${note}) → +${(postBonusOf(m) * 100).toFixed(1)}%</option>`;
+              return `<option value="${m.id}">${m.name} (glow ${m.glow}${traitList(m)}${note}) → +${(postBonusOf(m) * 100).toFixed(1)}%</option>`;
             })
             .join("");
           return `
@@ -1061,7 +1065,7 @@ function rebuildShore(): void {
           breedParentB = home.find((m) => m.id !== breedParentA)?.id ?? "";
         }
         const options = home
-          .map((m) => `<option value="${m.id}">${m.name} (${patternById(m.pattern).name}, glow ${m.glow}${traitById(m.trait) ? `, ${traitById(m.trait)!.name}` : ""})</option>`)
+          .map((m) => `<option value="${m.id}">${m.name} (${patternById(m.pattern).name}, glow ${m.glow}${traitList(m)})</option>`)
           .join("");
         breed.innerHTML = `
           <div class="gen-name">🌀 Breeding</div>
@@ -1141,7 +1145,7 @@ function rebuildShore(): void {
         <div class="gen-name">🦋 A rider for the bottle</div>
         <p class="muted">A moth can ride along: relic chance + glow ÷ 10 points (a Seeker adds 10 more). It leaves duty and its post for the trip. On the Deep Glass Crossing, a moth without a trait comes home with one 1 time in 10.</p>
         <select class="breed-select rider-select"><option value="">No rider</option>${riders
-          .map((m) => `<option value="${m.id}">${m.name} (glow ${m.glow}${traitById(m.trait) ? `, ${traitById(m.trait)!.name}` : ""})</option>`)
+          .map((m) => `<option value="${m.id}">${m.name} (glow ${m.glow}${traitList(m)})</option>`)
           .join("")}</select>`;
       const select = pick.querySelector<HTMLSelectElement>(".rider-select");
       if (select) {
@@ -1285,27 +1289,75 @@ function updateShoreView(now: number): void {
   }
 }
 
-// ── Recovery estimate (cached: it runs a bounded bot sim, not per-frame) ────
-let recoveryCacheKey = "";
-let recoveryCache: number | null = null;
+// ── Recovery estimate ────────────────────────────────────────────────────────
+// It runs a bounded bot sim of a whole new run (≈350 ms late in the game),
+// so it is only computed while the Rekindle tab is open, and restarted only
+// when the Ember gain moves by about 5% (or the Embers, perks, lights or
+// challenge change). It runs in a Web Worker; where a worker can't start,
+// it is stepped a few milliseconds per refresh instead. Either way no frame
+// waits on it, and the last finished answer shows meanwhile.
+let recoveryKey = "";
+let recoveryJob: RecoveryEstimator | null = null;
+/** The last finished estimate; undefined until the first one completes. */
+let recoveryValue: number | null | undefined;
+const RECOVERY_STEP_MS = 6;
+let recoveryWorker: Worker | null = null;
+/** "unstarted" until the Rekindle tab first needs an estimate; "failed" falls back to slicing. */
+let recoveryWorkerState: "unstarted" | "running" | "failed" = "unstarted";
+let recoveryRequest = 0;
 
-function recoveryEstimate(): number | null {
+/** Start the estimate worker on first use (its script is a separate, lazily loaded file). */
+function estimateWorker(): Worker | null {
+  if (recoveryWorkerState === "unstarted") {
+    try {
+      recoveryWorker = new Worker(new URL("./game/estimateWorker.ts", import.meta.url), { type: "module" });
+      recoveryWorker.onmessage = (event: MessageEvent<{ id: number; minutes: number | null }>) => {
+        if (event.data.id === recoveryRequest) recoveryValue = event.data.minutes;
+      };
+      recoveryWorker.onerror = () => {
+        // A worker the page can't load (e.g. the single-file build): slice instead.
+        recoveryWorker?.terminate();
+        recoveryWorker = null;
+        recoveryWorkerState = "failed";
+        recoveryKey = "";
+      };
+      recoveryWorkerState = "running";
+    } catch {
+      recoveryWorkerState = "failed";
+    }
+  }
+  return recoveryWorker;
+}
+
+function recoveryEstimate(): number | null | undefined {
+  const gain = rekindleGain(state);
   const key = [
-    rekindleGain(state),
+    Math.round(Math.log(Math.max(1, gain)) / Math.log(1.05)),
     state.embers,
     state.totalRekindles,
     state.emberPerks.join(","),
     state.litLighthouses.join(","),
     state.activeChallenge ?? "",
   ].join("|");
-  if (key !== recoveryCacheKey) {
-    recoveryCacheKey = key;
-    recoveryCache = estimateRecoveryMinutes(state);
+  if (key !== recoveryKey) {
+    recoveryKey = key;
+    const worker = estimateWorker();
+    if (worker) {
+      recoveryJob = null;
+      worker.postMessage({ id: ++recoveryRequest, save: serializeState(state) });
+      return recoveryValue;
+    }
+    recoveryJob = createRecoveryEstimator(state);
   }
-  return recoveryCache;
+  if (recoveryJob && recoveryJob.step(RECOVERY_STEP_MS)) {
+    recoveryValue = recoveryJob.result;
+    recoveryJob = null;
+  }
+  return recoveryValue;
 }
 
-function formatRecovery(minutes: number | null): string {
+function formatRecovery(minutes: number | null | undefined): string {
+  if (minutes === undefined) return "estimating…";
   if (minutes === null) return "over 10 hours";
   if (minutes < 90) return `~${Math.max(1, Math.round(minutes))} min`;
   return `~${(minutes / 60).toFixed(1)} h`;
@@ -2140,7 +2192,7 @@ function renderDynamic(): void {
     hud.rkHearth.style.setProperty("--heat", heat.toFixed(3));
     hud.rkHearth.classList.toggle("ready", gain >= PRESTIGE_RECOMMENDED_EMBERS && state.activeChallenge === null);
   }
-  if (hud.rkRecovery) {
+  if (hud.rkRecovery && activeTab === "rekindle") {
     hud.rkRecovery.textContent =
       state.activeChallenge !== null
         ? "— (finish or abandon your challenge first)"

@@ -18,6 +18,7 @@ import {
   cocoonDurationMs,
   hatchCocoon,
   lureStatus,
+  mothProductionMultiplier,
   postMoth,
   releaseMoth,
   releaseScales,
@@ -62,7 +63,7 @@ describe("the Wing Almanac", () => {
   it("has a page for every pattern × trait pairing, matching the game's own lists", () => {
     expect(ALMANAC_PATTERNS).toEqual(MOTH_PATTERNS.map((p) => p.id));
     expect(ALMANAC_TRAITS).toEqual(["none", ...MOTH_TRAITS.map((t) => t.id)]);
-    expect(ALMANAC_SIZE).toBe(49);
+    expect(ALMANAC_SIZE).toBe(56);
   });
 
   it("a page fills the first time you hold such a moth, and stays filled", () => {
@@ -243,5 +244,67 @@ describe("moths riding bottles", () => {
     expect(deserializeState(raw)!.expedition!.riderId).toBe("a");
     raw.expedition.riderId = "ghost";
     expect(deserializeState(raw)!.expedition!.riderId).toBeUndefined();
+  });
+});
+
+describe("Hollow moths", () => {
+  const perfectPair = (traitA?: string, traitB?: string, glow = 100) => {
+    const state = garden();
+    state.endingSeen = true;
+    state.moths = [moth("a", "prismatic", glow, traitA), moth("b", "prismatic", glow, traitB)];
+    startBreeding(state, "a", "b", 0);
+    return state;
+  };
+  // pick, shift (stays Prismatic), kind, amount, name ×2, id, inherit (no), mutate (no), Hollow, Hollow glow
+  const rolls = (hollow: number, glow = 0.5) => stubRng([0.5, 0.3, 0.5, 0.5, 0, 0, 0.3, 0.9, 0.9, hollow, glow]);
+  const calm = () => findTide("calm");
+
+  it("after the ending, two glow-100 Prismatics have a 2% chance of a Hollow child, glowing 100–120 with both parents' traits", () => {
+    const child = hatchCocoon(perfectPair("seeker", "fertile"), rolls(0.019), calm())!;
+    expect(child.pattern).toBe("hollow");
+    expect(child.glow).toBe(110); // 100 + floor(0.5 × 21)
+    expect([child.trait, child.trait2]).toEqual(["seeker", "fertile"]);
+    expect(hatchCocoon(perfectPair(), rolls(0.019, 0.999), calm())!.glow).toBe(120);
+    expect(hatchCocoon(perfectPair("seeker", "fertile"), rolls(0.02), calm())!.pattern).toBe("prismatic");
+  });
+
+  it("never before the ending, never from imperfect parents, and never bred true", () => {
+    const before = perfectPair();
+    before.endingSeen = false;
+    expect(hatchCocoon(before, rolls(0.001), calm())!.pattern).toBe("prismatic");
+    expect(hatchCocoon(perfectPair(undefined, undefined, 99), rolls(0.001), calm())!.pattern).toBe("prismatic");
+    const hollowPair = garden();
+    hollowPair.endingSeen = true;
+    hollowPair.moths = [moth("a", "hollow", 120), moth("b", "hollow", 120)];
+    startBreeding(hollowPair, "a", "b", 0);
+    expect(hatchCocoon(hollowPair, rolls(0.001), calm())!.pattern).toBe("prismatic");
+  });
+
+  it("both traits work, both fill Almanac pages, and a release leaves 9 scales", () => {
+    const state = garden();
+    const hollow: Moth = { ...moth("h", "hollow", 110, "seeker"), trait2: "lamp-loyal" };
+    state.moths = [hollow];
+    toggleDuty(state, "h");
+    expect(relicChanceFor(state, routeById("drift")!)).toBeCloseTo(0.15, 9); // Seeker on duty
+    expect(mothProductionMultiplier(state)).toBeCloseTo(1 + 110 * 1.5 * 0.002, 9); // Lamp-loyal as its second trait
+    expect(releaseScales(hollow)).toBe(9); // tier 6 + 1, + 2 traits
+    const fresh = garden();
+    fresh.moths = [hollow];
+    const restored = deserializeState(JSON.parse(JSON.stringify(serializeState(fresh))))!;
+    expect(restored.moths[0]).toEqual(hollow);
+    expect(restored.almanac.sort()).toEqual(["hollow:lamp-loyal", "hollow:seeker"]);
+  });
+
+  it("loading keeps glow up to 120 and drops a second trait that repeats the first", () => {
+    const raw = serializeState(garden()) as unknown as Record<string, unknown>;
+    raw.moths = [{ ...moth("h", "hollow", 130, "seeker"), trait2: "seeker" }];
+    const m = deserializeState(JSON.parse(JSON.stringify(raw)))!.moths[0];
+    expect(m.glow).toBe(120);
+    expect(m.trait2).toBeUndefined();
+  });
+
+  it("all 56 pages earn a fifth duty slot", () => {
+    expect(dutySlots(filled(garden(), 55))).toBe(4);
+    expect(dutySlots(filled(garden(), 56))).toBe(5);
   });
 });

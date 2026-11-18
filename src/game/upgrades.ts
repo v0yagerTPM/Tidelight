@@ -151,8 +151,20 @@ export const UPGRADES: readonly UpgradeDef[] = [
   ...GLOBAL_UPGRADES,
 ];
 
+const UPGRADES_BY_ID: ReadonlyMap<string, UpgradeDef> = new Map(UPGRADES.map((u) => [u.id, u]));
+
+/** Each generator's own upgrade ids, so its multiplier doesn't scan every upgrade. */
+const GENERATOR_UPGRADE_IDS: ReadonlyMap<string, readonly string[]> = (() => {
+  const map = new Map<string, string[]>();
+  for (const def of UPGRADES) {
+    if (def.kind !== "generator" || !def.generatorId) continue;
+    map.set(def.generatorId, [...(map.get(def.generatorId) ?? []), def.id]);
+  }
+  return map;
+})();
+
 export function upgradeById(id: string): UpgradeDef {
-  const def = UPGRADES.find((u) => u.id === id);
+  const def = UPGRADES_BY_ID.get(id);
   if (!def) throw new Error(`Unknown upgrade id: ${id}`);
   return def;
 }
@@ -228,18 +240,14 @@ export function hasUpgrade(state: GameState, id: string): boolean {
 }
 
 export function isPermanentUpgrade(id: string): boolean {
-  const def = UPGRADES.find((u) => u.id === id);
+  const def = UPGRADES_BY_ID.get(id);
   return def?.permanent ?? false;
 }
 
 /** Production multiplier one generator gets from its own upgrades (×2 each). */
 export function generatorUpgradeMultiplier(state: GameState, generatorId: string): number {
   let mult = 1;
-  for (const def of UPGRADES) {
-    if (def.kind === "generator" && def.generatorId === generatorId && hasUpgrade(state, def.id)) {
-      mult *= 2;
-    }
-  }
+  for (const id of GENERATOR_UPGRADE_IDS.get(generatorId) ?? []) if (hasUpgrade(state, id)) mult *= 2;
   return mult;
 }
 

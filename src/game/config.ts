@@ -41,8 +41,10 @@ export const GENERATORS: readonly GeneratorDef[] = [
 // the ladder tied to the coast, production climbs a staircase — steady
 // Rekindle growth under a ceiling, and a higher ceiling with each relight.
 
+const GENERATORS_BY_ID: ReadonlyMap<string, GeneratorDef> = new Map(GENERATORS.map((g) => [g.id, g]));
+
 export function generatorById(id: string): GeneratorDef {
-  const def = GENERATORS.find((g) => g.id === id);
+  const def = GENERATORS_BY_ID.get(id);
   if (!def) throw new Error(`Unknown generator id: ${id}`);
   return def;
 }
@@ -292,8 +294,12 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
   },
 ];
 
+// Looked up on every support calculation (several hundred times a second
+// late in the game), so by map rather than a linear search.
+const LIGHTHOUSES_BY_ID: ReadonlyMap<string, ChainLighthouseDef> = new Map(CHAIN_LIGHTHOUSES.map((l) => [l.id, l]));
+
 export function chainLighthouseById(id: string): ChainLighthouseDef {
-  const def = CHAIN_LIGHTHOUSES.find((l) => l.id === id);
+  const def = LIGHTHOUSES_BY_ID.get(id);
   if (!def) throw new Error(`Unknown chain lighthouse id: ${id}`);
   return def;
 }

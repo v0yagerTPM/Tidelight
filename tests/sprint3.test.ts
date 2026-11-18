@@ -23,7 +23,7 @@ import {
   productionPerSecond,
   tick,
 } from "../src/game/engine";
-import { estimateRecoveryMinutes } from "../src/game/estimate";
+import { createRecoveryEstimator, estimateRecoveryMinutes } from "../src/game/estimate";
 import { canRekindle, rekindle } from "../src/game/prestige";
 import { createInitialState, deserializeState, serializeState } from "../src/game/state";
 import type { GameState } from "../src/game/types";
@@ -222,6 +222,19 @@ describe("recovery preview", () => {
     estimateRecoveryMinutes(state);
     expect(serializeState(state)).toEqual(before);
   });
+
+  it("the stepped estimator, run a slice at a time, gives the same answer as the whole run", () => {
+    const state = midGameState(8_000_000);
+    let clock = 0;
+    // A fake clock that advances 1 ms per reading: each 3 ms slice does only a step or two.
+    const estimator = createRecoveryEstimator(state, () => clock++);
+    let slices = 0;
+    while (!estimator.step(3)) slices++;
+    expect(slices).toBeGreaterThan(3);
+    expect(estimator.done).toBe(true);
+    expect(estimator.result).toBe(estimateRecoveryMinutes(state));
+    expect(createRecoveryEstimator(createInitialState()).done).toBe(true); // nothing to estimate
+  });
 });
 
 describe("challenges", () => {
@@ -373,7 +386,7 @@ describe("save migration (v3 → v4)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v3Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(9);
+    expect(restored?.version).toBe(10);
     expect(restored?.embers).toBe(12);
     expect(restored?.embersTotalEarned).toBe(12); // := embers, per the migration spec
     expect(restored?.emberPerks).toEqual([]);
@@ -387,7 +400,7 @@ describe("save migration (v3 → v4)", () => {
     state.emberPerks = ["head-start", "deep-wicks"];
     state.completedChallenges = ["fogbound"];
     const saved = serializeState(state);
-    expect(saved.version).toBe(9);
+    expect(saved.version).toBe(10);
     expect(saved.embersTotalEarned).toBe(33);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.emberPerks).toEqual(["head-start", "deep-wicks"]);

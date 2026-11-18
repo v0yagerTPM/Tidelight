@@ -23,6 +23,7 @@ export const MOTH_WING_COLORS: Record<string, string> = {
   starlit: "#9fe6d2",
   prismatic: "#ff9be0",
   tidelit: "#5fd0e8",
+  hollow: "#eef3ff",
 };
 
 export interface SceneMoth {
@@ -104,7 +105,7 @@ export function buildSceneModel(state: GameState, now: number): SceneModel {
     lampHalo: lampHaloColor(state),
     duty: dutyMoths(state).map((m) => {
       const pattern = patternById(m.pattern);
-      return { color: MOTH_WING_COLORS[pattern.id] ?? MOTH_WING_COLORS.plain, glow: m.glow / 100, tier: pattern.tier };
+      return { color: MOTH_WING_COLORS[pattern.id] ?? MOTH_WING_COLORS.plain, glow: Math.min(1, m.glow / 100), tier: pattern.tier };
     }),
   };
 }
@@ -241,7 +242,7 @@ export function buildMeadowModel(state: GameState, now: number): MeadowModel {
       return {
         id: m.id,
         color: MOTH_WING_COLORS[pattern.id] ?? MOTH_WING_COLORS.plain,
-        glow: m.glow / 100,
+        glow: Math.min(1, m.glow / 100),
         tier: pattern.tier,
         duty: duty.has(m.id),
         inCocoon: cocoonIds.has(m.id),

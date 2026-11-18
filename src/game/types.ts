@@ -30,12 +30,14 @@ export interface Moth {
   name: string;
   /** Wing pattern id (see MOTH_PATTERNS in moths.ts). */
   pattern: string;
-  /** Glow rating, an integer 1–100. Brighter moths work harder on duty. */
+  /** Glow rating, an integer 1–120 (above 100 only for Hollow moths). Brighter moths work harder on duty. */
   glow: number;
   /** 1 for attracted moths; max(parents) + 1 for bred ones. */
   generation: number;
   /** A trait id (see mothTraits.ts), absent for a moth without one. */
   trait?: string;
+  /** A Hollow moth's second trait (only Hollow moths carry two). */
+  trait2?: string;
 }
 
 /** A breeding in progress: two parents, ready to hatch at `readyAt` (ms). */
