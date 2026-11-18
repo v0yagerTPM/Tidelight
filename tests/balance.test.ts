@@ -15,10 +15,11 @@ describe("the upper generator tiers answer the relit lighthouses", () => {
     ["lens-polisher", "gull-rock"],
     ["storm-lantern", "cormorant-roost"],
     ["beacon-whale", "widows-walk"],
+    ["memory-ship", "bellwether"],
     ["seventh-light", "sirens-rest"],
   ];
 
-  it("tiers 1–4 are always for hire; 5–8 each wait on their lighthouse", () => {
+  it("tiers 1–4 are always for hire; 5–9 each wait on their lighthouse", () => {
     const state = createInitialState();
     for (const def of GENERATORS.slice(0, 4)) expect(canBuyGenerator(state, def.id)).toBe(true);
     for (const [gen, lh] of unlocks) {

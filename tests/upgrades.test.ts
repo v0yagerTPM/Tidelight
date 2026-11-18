@@ -82,8 +82,8 @@ describe("buy amounts", () => {
 });
 
 describe("upgrade definitions", () => {
-  it("has 16 per-generator upgrades, 3 click upgrades, and 3 globals", () => {
-    expect(UPGRADES.filter((u) => u.kind === "generator")).toHaveLength(16);
+  it("has 18 per-generator upgrades (two per helper), 3 click upgrades, and 3 globals", () => {
+    expect(UPGRADES.filter((u) => u.kind === "generator")).toHaveLength(18);
     expect(UPGRADES.filter((u) => u.kind === "click")).toHaveLength(3);
     expect(UPGRADES.filter((u) => u.kind === "global")).toHaveLength(3);
   });

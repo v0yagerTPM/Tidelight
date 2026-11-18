@@ -32,6 +32,7 @@ const CRAB_SLOTS = Array.from({ length: 12 }, (_, i) => ({ x: 0.03 + (i / 12) * 
 const MOTE_SLOTS = Array.from({ length: 16 }, (_, i) => ({ a: rand() * 6.283, rx: 34 + rand() * 80, ry: 16 + rand() * 46, sp: (0.3 + rand() * 0.6) * (i % 2 ? 1 : -1) }));
 const BELL_SLOTS = [[0.47, 0.32], [0.63, 0.22], [0.78, 0.4], [0.9, 0.18], [0.56, 0.6], [0.86, 0.66]].map(([x, d]) => ({ x, d, ph: rand() * 6.283 }));
 const WHALE_SLOTS = [0.62, 0.8, 0.94].map((x) => ({ x, period: 14 + rand() * 10, off: rand() * 20 }));
+const SHIP_SLOTS = [0.12, 0.3, 0.47].map((x) => ({ x, drift: 0.004 + rand() * 0.004, ph: rand() * 6.283, scale: 0.75 + rand() * 0.35 }));
 const RAIN = Array.from({ length: 170 }, () => ({ x: rand() * 1.2, y: rand(), l: 8 + rand() * 14 }));
 const FAR_X = [0.5, 0.58, 0.66, 0.74, 0.83, 0.93];
 
@@ -191,6 +192,7 @@ export class SceneRenderer extends AnimatedCanvas {
     }
 
     this.drawBells(m, t, g);
+    this.drawShips(m, t, g);
     this.drawWhales(m, t, g);
     this.drawTower(g);
     this.drawCottage(m, t, g);
@@ -431,6 +433,44 @@ export class SceneRenderer extends AnimatedCanvas {
       ctx.fill();
       const ring = Math.max(0, Math.sin(t * 0.9 + slot.ph * 3));
       if (ring > 0.92) this.glow(x, y - 6 * s, 14 * s, "255,226,166", (ring - 0.92) * 8);
+    }
+  }
+
+  /** Memory ships: pale sails on the horizon, a lantern at each stern, rocking home. */
+  private drawShips(m: SceneModel, t: number, g: ReturnType<SceneRenderer["geometry"]>): void {
+    const ctx = this.ctx;
+    for (let i = 0; i < m.ships; i++) {
+      const slot = SHIP_SLOTS[i];
+      const x = (slot.x + Math.sin(t * slot.drift * 6 + slot.ph) * 0.012) * g.W;
+      const y = g.horizon + 2;
+      const s = slot.scale * (g.H / 600);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.sin(t * 0.8 + slot.ph) * 0.04);
+      ctx.globalAlpha = 0.55; // mostly memory
+      ctx.fillStyle = "#1b2d45";
+      ctx.beginPath();
+      ctx.moveTo(-16 * s, 0);
+      ctx.lineTo(16 * s, 0);
+      ctx.lineTo(11 * s, 5 * s);
+      ctx.lineTo(-11 * s, 5 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#cfd9ea";
+      ctx.beginPath();
+      ctx.moveTo(-1 * s, -2 * s);
+      ctx.lineTo(-1 * s, -24 * s);
+      ctx.lineTo(11 * s, -3 * s);
+      ctx.closePath();
+      ctx.moveTo(-3 * s, -4 * s);
+      ctx.lineTo(-3 * s, -19 * s);
+      ctx.lineTo(-12 * s, -4 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      const flick = 0.75 + 0.25 * Math.sin(t * 5 + slot.ph);
+      this.glow(x + 13 * s, y - 2 * s, 12 * s, "255,196,99", 0.55 * flick);
     }
   }
 

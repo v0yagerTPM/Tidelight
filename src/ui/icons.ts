@@ -42,6 +42,10 @@ export const GENERATOR_ICONS: Record<string, string> = {
     `<path d="M4 19c3-6 13-8 19-4 2 1.4 3 3 3.5 4.5l2.5-2.5v6l-3-1.5c-4 4.5-16 5-22-2.5z"/><circle cx="9.5" cy="18.5" r=".9" fill="currentColor"/>` +
       `<path d="M14 12.5c0-3 1-5 2-6.5" stroke="var(--lamp)"/><circle cx="16.5" cy="5" r="2" fill="var(--lamp)" stroke="none"/>`,
   ),
+  "memory-ship": svg(
+    `<path d="M5 21h22l-3.5 5h-15z"/><path d="M15 21V5M15 6c5 2 8 6 8 13H15M15 9c-3.5 2-5.5 5.5-6 10h6"/>` +
+      `${FLAME(19.5, 25, 0.8)}<path d="M3 29c3 1 5 1 8 0s5-1 8 0 5 1 8 0" opacity=".55"/>`,
+  ),
   "seventh-light": svg(
     `<circle cx="16" cy="16" r="4.5" fill="var(--lamp)" stroke="none"/><circle cx="16" cy="16" r="8"/>` +
       `<path d="M16 2.5v4M16 25.5v4M2.5 16h4M25.5 16h4M6.5 6.5l2.8 2.8M22.7 22.7l2.8 2.8M6.5 25.5l2.8-2.8M22.7 9.3l2.8-2.8"/>`,
