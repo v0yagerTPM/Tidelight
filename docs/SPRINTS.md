@@ -427,9 +427,27 @@ save, and scripted probes against the game modules):
       localStorage, not the save); silent while the tab is hidden.
 - [x] Tests for the coast, chain-flow and meadow models.
 
-**Still to do**
+**Phase 5 — the Upgrades and Rekindle views. Shipped.**
 
-- [ ] Upgrades and Rekindle views: illustrated upgrade and perk cards.
+- [x] The Upgrades view as a lesson book: lessons ready to learn are
+      illustrated cards (a generator lesson shows its generator with a ×2
+      seal; click lessons a hand-lens; keeper-wide lessons their own
+      marks), sorted by price, with a time-to-afford note; keeper
+      knowledge is marked. The six nearest undiscovered lessons show as
+      silhouettes with a bar toward their unlock (`unlockProgress` in
+      `upgrades.ts`), the rest summarised; learned lessons sit on a shelf
+      of compact chips.
+- [x] The Rekindle view opens on the hearth: a fire that grows with the
+      Embers a Rekindle would bank (toward the recommended 40, then
+      relative to the Embers held), the gain in large type, and the
+      production bonus now → after. Bonuses past +1,000% read as a
+      multiplier ("×65") rather than "+6.40K%", here and in the shop.
+- [x] Ember Shop perks and Challenges as illustrated cards: eight perk
+      icons with Ember prices; challenges show their rule, goal and
+      reward as terms, an Under way / Completed badge, and progress.
+- [x] Test for `unlockProgress`.
+
+The overhaul's planned phases are complete.
 
 ## ✅ Post-launch — the rebalance
 

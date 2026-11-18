@@ -180,6 +180,27 @@ export function isUnlocked(state: GameState, def: UpgradeDef): boolean {
   }
 }
 
+/**
+ * How close an upgrade is to unlocking, 0–1 (1 once unlocked). Shown as a
+ * bar on silhouetted upgrades in the Upgrades view.
+ */
+export function unlockProgress(state: GameState, def: UpgradeDef): number {
+  const u = def.unlock;
+  const frac = (have: number, need: number): number => (need <= 0 ? 1 : Math.max(0, Math.min(1, have / need)));
+  switch (u.kind) {
+    case "generator-owned":
+      return frac(state.generators[u.generatorId] ?? 0, u.count);
+    case "run-lifetime":
+      return frac(state.lifetimeLumen.div(u.amount).toNumber(), 1);
+    case "total-generators":
+      return frac(totalGeneratorsOwned(state), u.count);
+    case "all-time-lumen":
+      return frac(state.allTimeLumen.div(u.amount).toNumber(), 1);
+    case "embers":
+      return frac(state.embers, u.count);
+  }
+}
+
 /** Human-readable unlock condition, shown on silhouetted (locked) upgrades. */
 export function unlockText(def: UpgradeDef): string {
   const u = def.unlock;
