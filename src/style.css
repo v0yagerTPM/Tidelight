@@ -834,3 +834,102 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 .almanac td.almanac-has { background: rgba(255, 196, 99, 0.12); }
 .almanac td.almanac-missing { color: var(--edge); }
 .almanac-rewards { list-style: none; padding: 0; margin: 10px 0 0; font-size: 0.86rem; display: grid; gap: 4px; }
+
+/* ── Splash dialogs: the tutorial and bottle contents ── */
+.help-toggle { font-family: var(--display); font-size: 1.15rem; line-height: 1; }
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(3, 7, 15, 0.78);
+  backdrop-filter: blur(3px);
+  animation: moment-in 0.25s ease-out;
+}
+.splash-card {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(88vh, 760px);
+  overflow-y: auto;
+  display: grid;
+  gap: 14px;
+  padding: 26px 24px 18px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #14304a, var(--glass) 40%);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 196, 99, 0.08) inset;
+}
+.splash-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+.splash-close:hover, .splash-close:focus-visible { color: var(--lamp-soft); background: rgba(255, 255, 255, 0.06); }
+.splash-page { display: grid; gap: 8px; animation: splash-page 0.3s ease-out; }
+@keyframes splash-page { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+.splash-art { display: grid; place-items: center; color: var(--lamp-soft); }
+.splash-art svg { width: 56px; height: 56px; }
+.splash[data-kind="bottle"] .splash-art svg { width: 96px; height: 96px; }
+.splash-eyebrow { text-align: center; font-size: 0.72rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--seafoam); }
+.splash-card h2 { margin: 0; text-align: center; font-size: clamp(1.5rem, 5vw, 2rem); line-height: 1.15; color: var(--lamp-soft); }
+.splash-body { display: grid; gap: 10px; line-height: 1.55; }
+.splash-body p { margin: 0; }
+.splash-body ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+.splash-body strong { color: var(--lamp-soft); font-weight: 600; }
+.splash-reopen { color: var(--seafoam); font-size: 0.92rem; }
+.splash-nav {
+  position: sticky;
+  bottom: -18px; /* the card's bottom padding: the buttons stay in reach on a long page */
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin: 0 -24px -18px;
+  padding: 10px 24px 18px;
+  border-top: 1px solid var(--edge-soft);
+  background: var(--glass);
+}
+.splash-dots { display: flex; justify-content: center; gap: 7px; flex-wrap: wrap; }
+.splash-dot { width: 9px; height: 9px; padding: 0; border-radius: 50%; border: 1px solid var(--lamp-deep); background: transparent; cursor: pointer; }
+.splash-dot.current { background: var(--lamp); border-color: var(--lamp); }
+/* A one-page splash: the button sits on the right. */
+.splash-nav > span:first-child { display: block; }
+
+/* The bottle's haul. */
+.bottle-art { overflow: visible; }
+.bottle-art .bottle-body { transform-origin: 48px 48px; animation: bottle-bob 3s ease-in-out infinite; }
+.bottle-art .bottle-cork { transform-box: fill-box; animation: cork-pop 0.9s cubic-bezier(0.2, 0.8, 0.3, 1.4) 0.3s both; }
+.bottle-art .bottle-swell { animation: bottle-swell 3s ease-in-out infinite; }
+@keyframes bottle-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-4px) rotate(3deg); } }
+@keyframes cork-pop { from { translate: 0 0; opacity: 1; } 60% { translate: -10px -12px; opacity: 1; } to { translate: -12px -14px; opacity: 0.85; } }
+@keyframes bottle-swell { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-6px); } }
+.bottle-haul { display: grid; gap: 4px; }
+.bottle-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 8px; background: rgba(255, 196, 99, 0.08); }
+.bottle-row strong { font-family: var(--mono); }
+.bottle-label { font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.bottle-relic { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--lamp-deep); border-radius: 10px; background: rgba(255, 196, 99, 0.06); animation: splash-page 0.5s ease-out 0.4s both; }
+.bottle-relic .relic-icon svg { width: 44px; height: 44px; color: var(--lamp-soft); }
+.bottle-relic .relic-name { font-family: var(--display); font-size: 1.15rem; color: var(--lamp-soft); }
+.bottle-relic .relic-effect { margin: 2px 0 0; font-size: 0.9rem; }
+.bottle-fragment { margin: 0; padding: 10px 14px; border-left: 3px solid var(--seafoam); font-family: var(--display); font-style: italic; font-size: 1.05rem; color: var(--text); background: rgba(143, 214, 196, 0.06); border-radius: 0 8px 8px 0; }
+.bottle-rider { color: var(--text); }
+@media (max-width: 520px) {
+  .splash { padding: 10px; place-items: end center; }
+  .splash-card { padding: 22px 16px 14px; max-height: 92vh; }
+  .splash-nav { bottom: -14px; margin: 0 -16px -14px; padding: 10px 16px 14px; }
+  .splash-nav { grid-template-columns: auto auto; }
+  .splash-dots { grid-column: 1 / -1; order: -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash, .splash-page, .bottle-relic, .bottle-art * { animation: none !important; }
+}

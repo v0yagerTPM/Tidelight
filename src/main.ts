@@ -66,7 +66,10 @@ import {
   routeById,
   sendExpedition,
   relicChanceFor,
+  type ExpeditionClaim,
 } from "./game/expeditions";
+import { Splash } from "./ui/splash";
+import { tutorialPages } from "./ui/tutorial";
 import { formatDuration, formatNumber } from "./game/format";
 import {
   attractMoth,
@@ -129,6 +132,7 @@ import {
   PERK_ICONS,
   HEARTH_ART,
   RELIC_ICONS,
+  BOTTLE_ART,
   SOUND_OFF_ICON,
   SOUND_ON_ICON,
   TAB_ICONS,
@@ -148,7 +152,10 @@ import {
 } from "./game/upgrades";
 
 // ── Boot: load (or start) a game, then settle offline earnings ──────────────
-const state: GameState = loadState() ?? createInitialState();
+const loadedSave = loadState();
+/** No save in this browser: a brand-new keeper, who gets the tutorial. */
+const isNewKeeper = loadedSave === null;
+const state: GameState = loadedSave ?? createInitialState();
 
 /** All displayed numbers honour the Keeper's Desk notation setting. */
 const fmt = (value: Decimal | number | string): string => formatNumber(value, state.notation);
@@ -236,6 +243,7 @@ if (!app) throw new Error("#app not found");
 app.innerHTML = `
   <header class="hud">
     <div class="brand"><span class="brand-mark">${BRAND_MARK}</span><span class="brand-name">Tidelight</span></div>
+    <button id="help-toggle" class="sound-toggle help-toggle" aria-label="How to play" title="How to play">?</button>
     <button id="sound-toggle" class="sound-toggle" aria-pressed="true" aria-label="Sound"></button>
     <div class="hud-stats">
       <div class="stat"><span class="stat-label">Lumen</span><strong id="hud-lumen">0</strong></div>
@@ -365,6 +373,7 @@ ${[
       <ul id="log-list" class="log-list"></ul>
       <h3 class="section-title">Keeper's Desk</h3>
       <div class="card desk">
+        <div class="row"><span>New here, or need a refresher?</span><button class="buy" id="desk-tutorial">How to play</button></div>
         <div class="row"><span>Number notation</span>
           <span class="buy-toggle desk-toggle">
             <button class="toggle-btn" id="notation-standard">Standard (1.23M)</button>
@@ -1125,10 +1134,14 @@ function rebuildShore(): void {
       shoreRefs.expeditionNote = card.querySelector<HTMLElement>(".expedition-note");
       shoreRefs.claimBtn = card.querySelector<HTMLButtonElement>(".expedition-claim");
       shoreRefs.claimBtn?.addEventListener("click", () => {
-        if (claimExpedition(state, Math.random)) {
+        const route = routeById(state.expedition?.routeId ?? "");
+        const chance = route ? relicChanceFor(state, route) : 0;
+        const claim = claimExpedition(state, Math.random);
+        if (claim) {
           sound.chime();
           saveState(state);
           renderDynamic();
+          if (route) openBottleSplash(claim, route.name, chance);
         }
       });
       expeditionArea.appendChild(card);
@@ -1976,6 +1989,51 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeMoment();
 });
 
+// ── Splash dialogs: the tutorial and what a bottle brought home ─────────────
+const splash = new Splash(app);
+
+function openTutorial(): void {
+  splash.open(tutorialPages(), { kind: "tutorial", finishLabel: "Start keeping" });
+}
+document.querySelector("#help-toggle")?.addEventListener("click", openTutorial);
+document.querySelector("#desk-tutorial")?.addEventListener("click", openTutorial);
+
+function openBottleSplash(claim: ExpeditionClaim, routeName: string, relicChance: number): void {
+  const rows: string[] = [];
+  rows.push(`<div class="bottle-row"><span class="bottle-label">Salvage</span><strong>+${fmt(claim.cache)} Lumen</strong></div>`);
+  if (claim.bonusLumen.gt(0)) {
+    rows.push(`<div class="bottle-row"><span class="bottle-label">Every relic is home</span><strong>+${fmt(claim.bonusLumen)} Lumen</strong></div>`);
+  }
+  const relic = claim.relic
+    ? `<div class="bottle-relic"><div class="relic-icon">${RELIC_ICONS[claim.relic.id] ?? UNKNOWN_ICON}</div><div><div class="bottle-label">A relic, nestled in the neck</div><div class="relic-name">${claim.relic.name}</div><p class="relic-effect">${claim.relic.effect}</p></div></div>`
+    : claim.bonusLumen.gt(0)
+      ? ""
+      : `<p class="muted bottle-norelic">No relic this time (the chance was ${Math.round(relicChance * 100)}%).</p>`;
+  let rider = "";
+  if (claim.rider) {
+    const trait = MOTH_TRAITS.find((t) => t.id === claim.riderTrait);
+    rider = trait
+      ? `<p class="bottle-rider">🦋 <strong>${claim.rider.name}</strong> comes home from the deep glass changed: <strong>${trait.name}</strong>. ${trait.effect}</p>`
+      : `<p class="bottle-rider">🦋 <strong>${claim.rider.name}</strong> hops off the cork and back into the roost.</p>`;
+  }
+  splash.open(
+    [
+      {
+        art: BOTTLE_ART,
+        eyebrow: `The bottle washes back · ${routeName}`,
+        title: claim.relic ? `A relic: ${claim.relic.name}` : "The bottle is home",
+        html: `
+          <div class="bottle-haul">${rows.join("")}</div>
+          ${relic}
+          ${rider}
+          <div class="bottle-label">From the bottle</div>
+          <blockquote class="bottle-fragment">${claim.fragment}</blockquote>`,
+      },
+    ],
+    { kind: "bottle", finishLabel: "Back to the shore" },
+  );
+}
+
 // ── Sound toggle (a per-device preference, not part of the save) ───────────
 const soundToggle = document.querySelector<HTMLButtonElement>("#sound-toggle");
 function showSoundState(): void {
@@ -2381,3 +2439,6 @@ window.addEventListener("beforeunload", () => saveState(state));
 
 renderDynamic();
 syncSceneRunning();
+
+// A brand-new keeper (no save in this browser) starts with the guide open.
+if (isNewKeeper) openTutorial();
