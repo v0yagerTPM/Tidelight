@@ -107,7 +107,21 @@ import { MeadowRenderer } from "./scene/meadow";
 import { MomentRenderer, type MomentKind } from "./scene/moments";
 import { buildChainFlowModel, buildCoastModel, buildMeadowModel, buildSceneModel } from "./scene/model";
 import { SceneRenderer } from "./scene/renderer";
-import { BRAND_MARK, GENERATOR_ICONS, RELIC_ICONS, SOUND_OFF_ICON, SOUND_ON_ICON, TAB_ICONS, UNKNOWN_ICON } from "./ui/icons";
+import {
+  BRAND_MARK,
+  CHALLENGE_ICONS,
+  CLICK_ICON,
+  EMBER_GLYPH,
+  GENERATOR_ICONS,
+  GLOBAL_UPGRADE_ICONS,
+  PERK_ICONS,
+  HEARTH_ART,
+  RELIC_ICONS,
+  SOUND_OFF_ICON,
+  SOUND_ON_ICON,
+  TAB_ICONS,
+  UNKNOWN_ICON,
+} from "./ui/icons";
 import {
   UPGRADES,
   buyUpgrade,
@@ -115,6 +129,7 @@ import {
   isPermanentUpgrade,
   isUnlocked,
   totalGeneratorsOwned,
+  unlockProgress,
   unlockText,
   upgradeById,
   type UpgradeDef,
@@ -130,6 +145,15 @@ const fmt = (value: Decimal | number | string): string => formatNumber(value, st
 const sound = new Sound();
 window.addEventListener("pointerdown", () => sound.unlock(), { capture: true });
 window.addEventListener("keydown", () => sound.unlock(), { capture: true });
+
+/**
+ * A production bonus given in percent: "+120%" while it reads naturally,
+ * a multiplier ("×65.0") once it passes +1,000% — "+6.40K%" says nothing.
+ */
+function bonusText(percent: number): string {
+  if (percent < 1000) return `+${fmt(percent)}%`;
+  return `×${fmt(1 + percent / 100)}`;
+}
 
 /** Format a 0–1 fraction as a percentage that never reads "0%" while above zero. */
 function pct(fraction: number): string {
@@ -249,13 +273,13 @@ ${[
 
     <section id="view-upgrades" class="view">
       <h2>Upgrades</h2>
-      <p class="muted">One-time lessons for the light. Most are forgotten when you Rekindle — the ones marked ♾ are keeper knowledge and are kept.</p>
-      <h3 class="section-title">Available</h3>
-      <div id="upgrades-available" class="card-list"></div>
+      <p class="muted">One-time lessons for the light. Most are forgotten when you Rekindle — the ones marked ♾ are keeper knowledge and are kept. <span id="upgrades-summary"></span></p>
+      <h3 class="section-title">Ready to learn</h3>
+      <div id="upgrades-available" class="lesson-grid"></div>
       <h3 class="section-title">Not yet discovered</h3>
-      <div id="upgrades-locked" class="card-list"></div>
+      <div id="upgrades-locked" class="lesson-grid locked-grid"></div>
       <h3 class="section-title">Learned</h3>
-      <div id="upgrades-purchased" class="card-list"></div>
+      <div id="upgrades-purchased" class="lesson-shelf"></div>
     </section>
 
     <section id="view-lighthouses" class="view">
@@ -287,11 +311,20 @@ ${[
     <section id="view-rekindle" class="view">
       <h2>Rekindle</h2>
       <p class="muted">Let the light gutter out and light it again, stronger. Embers are banked from this run's lifetime Lumen: √(lifetime ÷ 5,000).</p>
-      <div class="card">
-        <div class="row"><span>Embers on Rekindle now</span><strong id="rk-gain">0</strong></div>
+      <div class="card hearth" id="rk-hearth">
+        <div class="hearth-top">
+          <div class="hearth-art">${HEARTH_ART}<span class="hearth-spark"></span><span class="hearth-spark"></span><span class="hearth-spark"></span></div>
+          <div class="hearth-numbers">
+            <div class="hearth-gain"><span class="stat-label">Rekindle now and bank</span><strong id="rk-gain">0</strong><span class="hearth-unit">Embers</span></div>
+            <div class="hearth-compare">
+              <div><span class="stat-label">Production bonus now</span><strong id="rk-bonus">+0%</strong></div>
+              <div class="hearth-arrow" aria-hidden="true">→</div>
+              <div><span class="stat-label">After Rekindle</span><strong id="rk-after">+0%</strong></div>
+            </div>
+          </div>
+        </div>
         <div class="row"><span id="rk-held-label">Embers held</span><strong id="rk-held">0</strong></div>
         <div class="row"><span>Embers earned all-time</span><strong id="rk-total">0</strong></div>
-        <div class="row"><span>Production bonus now</span><strong id="rk-bonus">+0%</strong></div>
         <div class="row"><span>Time to recover your current Lumen/s</span><strong id="rk-recovery">—</strong></div>
         <div class="progress-wrap">
           <div class="progress-label" id="rk-progress-label"></div>
@@ -306,11 +339,11 @@ ${[
 
       <h3 class="section-title">Ember Shop</h3>
       <p class="muted">Spend held Embers on permanent perks. Every Ember spent lowers your held-Ember production bonus — that's the trade. <span id="shop-held"></span></p>
-      <div id="ember-shop" class="card-list"></div>
+      <div id="ember-shop" class="perk-grid"></div>
 
       <h3 class="section-title">Challenges</h3>
       <p class="muted">Opt-in rule-changing runs. Starting one resets your run like a Rekindle — but grants no Embers. Reach the goal to bank a permanent reward; the run then continues. Abandoning resets the run with no reward.</p>
-      <div id="challenges" class="card-list"></div>
+      <div id="challenges" class="trial-list"></div>
     </section>
 
     <section id="view-log" class="view">
@@ -487,10 +520,17 @@ function milestoneHint(owned: number): string {
   return `Next ×2 at ${next} — ${owned}/${next}`;
 }
 
-// ── Upgrades view (rows rebuilt when the unlocked/owned structure changes) ──
+// ── Upgrades view: the keeper's lesson book ─────────────────────────────────
+// Rebuilt when the unlocked/owned structure changes; affordability, time to
+// afford and unlock progress refresh in place every frame.
 interface UpgradeRow {
   def: UpgradeDef;
   buy: HTMLButtonElement;
+  note: HTMLElement;
+}
+interface LockedUpgradeRow {
+  def: UpgradeDef;
+  bar: HTMLElement;
 }
 
 const upgradeContainers = {
@@ -498,8 +538,12 @@ const upgradeContainers = {
   locked: document.querySelector<HTMLDivElement>("#upgrades-locked"),
   purchased: document.querySelector<HTMLDivElement>("#upgrades-purchased"),
 };
+const upgradesSummary = document.querySelector<HTMLElement>("#upgrades-summary");
 let availableUpgradeRows: UpgradeRow[] = [];
+let lockedUpgradeRows: LockedUpgradeRow[] = [];
 let upgradeStructureKey = "";
+/** How many undiscovered lessons to show as silhouettes (the nearest first). */
+const LOCKED_LESSONS_SHOWN = 6;
 
 function upgradesStructureKey(): string {
   return UPGRADES.map((u) =>
@@ -507,76 +551,114 @@ function upgradesStructureKey(): string {
   ).join("");
 }
 
-function permanentBadge(def: UpgradeDef): string {
-  return def.permanent ? ` <span class="perm">♾ keeper knowledge</span>` : "";
+/** The art for a lesson: its generator, the beam's lens, or a keeper-wide mark. */
+function lessonIcon(def: UpgradeDef): string {
+  if (def.kind === "generator" && def.generatorId) return GENERATOR_ICONS[def.generatorId] ?? UNKNOWN_ICON;
+  if (def.kind === "click") return CLICK_ICON;
+  return GLOBAL_UPGRADE_ICONS[def.id] ?? UNKNOWN_ICON;
+}
+
+/** Where a lesson belongs: "Candle Crab · lesson I", "Flash the Beam · tier 2", "Keeper-wide". */
+function lessonKind(def: UpgradeDef): string {
+  if (def.kind === "generator" && def.generatorId) {
+    const gen = GENERATORS.find((g) => g.id === def.generatorId);
+    return `${gen?.name ?? "Helper"} · lesson\u00a0${def.id.endsWith("-u2") ? "II" : "I"}`;
+  }
+  if (def.kind === "click") return `Flash the Beam · tier\u00a0${def.id.replace("click-", "")}`;
+  return "Keeper-wide";
 }
 
 function rebuildUpgrades(): void {
   availableUpgradeRows = [];
+  lockedUpgradeRows = [];
   for (const container of Object.values(upgradeContainers)) {
     if (container) container.innerHTML = "";
   }
-  let availableCount = 0;
-  let purchasedCount = 0;
+  const learned = UPGRADES.filter((u) => state.upgrades.includes(u.id));
+  const available = UPGRADES.filter((u) => !state.upgrades.includes(u.id) && isUnlocked(state, u)).sort((a, b) => a.cost - b.cost);
+  const locked = UPGRADES.filter((u) => !state.upgrades.includes(u.id) && !isUnlocked(state, u)).sort(
+    (a, b) => unlockProgress(state, b) - unlockProgress(state, a),
+  );
 
-  for (const def of UPGRADES) {
-    const owned = state.upgrades.includes(def.id);
-    const unlocked = owned || isUnlocked(state, def);
-    const row = document.createElement("div");
+  if (upgradesSummary) {
+    const kept = learned.filter((u) => u.permanent).length;
+    upgradesSummary.textContent = `${learned.length} of ${UPGRADES.length} lessons learned${kept ? ` · ${kept} kept through every Rekindle` : ""}.`;
+  }
 
-    if (owned) {
-      purchasedCount++;
-      row.className = "gen upgrade purchased";
-      row.innerHTML = `
-        <div class="gen-main">
-          <div class="gen-name">${def.name}${permanentBadge(def)}</div>
-          <div class="gen-flavor">${def.effect}</div>
-        </div>
-        <div class="gen-buy"><span class="learned">Learned ✓</span></div>`;
-      upgradeContainers.purchased?.appendChild(row);
-    } else if (unlocked) {
-      availableCount++;
-      row.className = "gen upgrade";
-      row.innerHTML = `
-        <div class="gen-main">
-          <div class="gen-name">${def.name}${permanentBadge(def)}</div>
-          <div class="gen-flavor">${def.effect}</div>
-        </div>
-        <div class="gen-buy">
-          <button class="buy">Learn</button>
-          <div class="gen-cost">${fmt(def.cost)} Lumen</div>
-        </div>`;
-      const buy = row.querySelector<HTMLButtonElement>(".buy");
-      if (!buy) continue;
-      buy.addEventListener("click", () => {
-        if (buyUpgrade(state, def.id)) {
-          sound.chime();
-          saveState(state);
-          renderDynamic();
-        }
-      });
-      upgradeContainers.available?.appendChild(row);
-      availableUpgradeRows.push({ def, buy });
-    } else {
-      row.className = "gen upgrade locked";
-      row.innerHTML = `
-        <div class="gen-main">
-          <div class="gen-name">🔒 Undiscovered upgrade</div>
-          <div class="gen-flavor">${unlockText(def)}</div>
-        </div>`;
-      upgradeContainers.locked?.appendChild(row);
+  for (const def of available) {
+    const card = document.createElement("article");
+    card.className = `lesson${def.permanent ? " permanent" : ""}`;
+    const seal = def.kind === "global" ? "" : `<span class="lesson-seal">×2</span>`;
+    card.innerHTML = `
+      <div class="lesson-art">${lessonIcon(def)}${seal}</div>
+      <div class="lesson-body">
+        <div class="lesson-kind">${lessonKind(def)}</div>
+        <h4 class="lesson-name">${def.name}</h4>
+        <p class="lesson-effect">${def.effect}</p>
+        ${def.permanent ? `<p class="lesson-perm">♾ Keeper knowledge — kept through every Rekindle</p>` : ""}
+      </div>
+      <div class="lesson-foot">
+        <span class="lesson-cost">${fmt(def.cost)} Lumen</span>
+        <button class="buy">Learn</button>
+      </div>
+      <div class="lesson-note"></div>`;
+    const buy = card.querySelector<HTMLButtonElement>(".buy");
+    const note = card.querySelector<HTMLElement>(".lesson-note");
+    if (!buy || !note) continue;
+    buy.addEventListener("click", () => {
+      if (buyUpgrade(state, def.id)) {
+        sound.chime();
+        saveState(state);
+        renderDynamic();
+      }
+    });
+    upgradeContainers.available?.appendChild(card);
+    availableUpgradeRows.push({ def, buy, note });
+  }
+  if (upgradeContainers.available && available.length === 0) {
+    upgradeContainers.available.innerHTML = `<p class="muted">Nothing to learn right now — grow the light and new lessons will surface.</p>`;
+  }
+
+  // Undiscovered lessons: the nearest few, each with a bar toward its unlock.
+  for (const def of locked.slice(0, LOCKED_LESSONS_SHOWN)) {
+    const card = document.createElement("article");
+    card.className = "lesson locked";
+    card.innerHTML = `
+      <div class="lesson-art">${UNKNOWN_ICON}</div>
+      <div class="lesson-body">
+        <div class="lesson-kind">Undiscovered</div>
+        <p class="lesson-effect">${unlockText(def)}</p>
+        <div class="progress thin"><div class="progress-bar"></div></div>
+      </div>`;
+    const bar = card.querySelector<HTMLElement>(".progress-bar");
+    if (bar) lockedUpgradeRows.push({ def, bar });
+    upgradeContainers.locked?.appendChild(card);
+  }
+  if (upgradeContainers.locked) {
+    if (locked.length === 0) {
+      upgradeContainers.locked.innerHTML = `<p class="muted">Every lesson has surfaced.</p>`;
+    } else if (locked.length > LOCKED_LESSONS_SHOWN) {
+      const more = document.createElement("p");
+      more.className = "muted lesson-more";
+      more.textContent = `…and ${locked.length - LOCKED_LESSONS_SHOWN} more still out in the dark.`;
+      upgradeContainers.locked.appendChild(more);
     }
   }
 
-  if (upgradeContainers.available && availableCount === 0) {
-    upgradeContainers.available.innerHTML = `<p class="muted">Nothing to learn right now — grow the light and new lessons will surface.</p>`;
+  // Learned: a compact shelf; the effect is in each chip's tooltip.
+  for (const def of learned) {
+    const chip = document.createElement("div");
+    chip.className = `lesson-chip${def.permanent ? " permanent" : ""}`;
+    chip.title = def.effect;
+    chip.innerHTML = `<span class="lesson-chip-icon">${lessonIcon(def)}</span><span class="lesson-chip-name">${def.name}</span><span class="lesson-chip-mark">${def.permanent ? "♾" : "✓"}</span>`;
+    upgradeContainers.purchased?.appendChild(chip);
   }
-  if (upgradeContainers.purchased && purchasedCount === 0) {
-    upgradeContainers.purchased.innerHTML = `<p class="muted">No upgrades learned yet.</p>`;
+  if (upgradeContainers.purchased && learned.length === 0) {
+    upgradeContainers.purchased.innerHTML = `<p class="muted">No lessons learned yet.</p>`;
   }
 }
 
-// ── Ember Shop (rows rebuilt when ownership changes; affordability in place)
+// ── Ember Shop: illustrated perk cards (rebuilt on ownership change) ─────────
 interface PerkRow {
   def: EmberPerkDef;
   buy: HTMLButtonElement;
@@ -592,29 +674,25 @@ function rebuildEmberShop(): void {
   shopContainer.innerHTML = "";
   for (const def of EMBER_PERKS) {
     const owned = state.emberPerks.includes(def.id);
-    const row = document.createElement("div");
-    if (owned) {
-      row.className = "gen upgrade purchased";
-      row.innerHTML = `
-        <div class="gen-main">
-          <div class="gen-name">${def.name} <span class="perm">♾ permanent</span></div>
-          <div class="gen-flavor">${def.effect}</div>
-        </div>
-        <div class="gen-buy"><span class="learned">Kindled ✓</span></div>`;
-    } else {
-      row.className = "gen upgrade";
-      row.innerHTML = `
-        <div class="gen-main">
-          <div class="gen-name">${def.name} <span class="perm">♾ permanent</span></div>
-          <div class="gen-flavor">${def.effect}</div>
-          <div class="perk-warning"></div>
-        </div>
-        <div class="gen-buy">
-          <button class="buy">Kindle</button>
-          <div class="gen-cost">${def.costEmbers} Embers</div>
-        </div>`;
-      const buy = row.querySelector<HTMLButtonElement>(".buy");
-      const warning = row.querySelector<HTMLElement>(".perk-warning");
+    const card = document.createElement("article");
+    card.className = `perk${owned ? " owned" : ""}`;
+    card.innerHTML = `
+      <div class="perk-art">${PERK_ICONS[def.id] ?? UNKNOWN_ICON}</div>
+      <div class="perk-body">
+        <h4 class="perk-name">${def.name}</h4>
+        <p class="perk-effect">${def.effect}</p>
+        ${owned ? "" : `<p class="perk-warning"></p>`}
+      </div>
+      <div class="perk-foot">
+        ${
+          owned
+            ? `<span class="learned">Kindled ✓ · permanent</span>`
+            : `<span class="perk-cost">${EMBER_GLYPH}${fmt(def.costEmbers)}</span><button class="buy">Kindle</button>`
+        }
+      </div>`;
+    if (!owned) {
+      const buy = card.querySelector<HTMLButtonElement>(".buy");
+      const warning = card.querySelector<HTMLElement>(".perk-warning");
       if (!buy || !warning) continue;
       buy.addEventListener("click", () => {
         if (buyPerk(state, def.id)) {
@@ -625,11 +703,11 @@ function rebuildEmberShop(): void {
       });
       shopRows.push({ def, buy, warning });
     }
-    shopContainer.appendChild(row);
+    shopContainer.appendChild(card);
   }
 }
 
-// ── Challenges (cards rebuilt when active/completed state changes) ─────────
+// ── Challenges: illustrated trial cards (rebuilt on active/completed change)
 const challengeContainer = document.querySelector<HTMLDivElement>("#challenges");
 let challengeStructureKey = "";
 interface ActiveChallengeRefs {
@@ -651,15 +729,23 @@ function rebuildChallenges(): void {
   for (const def of CHALLENGES) {
     const completed = state.completedChallenges.includes(def.id);
     const isActive = active?.id === def.id;
-    const card = document.createElement("div");
-    card.className = `card challenge${completed ? " completed" : ""}${isActive ? " active" : ""}`;
+    const card = document.createElement("article");
+    card.className = `trial${completed ? " completed" : ""}${isActive ? " active" : ""}`;
     let html = `
-      <div class="gen-name">${def.name}</div>
-      <p class="muted">${def.ruleText}</p>
-      <p class="muted">Goal: ${fmt(def.goalLifetime)} lifetime Lumen in one run · Reward — ${def.rewardName}: ${def.rewardText}</p>`;
+      <div class="trial-art">${CHALLENGE_ICONS[def.id] ?? UNKNOWN_ICON}</div>
+      <div class="trial-body">
+        <div class="trial-head">
+          <h4 class="trial-name">${def.name}</h4>
+          ${completed ? `<span class="trial-badge done">Completed</span>` : isActive ? `<span class="trial-badge live">Under way</span>` : ""}
+        </div>
+        <p class="trial-rule">${def.ruleText}</p>
+        <dl class="trial-terms">
+          <div><dt>Goal</dt><dd>${fmt(def.goalLifetime)} lifetime Lumen in one run</dd></div>
+          <div><dt>Reward</dt><dd><strong>${def.rewardName}</strong> — ${def.rewardText}</dd></div>
+        </dl>`;
 
     if (completed) {
-      html += `<p class="learned">Completed ✓ — ${def.rewardName} banked forever</p>`;
+      html += `<p class="learned">${def.rewardName} banked forever ✓</p></div>`;
       card.innerHTML = html;
     } else if (isActive) {
       html += `
@@ -667,7 +753,7 @@ function rebuildChallenges(): void {
           <div class="progress-label challenge-progress-label"></div>
           <div class="progress"><div class="progress-bar challenge-progress-bar"></div></div>
         </div>
-        <button class="danger challenge-abandon">Abandon challenge</button>`;
+        <button class="danger challenge-abandon">Abandon challenge</button></div>`;
       card.innerHTML = html;
       const bar = card.querySelector<HTMLElement>(".challenge-progress-bar");
       const label = card.querySelector<HTMLElement>(".challenge-progress-label");
@@ -683,7 +769,7 @@ function rebuildChallenges(): void {
       }
     } else {
       html += `<button class="buy challenge-start" ${active ? "disabled" : ""}>Start challenge — resets your run, no Embers</button>
-        ${active ? `<div class="gen-note muted">Finish or abandon ${active.name} first.</div>` : ""}`;
+        ${active ? `<div class="gen-note muted">Finish or abandon ${active.name} first.</div>` : ""}</div>`;
       card.innerHTML = html;
       const start = card.querySelector<HTMLButtonElement>(".challenge-start");
       if (start) {
@@ -1705,6 +1791,8 @@ const hud = {
   rkHeldLabel: document.querySelector<HTMLElement>("#rk-held-label"),
   rkTotal: document.querySelector<HTMLElement>("#rk-total"),
   rkBonus: document.querySelector<HTMLElement>("#rk-bonus"),
+  rkAfter: document.querySelector<HTMLElement>("#rk-after"),
+  rkHearth: document.querySelector<HTMLElement>("#rk-hearth"),
   rkRecovery: document.querySelector<HTMLElement>("#rk-recovery"),
   shopHeld: document.querySelector<HTMLElement>("#shop-held"),
   rkLabel: document.querySelector<HTMLElement>("#rk-progress-label"),
@@ -1844,6 +1932,15 @@ function renderDynamic(): void {
     const affordable = state.lumen.gte(row.def.cost);
     row.buy.disabled = !affordable;
     row.buy.classList.toggle("affordable", affordable);
+    if (affordable) {
+      row.note.textContent = "";
+    } else {
+      const tta = timeToAffordCost(state, new Decimal(row.def.cost));
+      row.note.textContent = Number.isFinite(tta) ? `Affordable in ${formatDuration(tta)}` : "";
+    }
+  }
+  for (const row of lockedUpgradeRows) {
+    row.bar.style.width = `${Math.round(unlockProgress(state, row.def) * 100)}%`;
   }
 
   // Rekindle view
@@ -1853,7 +1950,18 @@ function renderDynamic(): void {
   if (hud.rkHeld) hud.rkHeld.textContent = fmt(state.embers);
   if (hud.rkHeldLabel) hud.rkHeldLabel.textContent = `Embers held (each: +${perEmberPct}% production)`;
   if (hud.rkTotal) hud.rkTotal.textContent = fmt(state.embersTotalEarned);
-  if (hud.rkBonus) hud.rkBonus.textContent = `+${fmt(state.embers * perEmberPct)}%`;
+  if (hud.rkBonus) hud.rkBonus.textContent = bonusText(state.embers * perEmberPct);
+  if (hud.rkAfter) {
+    hud.rkAfter.textContent = state.activeChallenge !== null || gain < 1 ? "—" : bonusText((state.embers + gain) * perEmberPct);
+  }
+  // The hearth's fire grows toward the recommended Rekindle (40 Embers) —
+  // and beyond it, with the gain relative to what's already held.
+  if (hud.rkHearth) {
+    const target = Math.max(PRESTIGE_RECOMMENDED_EMBERS, state.embers);
+    const heat = gain <= 0 ? 0.08 : Math.min(1, 0.15 + 0.85 * (gain / target));
+    hud.rkHearth.style.setProperty("--heat", heat.toFixed(3));
+    hud.rkHearth.classList.toggle("ready", gain >= PRESTIGE_RECOMMENDED_EMBERS && state.activeChallenge === null);
+  }
   if (hud.rkRecovery) {
     hud.rkRecovery.textContent =
       state.activeChallenge !== null
@@ -1936,7 +2044,7 @@ function renderDynamic(): void {
     row.buy.disabled = !affordable;
     row.buy.classList.toggle("affordable", affordable);
     const bonusLoss = row.def.costEmbers * perEmberPct;
-    row.warning.textContent = `Spending ${row.def.costEmbers} Embers lowers your held bonus by ${bonusLoss}% (from +${fmt(state.embers * perEmberPct)}% to +${fmt((state.embers - row.def.costEmbers) * perEmberPct)}%).`;
+    row.warning.textContent = `Spending ${row.def.costEmbers} Embers lowers your held bonus by ${bonusLoss}% (from ${bonusText(state.embers * perEmberPct)} to ${bonusText((state.embers - row.def.costEmbers) * perEmberPct)}).`;
   }
 
   // The Shore: rebuild on structure change, refresh costs/countdowns in place.

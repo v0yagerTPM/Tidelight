@@ -30,7 +30,9 @@ with a new type and colour system, illustrated generator rows, and a
 bottom tab bar on phones. Later phases added a coast panorama of all
 seven lighthouses and a flowing supply chain, a moth meadow on the
 Shore, full-screen moments for a Rekindle, each relight and the ending,
-and synthesised sound (toggle in the header).
+synthesised sound (toggle in the header), and illustrated cards for
+upgrades, Ember perks and challenges, with the Rekindle view opening on
+a hearth whose fire grows with the Embers you'd bank.
 
 ## What's playable
 
