@@ -655,3 +655,21 @@ The last moth PR.
       (a first post), "The Shape the Light Leaves" (a first Hollow moth):
       24 beats, acts 6 / 10 / 8.
 - [x] **Saves → v10:** `trait2`; glow kept up to 120.
+
+## ✅ Post-launch — the tutorial and the bottle splash
+
+- [x] **How to keep the light** (`src/ui/tutorial.ts`): an eight-page
+      guide (welcome and the goal; making light and helpers; upgrades; the
+      supply chain; relighting; Rekindle and Embers; moths and bottles;
+      tides, time away and saving). Its numbers come from the game's own
+      constants. It opens by itself for a brand-new keeper (no save in the
+      browser) and again from the new **?** button in the header or the
+      Keeper's Desk.
+- [x] **The bottle splash**: claiming a bottle opens a card with the
+      route, the Lumen salvage (and the all-relics bonus), the relic with
+      its icon and effect (or the relic chance it missed), a riding moth's
+      homecoming or new trait, and the story fragment.
+- [x] Both use one splash dialog (`src/ui/splash.ts`): paged with Back /
+      Next, the dots or the arrow keys; Escape, × or the backdrop close it;
+      Tab stays inside; focus returns where it was; the buttons stay in
+      reach on a phone; reduced motion turns the animation off.

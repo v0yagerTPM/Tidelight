@@ -171,6 +171,9 @@ npm run build      # typecheck + production build to dist/
   Keeping there.
 - **Rekindle tab** — Rekindle for Embers (with a recovery-time preview),
   spend held Embers in the Ember Shop, and start or abandon challenges.
+- **How to play** — new keepers start with an eight-page guide to the
+  game; reopen it any time with the **?** button at the top or from the
+  Keeper's Desk.
 - **Shore tab** — attract, roster and breed lantern moths; send and
   claim bottle expeditions; admire the relic shelf.
 - **Log tab** — the story so far, the Keeper's Log, and the Keeper's

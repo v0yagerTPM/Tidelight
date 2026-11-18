@@ -184,3 +184,16 @@ export const HEARTH_ART = `<svg class="hearth-svg" viewBox="0 0 120 120" aria-hi
   </g>
   <path d="M34 106c6-5 12-5 18-1 6-4 12-4 18 0 6-4 12-4 16 1" fill="none" stroke="#c4512f" stroke-width="5" stroke-linecap="round" class="hearth-coals"/>
 </svg>`;
+
+/** The bottle splash: a message bottle, cork and scroll, on a little swell. */
+export const BOTTLE_ART = `<svg class="bottle-art" viewBox="0 0 96 96" width="96" height="96" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <g class="bottle-body">
+    <path d="M30 30c-6 6-6 14 0 20l16 16c6 6 14 6 20 0s6-14 0-20L50 30c-6-6-14-6-20 0z" fill="rgba(143,214,196,0.14)"/>
+    <path d="M30 30 24 24M24 24l-4-4"/>
+    <rect class="bottle-cork" x="13" y="13" width="9" height="7" rx="2" transform="rotate(45 17.5 16.5)" fill="var(--lamp-deep)" stroke="none"/>
+    <path d="M38 40c4-2 9 3 13 1s8 3 12 1l-5 13c-4 2-8-3-12-1s-9-3-13-1z" fill="var(--lamp-soft)" stroke="var(--lamp-deep)" stroke-width="1.2"/>
+    <path d="M42 45h14M41 49h12" stroke="var(--lamp-deep)" stroke-width="1"/>
+    <path d="M58 36c3 1 5 3 6 6" stroke="rgba(255,255,255,0.55)"/>
+  </g>
+  <path class="bottle-swell" d="M6 82c8 4 14 4 22 0s14-4 22 0 14 4 22 0 14-4 22 0" stroke="var(--seafoam)" opacity="0.7"/>
+</svg>`;
