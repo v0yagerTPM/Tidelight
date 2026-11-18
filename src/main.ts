@@ -98,9 +98,14 @@ import {
   startBoard,
 } from "./game/state";
 import type { BuyAmount, GameState } from "./game/types";
-import { buildSceneModel } from "./scene/model";
+import { Sound } from "./audio/sound";
+import { ChainFlowRenderer } from "./scene/chainFlow";
+import { COAST_LAYOUT, CoastRenderer } from "./scene/coast";
+import { MeadowRenderer } from "./scene/meadow";
+import { MomentRenderer, type MomentKind } from "./scene/moments";
+import { buildChainFlowModel, buildCoastModel, buildMeadowModel, buildSceneModel } from "./scene/model";
 import { SceneRenderer } from "./scene/renderer";
-import { BRAND_MARK, GENERATOR_ICONS, TAB_ICONS, UNKNOWN_ICON } from "./ui/icons";
+import { BRAND_MARK, GENERATOR_ICONS, RELIC_ICONS, SOUND_OFF_ICON, SOUND_ON_ICON, TAB_ICONS, UNKNOWN_ICON } from "./ui/icons";
 import {
   UPGRADES,
   buyUpgrade,
@@ -118,6 +123,11 @@ const state: GameState = loadState() ?? createInitialState();
 
 /** All displayed numbers honour the Keeper's Desk notation setting. */
 const fmt = (value: Decimal | number | string): string => formatNumber(value, state.notation);
+
+/** Synthesised sound (WebAudio); it starts on the first click or key press. */
+const sound = new Sound();
+window.addEventListener("pointerdown", () => sound.unlock(), { capture: true });
+window.addEventListener("keydown", () => sound.unlock(), { capture: true });
 
 /** Format a 0–1 fraction as a percentage that never reads "0%" while above zero. */
 function pct(fraction: number): string {
@@ -188,6 +198,7 @@ if (!app) throw new Error("#app not found");
 app.innerHTML = `
   <header class="hud">
     <div class="brand"><span class="brand-mark">${BRAND_MARK}</span><span class="brand-name">Tidelight</span></div>
+    <button id="sound-toggle" class="sound-toggle" aria-pressed="true" aria-label="Sound"></button>
     <div class="hud-stats">
       <div class="stat"><span class="stat-label">Lumen</span><strong id="hud-lumen">0</strong></div>
       <div class="stat"><span class="stat-label">per second</span><strong id="hud-rate">0</strong></div>
@@ -248,21 +259,27 @@ ${[
     <section id="view-lighthouses" class="view">
       <h2>The Seven Lighthouses</h2>
       <p class="muted">Lit lighthouses stay lit forever — even through a Rekindle. Their supply chains don't: every board is stripped back to its starting levels when the light gutters. They relight in order, and each demands a beam running at its efficiency — tend the chain, then reach.</p>
+      <div class="coast">
+        <canvas id="coast-canvas" aria-hidden="true"></canvas>
+        <div id="coast-pins" class="coast-pins"></div>
+      </div>
       <div id="ending-panel"></div>
       <div id="lighthouse-list" class="card-list"></div>
-      <h3 class="section-title">Supply Chain — Wick → Oil → Lens → Beam</h3>
+      <h3 class="section-title" id="chain-title">Supply Chain — Wick → Oil → Lens → Beam</h3>
+      <div class="chain-flow"><canvas id="chain-flow-canvas" aria-hidden="true"></canvas></div>
       <div id="chain-area"></div>
     </section>
 
     <section id="view-shore" class="view">
       <h2>The Shore</h2>
       <p class="muted">What the glass sea gives back. Moths, relics and story fragments are permanent — they roost through every Rekindle.</p>
+      <div class="meadow"><canvas id="meadow-canvas" aria-hidden="true"></canvas></div>
       <h3 class="section-title">Lantern Moth Garden</h3>
       <div id="moth-area"></div>
       <h3 class="section-title">Bottle Expeditions</h3>
       <div id="expedition-area"></div>
       <h3 class="section-title">Relics of the Glass Sea</h3>
-      <div id="relic-shelf" class="card-list"></div>
+      <div id="relic-shelf" class="relic-cabinet"></div>
     </section>
 
     <section id="view-rekindle" class="view">
@@ -319,6 +336,16 @@ ${[
       </div>
     </section>
   </main>
+
+  <div id="moment" class="moment hidden" role="dialog" aria-modal="true" aria-labelledby="moment-title">
+    <canvas id="moment-canvas" aria-hidden="true"></canvas>
+    <div class="moment-text">
+      <div class="moment-eyebrow" id="moment-eyebrow"></div>
+      <h2 id="moment-title"></h2>
+      <p id="moment-body"></p>
+      <button class="buy affordable" id="moment-continue">Continue</button>
+    </div>
+  </div>
 `;
 
 // ── Tab switching ────────────────────────────────────────────────────────────
@@ -404,6 +431,7 @@ if (genList) {
     if (!buy) continue;
     buy.addEventListener("click", () => {
       if (buyWithAmount(state, def.id, state.buyAmount)) {
+        sound.buy();
         row.classList.remove("bought");
         void row.offsetWidth; // restart the purchase pulse
         row.classList.add("bought");
@@ -520,6 +548,7 @@ function rebuildUpgrades(): void {
       if (!buy) continue;
       buy.addEventListener("click", () => {
         if (buyUpgrade(state, def.id)) {
+          sound.chime();
           saveState(state);
           renderDynamic();
         }
@@ -587,6 +616,7 @@ function rebuildEmberShop(): void {
       if (!buy || !warning) continue;
       buy.addEventListener("click", () => {
         if (buyPerk(state, def.id)) {
+          sound.chime();
           saveState(state);
           renderDynamic();
         }
@@ -739,6 +769,7 @@ function rebuildShore(): void {
       shoreRefs.roostNote = controls.querySelector<HTMLElement>(".moth-roost-note");
       shoreRefs.attractBtn?.addEventListener("click", () => {
         if (attractMoth(state, Math.random)) {
+          sound.chime();
           saveState(state);
           renderDynamic();
         }
@@ -762,7 +793,7 @@ function rebuildShore(): void {
         const card = document.createElement("div");
         card.className = `gen moth${isDuty ? " purchased" : ""}`;
         card.innerHTML = `
-          <div class="moth-swatch" style="background:${pattern.swatch}"></div>
+          <div class="moth-portrait"><div class="moth-swatch" style="background:${pattern.swatch}"></div></div>
           <div class="gen-main">
             <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}</div>
             <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(moth.glow * 0.2).toFixed(1)}%` : ""}</div>
@@ -810,6 +841,7 @@ function rebuildShore(): void {
         shoreRefs.hatchBtn = breed.querySelector<HTMLButtonElement>(".cocoon-hatch");
         shoreRefs.hatchBtn?.addEventListener("click", () => {
           if (hatchCocoon(state, Math.random)) {
+            sound.chime();
             saveState(state);
             renderDynamic();
           }
@@ -842,6 +874,7 @@ function rebuildShore(): void {
         }
         breed.querySelector<HTMLButtonElement>(".breed-start")?.addEventListener("click", () => {
           if (startBreeding(state, breedParentA, breedParentB)) {
+            sound.buy();
             saveState(state);
             renderDynamic();
           }
@@ -870,6 +903,7 @@ function rebuildShore(): void {
       shoreRefs.claimBtn = card.querySelector<HTMLButtonElement>(".expedition-claim");
       shoreRefs.claimBtn?.addEventListener("click", () => {
         if (claimExpedition(state, Math.random)) {
+          sound.chime();
           saveState(state);
           renderDynamic();
         }
@@ -892,6 +926,7 @@ function rebuildShore(): void {
       if (btn) {
         btn.addEventListener("click", () => {
           if (sendExpedition(state, route.id)) {
+            sound.buy();
             saveState(state);
             renderDynamic();
           }
@@ -909,10 +944,10 @@ function rebuildShore(): void {
     for (const relic of RELICS) {
       const owned = state.relics.includes(relic.id);
       const card = document.createElement("div");
-      card.className = `card lighthouse${owned ? " lit" : " locked"}`;
+      card.className = `relic${owned ? " owned" : ""}`;
       card.innerHTML = owned
-        ? `<div class="gen-name">✦ ${relic.name}</div><p class="muted">${relic.effect}</p><p class="learned">Recovered ✓</p>`
-        : `<div class="gen-name">🌫 Undiscovered relic</div><p class="muted">The sea hasn't given this one up yet. Bottles bring them home.</p>`;
+        ? `<div class="relic-icon">${RELIC_ICONS[relic.id] ?? UNKNOWN_ICON}</div><div class="relic-name">${relic.name}</div><p class="relic-effect">${relic.effect}</p>`
+        : `<div class="relic-icon">${UNKNOWN_ICON}</div><div class="relic-name">Still at sea</div><p class="relic-effect">Bottles bring relics home.</p>`;
       relicShelf.appendChild(card);
     }
   }
@@ -1079,6 +1114,13 @@ function rebuildEndingPanel(): void {
       checkStory(state);
       saveState(state);
       renderDynamic();
+      sound.rekindle();
+      playMoment(
+        "rekindle",
+        "The Next Keeping",
+        "A new keeper takes the lamp",
+        `Keeping № ${state.ngPlusCount + 1} begins at a cold lamp, with ${state.embers} inherited Embers and a legacy of ×${legacyMultiplier(state).toFixed(2)} production. The moths remember you.`,
+      );
     }
   });
   endingPanel.appendChild(panel);
@@ -1120,11 +1162,15 @@ function rebuildLighthouses(): void {
     CHAIN_LIGHTHOUSES.forEach((def, i) => {
       const lit = isLit(state, def.id);
       const card = document.createElement("div");
-      card.className = `card lighthouse${lit ? " lit" : " locked"}`;
+      const isNextCard = !lit && def.id === relightTargetId;
+      card.id = `lh-card-${def.id}`;
+      card.className = `card lighthouse${lit ? " lit compact" : isNextCard ? " next" : " locked compact"}`;
       const bonus = lighthouseBonusText(def);
+      // Lit and far-off lighthouses are one-liners; the next one gets its
+      // full description and the Relight button. The coast above shows all.
       card.innerHTML = `
-        <div class="gen-name">${lit ? "🔥" : "🌑"} ${i + 1}. ${def.name}</div>
-        <p class="muted">${def.hint}</p>
+        <div class="gen-name"><span class="lh-num">${i + 1}</span> ${def.name}</div>
+        ${isNextCard ? `<p class="muted">${def.hint}</p>` : ""}
         ${lit ? `<p class="learned">Lit ✓${bonus ? ` — ${bonus}` : ""}</p>` : ""}`;
       if (!lit && def.id === relightTargetId) {
         const buyWrap = document.createElement("div");
@@ -1138,6 +1184,20 @@ function rebuildLighthouses(): void {
             checkStory(state);
             saveState(state);
             renderDynamic();
+            if (def.triggersEnding) {
+              sound.bell(true);
+              playMoment(
+                "ending",
+                "The Hollow Light",
+                "The Sea Remembers",
+                "Seven lights stand in a row across the glass, and the glass has remembered it was water. The ships that are mostly memory are coming home.",
+                null,
+              );
+            } else {
+              sound.bell();
+              const bonus = lighthouseBonusText(def);
+              playMoment("relight", `Lighthouse ${i + 1} of 7`, `${def.name} burns again`, bonus ? `Permanently: ${bonus}.` : "");
+            }
           }
         });
         card.appendChild(buyWrap);
@@ -1147,7 +1207,7 @@ function rebuildLighthouses(): void {
           def.efficiencyRequirement > 0
             ? ` · needs beam efficiency ≥ ${def.efficiencyRequirement < 0.01 ? `${(def.efficiencyRequirement * 100).toFixed(1)}%` : `${Math.round(def.efficiencyRequirement * 100)}%`}`
             : "";
-        card.innerHTML += `<p class="muted">Dark — relight ${prev?.name ?? "the previous light"} first · costs ${fmt(def.relightCost)} Lumen${gate}${bonus ? ` · grants ${bonus}` : ""} · its chain board costs ×${def.boardCostMultiplier}</p>`;
+        card.innerHTML += `<p class="muted">Dark — after ${prev?.name ?? "the previous light"} · ${fmt(def.relightCost)} Lumen${gate}${bonus ? ` · grants ${bonus}` : ""}</p>`;
       }
       lhList.appendChild(card);
     });
@@ -1214,6 +1274,7 @@ function rebuildLighthouses(): void {
     if (!buy) return;
     buy.addEventListener("click", () => {
       if (buyNodeUpgrade(state, selectedBoardId, nodeId)) {
+        sound.buy();
         saveState(state);
         renderDynamic();
       }
@@ -1441,29 +1502,102 @@ if (deskReset) armTwoStep(deskReset, "Are you sure? EVERYTHING goes — moths, r
 // The scene draws only while the Light view is showing; its model is rebuilt
 // from game state with the rest of the UI (10×/s), never per animation frame.
 const sceneCanvas = document.querySelector<HTMLCanvasElement>("#scene-canvas");
-let scene: SceneRenderer | null = null;
-try {
-  scene = sceneCanvas ? new SceneRenderer(sceneCanvas) : null;
-} catch (err) {
-  console.error("Tidelight scene unavailable (the game runs without it):", err);
+
+/** Build a canvas scene; if Canvas 2D is unavailable the game runs without it. */
+function makeScene<T>(canvasId: string, make: (canvas: HTMLCanvasElement) => T): T | null {
+  const canvas = document.querySelector<HTMLCanvasElement>(canvasId);
+  if (!canvas) return null;
+  try {
+    return make(canvas);
+  } catch (err) {
+    console.error(`Tidelight scene ${canvasId} unavailable (the game runs without it):`, err);
+    return null;
+  }
 }
+const scene = makeScene("#scene-canvas", (c) => new SceneRenderer(c));
+const coastScene = makeScene("#coast-canvas", (c) => new CoastRenderer(c));
+const chainFlowScene = makeScene("#chain-flow-canvas", (c) => new ChainFlowRenderer(c));
+const meadowScene = makeScene("#meadow-canvas", (c) => new MeadowRenderer(c));
+
+/**
+ * Every scene, the view it lives in, and how to refresh its model. Only the
+ * scenes of the visible view animate or rebuild their models.
+ */
+interface SceneEntry {
+  tab: string;
+  renderer: { start(): void; stop(): void } | null;
+  refresh: (now: number) => void;
+}
+const SCENES: SceneEntry[] = [
+  { tab: "light", renderer: scene, refresh: (now) => scene?.setModel(buildSceneModel(state, now)) },
+  { tab: "lighthouses", renderer: coastScene, refresh: (now) => coastScene?.setModel(buildCoastModel(state, now), selectedBoardId) },
+  { tab: "lighthouses", renderer: chainFlowScene, refresh: (now) => chainFlowScene?.setModel(buildChainFlowModel(state, now)) },
+  { tab: "shore", renderer: meadowScene, refresh: (now) => meadowScene?.setModel(buildMeadowModel(state, now)) },
+];
+
 function refreshScene(): void {
-  if (scene && activeTab === "light") scene.setModel(buildSceneModel(state, Date.now()));
+  const now = Date.now();
+  for (const entry of SCENES) if (entry.renderer && entry.tab === activeTab) entry.refresh(now);
 }
 function syncSceneRunning(): void {
-  if (!scene) return;
-  if (activeTab === "light" && !document.hidden) {
-    refreshScene();
-    scene.start();
-  } else {
-    scene.stop();
+  const now = Date.now();
+  for (const entry of SCENES) {
+    if (!entry.renderer) continue;
+    if (entry.tab === activeTab && !document.hidden) {
+      entry.refresh(now);
+      entry.renderer.start();
+    } else {
+      entry.renderer.stop();
+    }
   }
+}
+
+// The coast's towers are buttons too: a lit one shows its chain board, a dark
+// one scrolls to its card.
+const coastPins = document.querySelector<HTMLDivElement>("#coast-pins");
+const coastPinButtons: HTMLButtonElement[] = [];
+CHAIN_LIGHTHOUSES.forEach((def, i) => {
+  const slot = COAST_LAYOUT[i];
+  const pin = document.createElement("button");
+  pin.className = "coast-pin";
+  pin.style.left = `${slot.x * 100}%`;
+  pin.style.top = `${(slot.base - slot.height - 0.08) * 100}%`;
+  pin.style.height = `${(slot.height + 0.08) * 100}%`;
+  pin.innerHTML = `<span class="coast-pin-label"><span class="coast-pin-num">${i + 1}</span><span class="coast-pin-name">${def.name}</span></span>`;
+  pin.addEventListener("click", () => {
+    if (isLit(state, def.id)) {
+      selectedBoardId = def.id;
+      renderDynamic();
+      refreshScene();
+      document.querySelector("#chain-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      document.querySelector(`#lh-card-${def.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  });
+  coastPins?.appendChild(pin);
+  coastPinButtons.push(pin);
+});
+function updateCoastPins(): void {
+  const next = nextLighthouseId(state);
+  CHAIN_LIGHTHOUSES.forEach((def, i) => {
+    const pin = coastPinButtons[i];
+    if (!pin) return;
+    const lit = isLit(state, def.id);
+    pin.classList.toggle("lit", lit);
+    pin.classList.toggle("next", def.id === next);
+    pin.classList.toggle("selected", lit && def.id === selectedBoardId);
+    pin.setAttribute(
+      "aria-label",
+      lit ? `${def.name}, lit — show its chain board` : def.id === next ? `${def.name}, next to relight` : `${def.name}, dark`,
+    );
+  });
 }
 
 function flashBeam(): void {
   const now = Date.now();
   const value = clickValue(state, now);
   clickBeam(state, now);
+  sound.flash();
   if (value.gt(0)) scene?.flash(`+${fmt(value)}`);
   renderDynamic();
 }
@@ -1473,14 +1607,82 @@ sceneCanvas?.addEventListener("pointerdown", (e) => {
   if (e.button === 0) flashBeam();
 });
 
+// ── Moments: full-screen set pieces for a Rekindle, a relight, the ending ───
+const momentEl = document.querySelector<HTMLDivElement>("#moment");
+const momentText = {
+  eyebrow: document.querySelector<HTMLElement>("#moment-eyebrow"),
+  title: document.querySelector<HTMLElement>("#moment-title"),
+  body: document.querySelector<HTMLElement>("#moment-body"),
+  button: document.querySelector<HTMLButtonElement>("#moment-continue"),
+};
+const momentScene = makeScene("#moment-canvas", (c) => new MomentRenderer(c));
+let momentTimer: number | undefined;
+let momentReturnFocus: Element | null = null;
+
+/** When each moment's words appear (s), after the picture has had its say. */
+const MOMENT_TEXT_DELAY: Record<MomentKind, number> = { rekindle: 2.2, relight: 1.2, ending: 4.6 };
+
+/**
+ * Play a moment over the whole screen. It closes on Continue, a click, or
+ * Escape — and on its own after `autoCloseMs` (null: stays until closed).
+ */
+function playMoment(kind: MomentKind, eyebrow: string, title: string, body: string, autoCloseMs: number | null = 7000): void {
+  if (!momentEl) return;
+  if (momentText.eyebrow) momentText.eyebrow.textContent = eyebrow;
+  if (momentText.title) momentText.title.textContent = title;
+  if (momentText.body) momentText.body.textContent = body;
+  momentEl.style.setProperty("--text-delay", `${MOMENT_TEXT_DELAY[kind]}s`);
+  momentEl.dataset.kind = kind;
+  momentReturnFocus = document.activeElement;
+  momentEl.classList.remove("hidden");
+  momentScene?.begin(kind);
+  momentScene?.start();
+  momentText.button?.focus({ preventScroll: true });
+  window.clearTimeout(momentTimer);
+  momentTimer = autoCloseMs === null ? undefined : window.setTimeout(closeMoment, autoCloseMs);
+}
+function closeMoment(): void {
+  if (!momentEl || momentEl.classList.contains("hidden")) return;
+  window.clearTimeout(momentTimer);
+  momentEl.classList.add("hidden");
+  momentScene?.stop();
+  if (momentReturnFocus instanceof HTMLElement) momentReturnFocus.focus({ preventScroll: true });
+}
+momentEl?.addEventListener("click", closeMoment);
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeMoment();
+});
+
+// ── Sound toggle (a per-device preference, not part of the save) ───────────
+const soundToggle = document.querySelector<HTMLButtonElement>("#sound-toggle");
+function showSoundState(): void {
+  if (!soundToggle) return;
+  soundToggle.innerHTML = sound.isEnabled ? SOUND_ON_ICON : SOUND_OFF_ICON;
+  soundToggle.setAttribute("aria-pressed", String(sound.isEnabled));
+  soundToggle.title = sound.isEnabled ? "Sound on — click to mute" : "Sound off — click to unmute";
+}
+soundToggle?.addEventListener("click", () => {
+  sound.setEnabled(!sound.isEnabled);
+  if (sound.isEnabled) sound.chime();
+  showSoundState();
+});
+showSoundState();
+
 // ── Rekindle (two-step confirm so nobody resets by accident) ────────────────
 const rkButton = document.querySelector<HTMLButtonElement>("#rk-button");
 if (rkButton) {
   armTwoStep(rkButton, () => `Are you sure? Click again to Rekindle for +${rekindleGain(state)} Embers`, () => {
     if (!canRekindle(state)) return;
-    rekindle(state);
+    const gained = rekindle(state);
     saveState(state);
     renderDynamic();
+    sound.rekindle();
+    playMoment(
+      "rekindle",
+      "Rekindle",
+      "The light catches again",
+      `+${gained} Embers banked. You hold ${state.embers}, and every flame burns +${state.embers * Math.round(emberBonusPerEmber(state) * 100)}% brighter.`,
+    );
   });
 }
 
@@ -1569,6 +1771,7 @@ function renderDynamic(): void {
     rebuildLighthouses();
   }
   updateChainView();
+  updateCoastPins();
 
   // Buy toggle: reflect the persisted setting.
   for (const btn of toggleBtns) {
@@ -1791,7 +1994,10 @@ function gameTick(): void {
     saveState(state);
   }
   // Story beats fire the moment their moment arrives (cheap predicates).
-  if (checkStory(state).length > 0) saveState(state);
+  if (checkStory(state).length > 0) {
+    sound.story();
+    saveState(state);
+  }
   if (document.hidden) return; // nothing to draw; the clock still runs
   try {
     renderDynamic();
@@ -1808,6 +2014,7 @@ setInterval(gameTick, 100);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) gameTick();
   syncSceneRunning();
+  sound.setHidden(document.hidden);
 });
 
 setInterval(() => saveState(state), 5_000);

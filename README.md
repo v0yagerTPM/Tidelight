@@ -27,7 +27,10 @@ overhaul has begun: the Light view opens on a living scene of
 Candlewick Point — the beam, the glass sea, the tides, the seven
 lighthouses on the horizon, and every kind of helper you've hired —
 with a new type and colour system, illustrated generator rows, and a
-bottom tab bar on phones.
+bottom tab bar on phones. Later phases added a coast panorama of all
+seven lighthouses and a flowing supply chain, a moth meadow on the
+Shore, full-screen moments for a Rekindle, each relight and the ending,
+and synthesised sound (toggle in the header).
 
 ## What's playable
 

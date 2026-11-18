@@ -111,6 +111,12 @@ that respect their time; this design takes that as a hard rule.
 - The scene reads a pure SceneModel built from game state 10×/s, never
   GameState itself; it runs only while the Light view is visible and
   holds still under prefers-reduced-motion.
+- Every view with a world in it opens on its own scene: the Light view
+  (the lamp), Lighthouses (the coast and the chain as pipes), the Shore
+  (the moth meadow and the bottle at sea). Big events get a full-screen
+  moment: Rekindle, each relight, the ending.
+- Sound is synthesised (WebAudio): a quiet sea, a pluck per flash, chimes
+  and bells for what the keeper does. Muting is a per-device preference.
 - Type: IM Fell English (story, names, flavour), Figtree (interface),
   IBM Plex Mono (numbers) — bundled via @fontsource, so the Steam build
   needs no network. Icons are inline SVG (`src/ui/icons.ts`).

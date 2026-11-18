@@ -386,15 +386,51 @@ save, and scripted probes against the game modules):
       Flash button sits clear of the lamp.
 - [x] Tests: `tests/scene.test.ts` pins the state → scene mapping.
 
-**Next phases**
+**Phase 2 — the Lighthouses view. Shipped.**
+
+- [x] Shared canvas plumbing (`src/scene/canvas.ts`): sizing, pixel
+      density, start/stop, reduced motion, and drawing helpers (glow,
+      tower, sweeping beam, moth) used by every scene.
+- [x] The coast panorama (`src/scene/coast.ts`): all seven towers
+      receding to the horizon; lit ones burn and sweep, a path of light
+      runs between them, and the next dark tower waits behind a ring that
+      fills as its gates come within reach. Each tower is a labelled
+      button (lit: show its chain board; dark: scroll to its card).
+- [x] The chain as stations and pipes (`src/scene/chainFlow.ts`): each
+      node's gauge, flow capped by the weakest node so far, the bottleneck
+      glowing coral and sputtering, the beam thrown at the chain factor.
+- [x] Lighthouse cards: lit and far-off ones are one-liners; the next one
+      keeps its description and the Relight button.
+
+**Phase 3 — the Shore. Shipped.**
+
+- [x] The moth meadow (`src/scene/meadow.ts`): collected moths wander in
+      their wing colours, duty moths circle a lantern, the cocoon hangs
+      from a tree (glowing as it ripens, shaking when ready, its parents
+      hovering), and the bottle drifts out along its route and home.
+- [x] Moth cards show each moth's wings (the pattern cut to a moth).
+- [x] The relic cabinet: lit niches with SVG icons; empty ones wait.
+
+**Phase 4 — moments and sound. Shipped.**
+
+- [x] Full-screen moments (`src/scene/moments.ts`): Rekindle (the lamp
+      gutters, embers rise, the flame catches brighter — also used for the
+      Next Keeping), each relight (a path of light reaches a dark tower and
+      it catches), and the ending (the glass cracks, shatters into water,
+      and seven lights stand across the sea). Continue, click or Escape
+      closes them; the ending waits for the player.
+- [x] Sound (`src/audio/sound.ts`), synthesised with WebAudio — no audio
+      files: a quiet sea underneath, a pentatonic pluck for each flash,
+      chimes for purchases and finds, a bell for each relight (a deep one
+      for the ending), and the Rekindle's fall and rise. Starts on the
+      first gesture; a header toggle mutes it (a per-device preference in
+      localStorage, not the save); silent while the tab is hidden.
+- [x] Tests for the coast, chain-flow and meadow models.
+
+**Still to do**
 
 - [ ] Balance: chain support that scales with demand and gates in the
       40–90% band, so buying generators never pushes the ending away (the
       sim's bot still owns none of tiers 6–8 after 200 hours); softer
       scaling for held Embers.
-- [ ] Lighthouses view: a coast panorama of the seven towers and an
-      animated chain board (flowing pipes, a visibly narrowed bottleneck).
-- [ ] Shore: the moth garden as a night meadow, bottles drifting out on
-      the glass, a lit relic cabinet.
-- [ ] Set pieces and sound: Rekindle (the lamp gutters, embers rise),
-      relight cinematics, the ending, and WebAudio ambience and chimes.
+- [ ] Upgrades and Rekindle views: illustrated upgrade and perk cards.

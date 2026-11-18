@@ -1,3 +1,4 @@
+import { AnimatedCanvas, drawMoth, glow, seeded, sparkle } from "./canvas";
 import type { SceneModel } from "./model";
 
 // ── The Light-view scene ─────────────────────────────────────────────────────
@@ -13,18 +14,6 @@ import type { SceneModel } from "./model";
 
 interface Floater { text: string; x: number; y: number; life: number }
 interface Ring { r: number; life: number }
-
-/** A small seeded PRNG so the scenery (stars, cracks, positions) is stable. */
-function seeded(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 const rand = seeded(1871);
 const STARS = Array.from({ length: 150 }, () => ({ x: rand(), y: rand() * 0.52, s: rand() * 1.3 + 0.35, p: rand() * 6.283 }));
@@ -46,32 +35,16 @@ const WHALE_SLOTS = [0.62, 0.8, 0.94].map((x) => ({ x, period: 14 + rand() * 10,
 const RAIN = Array.from({ length: 170 }, () => ({ x: rand() * 1.2, y: rand(), l: 8 + rand() * 14 }));
 const FAR_X = [0.5, 0.58, 0.66, 0.74, 0.83, 0.93];
 
-export class SceneRenderer {
-  private readonly ctx: CanvasRenderingContext2D;
+export class SceneRenderer extends AnimatedCanvas {
   private model: SceneModel | null = null;
-  private w = 0;
-  private h = 0;
-  private raf = 0;
-  private running = false;
   private flashLevel = 0;
   private lightning = 0;
   private readonly floaters: Floater[] = [];
   private readonly rings: Ring[] = [];
-  private readonly reducedMotion: MediaQueryList;
-  private readonly resizeObserver: ResizeObserver;
-
-  constructor(private readonly canvas: HTMLCanvasElement) {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas 2D is not available");
-    this.ctx = ctx;
-    this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(canvas);
-    this.resize();
-  }
 
   setModel(model: SceneModel): void {
     this.model = model;
+    this.redraw();
   }
 
   /** A Flash the Beam moment: the lamp blooms, a ring spreads, the gain floats up. */
@@ -81,34 +54,7 @@ export class SceneRenderer {
     const g = this.geometry();
     this.floaters.push({ text, x: g.lx + (Math.random() - 0.5) * 60, y: g.lampY - 26, life: 1 });
     if (this.floaters.length > 24) this.floaters.shift();
-    if (!this.running) this.draw(performance.now());
-  }
-
-  start(): void {
-    if (this.running) return;
-    this.running = true;
-    const loop = (t: number): void => {
-      if (!this.running) return;
-      this.draw(t);
-      this.raf = requestAnimationFrame(loop);
-    };
-    this.raf = requestAnimationFrame(loop);
-  }
-
-  stop(): void {
-    this.running = false;
-    cancelAnimationFrame(this.raf);
-  }
-
-  private resize(): void {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const rect = this.canvas.getBoundingClientRect();
-    this.w = rect.width;
-    this.h = rect.height;
-    this.canvas.width = Math.max(1, Math.round(rect.width * dpr));
-    this.canvas.height = Math.max(1, Math.round(rect.height * dpr));
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (!this.running) this.draw(performance.now());
+    this.redraw();
   }
 
   private geometry() {
@@ -128,12 +74,10 @@ export class SceneRenderer {
 
   // ── Drawing ────────────────────────────────────────────────────────────────
 
-  private draw(tms: number): void {
+  protected render(t: number, _tms: number, still: boolean): void {
     const m = this.model;
     const ctx = this.ctx;
-    if (!m || this.w === 0 || this.h === 0) return;
-    const still = this.reducedMotion.matches;
-    const t = still ? 0 : tms / 1000;
+    if (!m) return;
     const g = this.geometry();
     const { W, H, horizon, lx, lampY } = g;
     const storm = m.tide === "storm";
@@ -261,12 +205,7 @@ export class SceneRenderer {
   }
 
   private glow(x: number, y: number, r: number, rgb: string, alpha: number): void {
-    const ctx = this.ctx;
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, `rgba(${rgb},${alpha.toFixed(3)})`);
-    grad.addColorStop(1, `rgba(${rgb},0)`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    glow(this.ctx, x, y, r, rgb, alpha);
   }
 
   private drawFarLighthouses(m: SceneModel, t: number, horizon: number): void {
@@ -405,15 +344,7 @@ export class SceneRenderer {
   }
 
   private sparkle(x: number, y: number, r: number, alpha: number): void {
-    const ctx = this.ctx;
-    ctx.strokeStyle = `rgba(255,250,235,${alpha.toFixed(3)})`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x - r, y);
-    ctx.lineTo(x + r, y);
-    ctx.moveTo(x, y - r);
-    ctx.lineTo(x, y + r);
-    ctx.stroke();
+    sparkle(this.ctx, x, y, r, alpha);
   }
 
   /** Oil keepers: the cottage at the foot of the tower, a lit window each. */
@@ -546,14 +477,7 @@ export class SceneRenderer {
   }
 
   private moth(x: number, y: number, size: number, color: string, glowAlpha: number, phase: number): void {
-    const ctx = this.ctx;
-    this.glow(x, y, size * 4.5, "255,220,150", glowAlpha);
-    const wing = this.reducedMotion.matches ? 1 : 0.4 + 0.6 * Math.abs(Math.sin(phase * 14));
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.ellipse(x - size * 0.7, y, size * wing, size * 0.75, -0.4, 0, Math.PI * 2);
-    ctx.ellipse(x + size * 0.7, y, size * wing, size * 0.75, 0.4, 0, Math.PI * 2);
-    ctx.fill();
+    drawMoth(this.ctx, x, y, size, color, glowAlpha, phase, this.reducedMotion.matches);
   }
 
   private drawStorm(t: number, still: boolean): void {
