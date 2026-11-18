@@ -699,3 +699,26 @@ lighthouse post, and the whole Almanac table always open.
 - [x] **Fix:** the buy-amount code listened to every pill toggle, so the
       Keeper's Desk notation buttons set the buy amount to NaN until a
       reload. It now listens only to the ×1/×10/×100/Max buttons.
+
+## ✅ Post-launch — Memory Ships: no more wall after the whales
+
+The Bellwether (lighthouse 5) brought no helper, so after Beacon Whales
+(Widow's Walk, ~12h) nothing new could be hired until The Seventh Light
+(Siren's Rest, ~37h): a quarter of the game on the same ladder.
+
+- [x] **Memory Ship**, tier 6 of 9, answers The Bellwether's light:
+      120M base cost, 47,000 Lumen/s each, growth 1.13 — the geometric
+      mean of the tiers either side. Two upgrades (Lanterns at Every Rail,
+      The Homeward Chart), an icon, pale ships rocking on the Light
+      scene's horizon, and The Bellwether's text says the ships turn home.
+- [x] **Re-paced the last two lights** so the ending stays put: Siren's
+      Rest 8.5e21 → 2.5e22, The Hollow Light 3.2e24 → 6.5e24. Without
+      that the ships pulled the ending from 63.9h to 51.0h.
+
+| Bot (`npm run sim`)           | Before | After |
+| ----------------------------- | ------ | ----- |
+| The Bellwether                | 21.0h  | 21.0h (Memory Ships for hire) |
+| Siren's Rest                  | 36.8h  | 33.3h |
+| The Hollow Light (the ending) | 63.9h  | 62.0h |
+| Highest generator tier hired  | 8 of 8 | 9 of 9 |
+| Endgame chain efficiency      | 91%    | 91%   |

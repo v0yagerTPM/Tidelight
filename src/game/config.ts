@@ -28,13 +28,18 @@ export const GENERATORS: readonly GeneratorDef[] = [
   { id: "lens-polisher",   name: "Lens Polisher",    flavor: "Every lens remembers a horizon.",           baseCost: 170_000,   baseProduction: 540,    growth: 1.14, unlockedBy: "gull-rock" },
   { id: "storm-lantern",   name: "Storm Lantern",    flavor: "Lit in a gale, on purpose.",                baseCost: 2_100_000, baseProduction: 3_200,  growth: 1.14, unlockedBy: "cormorant-roost" },
   { id: "beacon-whale",    name: "Beacon Whale",     flavor: "The sea's oldest lighthouse keeper.",      baseCost: 31_000_000, baseProduction: 19_000, growth: 1.13, unlockedBy: "widows-walk" },
+  { id: "memory-ship",     name: "Memory Ship",      flavor: "Mostly memory, wholly lit. The Bellwether rang it home.", baseCost: 120_000_000, baseProduction: 47_000, growth: 1.13, unlockedBy: "bellwether" },
   { id: "seventh-light",   name: "The Seventh Light", flavor: "You don't hire this one. You become it.", baseCost: 460_000_000, baseProduction: 115_000, growth: 1.13, unlockedBy: "sirens-rest" },
 ];
 
 // ── GENERATOR UNLOCKS (post-launch rebalance) ───────────────────────────────
-// The upper four tiers answer the light of a relit lighthouse: Lens
+// The upper five tiers answer the light of a relit lighthouse: Lens
 // Polishers come with Gull Rock, Storm Lanterns with Cormorant Roost,
-// Beacon Whales with Widow's Walk, The Seventh Light with Siren's Rest.
+// Beacon Whales with Widow's Walk, Memory Ships with The Bellwether, The
+// Seventh Light with Siren's Rest. (Memory Ships were added later: before
+// them The Bellwether brought no helper, and the ladder stalled at Beacon
+// Whales for a quarter of the game. Their cost and output sit on the
+// geometric mean of the tiers either side.)
 // Why: each tier out-produces the last ~6× for ~12× the price, so once
 // Embers could buy the whole ladder, one run jumped production by seven
 // orders of magnitude and the game flattened into a plateau after it. With
@@ -258,7 +263,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
   {
     id: BELLWETHER_ID,
     name: "The Bellwether",
-    hint: "The lead light — the one the others were lit from, in the old order of things. Its bell still knows the way home. Relight it and every Rekindle banks +25% more Embers.",
+    hint: "The lead light — the one the others were lit from, in the old order of things. Its bell still knows the way home, and so do the ships that heard it. Relight it and every Rekindle banks +25% more Embers.",
     relightCost: 7.6e18,
     efficiencyRequirement: 0.7,
     productionBonus: 0,
@@ -271,7 +276,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: SIRENS_REST_ID,
     name: "Siren's Rest",
     hint: "A low, lovely tower on the last rock before the deep glass. The sirens sleep here now, retired and harmless. Relight it and the night works harder for you: offline rate +10 points and the offline cap grows by 4 hours.",
-    relightCost: 8.5e21,
+    relightCost: 2.5e22, // raised from 8.5e21 when Memory Ships joined the ladder
     efficiencyRequirement: 0.75,
     productionBonus: 0,
     ...NO_BONUS,
@@ -284,7 +289,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: HOLLOW_LIGHT_ID,
     name: "The Hollow Light",
     hint: "The last tower, at the heart of the Hollow Sea — the light the sea itself was named for. No keeper has relit it. No keeper has come back from trying. Yet. +150% production, and whatever waits beyond it.",
-    relightCost: 3.2e24,
+    relightCost: 6.5e24, // raised from 3.2e24 when Memory Ships joined the ladder
     efficiencyRequirement: 0.8,
     productionBonus: 1.5,
     ...NO_BONUS,

@@ -63,6 +63,7 @@ const GENERATOR_UPGRADE_NAMES: Record<string, readonly [string, string]> = {
   "lens-polisher": ["Silk Sleeves", "Flawless Finish"],
   "storm-lantern": ["Gale-Proof Wick", "Lightning Crown"],
   "beacon-whale": ["Luminous Plankton", "Song of Deep Light"],
+  "memory-ship": ["Lanterns at Every Rail", "The Homeward Chart"],
   "seventh-light": ["Become the Wick", "The Final Brightening"],
 };
 

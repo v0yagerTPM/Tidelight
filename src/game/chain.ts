@@ -370,7 +370,7 @@ const RELIGHT_LOG_LINES: Record<string, string> = {
   [GULL_ROCK_ID]: "Gull Rock Light burns again — every flame you tend burns half again as bright. (+50% production)",
   "cormorant-roost": "Cormorant Roost burns again — the cormorants approve, in their hundreds, all facing the light. (+75% production)",
   "widows-walk": "The Widow's Walk burns again — and in its store-rooms, a century of careful keeping: every supply chain you tend runs half again as strong. (chain support +50%)",
-  bellwether: "The Bellwether burns again — somewhere across the glass, its bell rings once, and every ember you bank from now on weighs more. (Ember gain +25%)",
+  bellwether: "The Bellwether burns again — somewhere across the glass, its bell rings once, and the ships that are mostly memory turn toward it. Every ember you bank from now on weighs more. (Ember gain +25%; Memory Ships can be hired)",
   "sirens-rest": "Siren's Rest burns again — the sirens stir, stretch, and go back to sleep, mollified. The night itself works harder for you now. (offline rate +10 pts, offline cap +4h)",
   [HOLLOW_LIGHT_ID]: "THE HOLLOW LIGHT BURNS. From Candlewick Point to the heart of the sea, seven lights stand in a row across the glass — and the glass, all at once, remembers it was water. (+150% production)",
 };

@@ -56,6 +56,8 @@ export interface SceneModel {
   lensGlints: number;
   stormLanterns: number;
   whales: number;
+  /** Memory ships drifting home along the horizon (0–3). */
+  ships: number;
   /** 0 = no Seventh Light; 0.3 with one, rising to 1 at 25 (a halo round the lamp). */
   seventh: number;
   /** Collected moths on duty, drawn larger, in their wing colours. */
@@ -101,6 +103,7 @@ export function buildSceneModel(state: GameState, now: number): SceneModel {
     lensGlints: visibleCount(owned("lens-polisher"), 5),
     stormLanterns: visibleCount(owned("storm-lantern"), 6),
     whales: visibleCount(owned("beacon-whale"), 3),
+    ships: visibleCount(owned("memory-ship"), 3),
     seventh: owned("seventh-light") > 0 ? 0.3 + 0.7 * Math.min(1, owned("seventh-light") / 25) : 0,
     lampHalo: lampHaloColor(state),
     duty: dutyMoths(state).map((m) => {
