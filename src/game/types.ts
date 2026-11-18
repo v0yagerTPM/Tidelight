@@ -52,6 +52,8 @@ export interface ExpeditionState {
   startedAt: number;
   /** Unix timestamp (ms) it washes back. */
   returnsAt: number;
+  /** A moth riding along (see mothTraits.ts), if any. */
+  riderId?: string;
 }
 
 export interface GameState {
@@ -101,6 +103,10 @@ export interface GameState {
   mothLureRushes: number;
   /** Lighthouse id → the moth posted there (see mothTraits.ts). */
   mothPosts: Record<string, string>;
+  /** Wing Almanac entries filled, as "pattern:trait" keys (see almanac.ts). */
+  almanac: string[];
+  /** Wing Scales from released moths, spent on scented lures. */
+  wingScales: number;
   /** The bottle expedition currently out, or null. */
   expedition: ExpeditionState | null;
   /** Relic ids claimed from expeditions (unique, permanent). */
@@ -152,6 +158,8 @@ export interface SavedState {
   mothLureAnchor: number;
   mothLureRushes: number;
   mothPosts: Record<string, string>;
+  almanac: string[];
+  wingScales: number;
   expedition: ExpeditionState | null;
   relics: string[];
   storyFragmentIndex: number;

@@ -332,6 +332,17 @@ export class SceneRenderer extends AnimatedCanvas {
       ctx.ellipse(lx, lampY, hr, hr * 0.9, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
+    // The Wing Almanac, complete: a halo in the brightest moth's colour.
+    if (m.lampHalo) {
+      const [r, gg, b] = [1, 3, 5].map((i) => parseInt(m.lampHalo!.slice(i, i + 2), 16));
+      const hr = 46 + Math.sin(t * 0.6) * 4;
+      ctx.strokeStyle = `rgba(${r},${gg},${b},0.55)`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.ellipse(lx, lampY, hr, hr * 0.92, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      this.glow(lx, lampY, hr * 1.25, `${r},${gg},${b}`, 0.18);
+    }
     // Lens polishers: glints on the lamp-room glass.
     for (let i = 0; i < m.lensGlints; i++) {
       const phase = (t * 0.7 + i * 1.37) % 3;

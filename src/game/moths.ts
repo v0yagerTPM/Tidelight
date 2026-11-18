@@ -1,4 +1,5 @@
 import Decimal from "break_infinity.js";
+import { almanacCocoonMultiplier, dutySlots, lureBankSize, lureRegrowMs, recordAlmanac } from "./almanac";
 import { CHAIN_LIGHTHOUSES } from "./config";
 import { relicMothGlowBonus } from "./expeditions";
 import { formatNumber } from "./format";
@@ -11,9 +12,11 @@ import {
   dutyMothsOf,
   dutyProductionMultiplier,
   hasTrait,
+  isAtSea,
   postOf,
   traitById,
 } from "./mothTraits";
+import { tideAt } from "./tides";
 import { addLog } from "./state";
 import type { GameState, Moth } from "./types";
 
@@ -62,14 +65,20 @@ export const MOTH_PATTERNS: readonly MothPatternDef[] = [
   { id: "crescent",  name: "Crescent",  tier: 3, weight: 9, glowCeiling: 80, emoji: "🌙", swatch: "radial-gradient(circle at 68% 32%, transparent 26%, #7d84b8 27%), linear-gradient(135deg, #4b5480, #7983b5)" },
   { id: "starlit",   name: "Starlit",   tier: 4, weight: 4.5, glowCeiling: 90,  emoji: "⭐", swatch: "radial-gradient(circle at 25% 30%, #fff6c9 8%, transparent 9%), radial-gradient(circle at 70% 55%, #ffe9a8 6%, transparent 7%), radial-gradient(circle at 45% 78%, #fff6c9 5%, transparent 6%), linear-gradient(135deg, #232a52, #3d4a8a)" },
   { id: "prismatic", name: "Prismatic", tier: 5, weight: 0.5, glowCeiling: 100,  emoji: "🌈", swatch: "linear-gradient(135deg, #f28ba8, #f7d774, #8fd18b, #7fb5d9, #b48fd9)" },
+  // Never wild and never bred true: a Starlit or Prismatic cocoon that opens in a Stormfront is Tidelit 5% of the time.
+  { id: "tidelit",   name: "Tidelit",   tier: 5, weight: 0, glowCeiling: 100, emoji: "🌊", swatch: "repeating-linear-gradient(160deg, #2d6f86 0 5px, #8fd6c4 5px 8px, #1d3f5c 8px 13px)" },
 ];
 
 export function patternById(id: string): MothPatternDef {
   return MOTH_PATTERNS.find((p) => p.id === id) ?? MOTH_PATTERNS[0];
 }
 
+/** The highest wing tier (Prismatic, and the Tidelit sidegrade). */
+export const MAX_TIER = 5;
+
+/** The bred pattern for a tier (Tidelit shares tier 5 but is never bred to by tier). */
 export function patternByTier(tier: number): MothPatternDef {
-  const clamped = Math.max(0, Math.min(MOTH_PATTERNS.length - 1, Math.floor(tier)));
+  const clamped = Math.max(0, Math.min(MAX_TIER, Math.floor(tier)));
   return MOTH_PATTERNS.find((p) => p.tier === clamped) ?? MOTH_PATTERNS[0];
 }
 
@@ -131,9 +140,15 @@ export const WILD_TRAIT_CHANCE = 0.25;
 export const TRAIT_INHERIT_CHANCE = 0.5;
 /** …and otherwise gains a new trait this often. */
 export const TRAIT_MUTATION_CHANCE = 0.03;
-/** Lures held at most; one regrows every LURE_REGROW_MS, offline too. */
+/** Lures held at most (4 with the Almanac's A Deeper Bank, see lureBankSize). */
 export const LURE_BANK = 3;
+/** One lure regrows this often, offline too (15 minutes with Sweet Oil, see lureRegrowMs). */
 export const LURE_REGROW_MS = 20 * 60 * 1000;
+export { lureBankSize, lureRegrowMs };
+/** A scented lure costs this many Wing Scales and always brings a moth with a trait. */
+export const SCENTED_LURE_SCALES = 8;
+/** During a Stormfront, a Starlit or Prismatic hatchling is Tidelit this often. */
+export const TIDELIT_CHANCE = 0.05;
 /** A rush lure costs this share of all-time Lumen (at least RUSH_LURE_MIN_COST)… */
 export const RUSH_LURE_SHARE = 0.005;
 export const RUSH_LURE_MIN_COST = 500;
@@ -198,24 +213,27 @@ export interface LureStatus {
 
 /** The lure bank as of `now`, without changing the state. */
 export function lureStatus(state: GameState, now: number = Date.now()): LureStatus {
-  const held = Math.max(0, Math.min(LURE_BANK, Math.floor(state.mothLures)));
-  if (held >= LURE_BANK) return { held, nextInMs: null, rushes: 0 };
+  const bank = lureBankSize(state);
+  const regrow = lureRegrowMs(state);
+  const held = Math.max(0, Math.min(bank, Math.floor(state.mothLures)));
+  if (held >= bank) return { held, nextInMs: null, rushes: 0 };
   const elapsed = Math.max(0, now - state.mothLureAnchor);
-  const grown = Math.floor(elapsed / LURE_REGROW_MS);
-  const nowHeld = Math.min(LURE_BANK, held + grown);
+  const grown = Math.floor(elapsed / regrow);
+  const nowHeld = Math.min(bank, held + grown);
   const rushes = Math.max(0, state.mothLureRushes - grown);
-  if (nowHeld >= LURE_BANK) return { held: nowHeld, nextInMs: null, rushes: 0 };
-  return { held: nowHeld, nextInMs: LURE_REGROW_MS - (elapsed - grown * LURE_REGROW_MS), rushes };
+  if (nowHeld >= bank) return { held: nowHeld, nextInMs: null, rushes: 0 };
+  return { held: nowHeld, nextInMs: regrow - (elapsed - grown * regrow), rushes };
 }
 
 /** Fold the lures grown since the anchor into the state (call before spending). */
 function settleLures(state: GameState, now: number): void {
-  const before = Math.max(0, Math.min(LURE_BANK, Math.floor(state.mothLures)));
+  const bank = lureBankSize(state);
+  const before = Math.max(0, Math.min(bank, Math.floor(state.mothLures)));
   const st = lureStatus(state, now);
-  if (st.held >= LURE_BANK || state.mothLureAnchor > now) {
+  if (st.held >= bank || state.mothLureAnchor > now) {
     state.mothLureAnchor = now;
   } else {
-    state.mothLureAnchor += (st.held - before) * LURE_REGROW_MS;
+    state.mothLureAnchor += (st.held - before) * lureRegrowMs(state);
   }
   state.mothLures = st.held;
   state.mothLureRushes = st.rushes;
@@ -258,13 +276,13 @@ export function mothProductionMultiplier(state: GameState): number {
  */
 export function toggleDuty(state: GameState, mothId: string): boolean {
   if (!mothById(state, mothId)) return false;
-  if (postOf(state, mothId) !== null) return false;
+  if (postOf(state, mothId) !== null || isAtSea(state, mothId)) return false;
   const idx = state.mothDuty.indexOf(mothId);
   if (idx >= 0) {
     state.mothDuty.splice(idx, 1);
     return true;
   }
-  if (dutyMoths(state).length >= MAX_DUTY_MOTHS) return false;
+  if (dutyMoths(state).length >= dutySlots(state)) return false;
   state.mothDuty.push(mothId);
   return true;
 }
@@ -278,7 +296,7 @@ function rollPattern(rng: () => number): MothPatternDef {
     roll -= def.weight;
     if (roll < 0) return def;
   }
-  return MOTH_PATTERNS[MOTH_PATTERNS.length - 1];
+  return patternByTier(MAX_TIER);
 }
 
 function canAttract(state: GameState): boolean {
@@ -313,18 +331,37 @@ export function rushAttractMoth(state: GameState, rng: () => number, now: number
   return wildMoth(state, rng);
 }
 
+/**
+ * Attract a wild moth with a scented lure: 8 Wing Scales, no lure needed,
+ * and the moth always carries a trait.
+ */
+export function scentedAttractMoth(state: GameState, rng: () => number): Moth | null {
+  if (!canAttract(state)) return null;
+  if (state.wingScales < SCENTED_LURE_SCALES) return null;
+  state.wingScales -= SCENTED_LURE_SCALES;
+  return wildMoth(state, rng, true);
+}
+
 /** Wild moths: pattern by weight, glow 1 to 60% of that pattern's ceiling (+ the Cradle). */
-function wildMoth(state: GameState, rng: () => number): Moth {
+function wildMoth(state: GameState, rng: () => number, scented = false): Moth {
   const pattern = rollPattern(rng);
   const glow = clampGlow(1 + Math.floor(rng() * WILD_GLOW_SHARE * pattern.glowCeiling) + wildGlowBonus(state), pattern.id);
   // rng order: pattern, glow, name prefix, name suffix, id, then the trait rolls.
   const name = generateName(rng);
   const moth: Moth = { id: generateId(state, rng), name, pattern: pattern.id, glow, generation: 1 };
-  const trait = rng() < WILD_TRAIT_CHANCE ? randomTrait(rng) : null;
+  const trait = scented || rng() < WILD_TRAIT_CHANCE ? randomTrait(rng) : null;
   if (trait) moth.trait = trait;
   state.moths.push(moth);
   addLog(state, `A lantern moth settles by the lamp: ${moth.name}, ${pattern.name.toLowerCase()}-winged and glowing at ${glow}${traitPhrase(moth)}. It followed the light home. It stayed.`);
+  noteInAlmanac(state, moth);
   return moth;
+}
+
+/** Fill the moth's Almanac entry, if new, and say so in the log. */
+export function noteInAlmanac(state: GameState, moth: Moth): void {
+  if (!recordAlmanac(state, moth)) return;
+  const trait = traitById(moth.trait);
+  addLog(state, `A new page in the Wing Almanac: ${patternById(moth.pattern).name} wings, ${trait ? trait.name.toLowerCase() : "no trait"} (${state.almanac.length} filled).`);
 }
 
 function randomTrait(rng: () => number): string {
@@ -371,10 +408,11 @@ export function isCocoonParent(state: GameState, mothId: string): boolean {
  * How long a cocoon from these parents takes: 30 minutes × (1 + 0.3 × the
  * higher parent's tier) — Plain 30 minutes, Prismatic 75.
  */
-export function cocoonDurationMs(parentA: Moth, parentB: Moth): number {
+export function cocoonDurationMs(parentA: Moth, parentB: Moth, state?: GameState): number {
   const tier = Math.max(patternById(parentA.pattern).tier, patternById(parentB.pattern).tier);
   const fertile = hasTrait(parentA, "fertile") || hasTrait(parentB, "fertile") ? FERTILE_COCOON_MULTIPLIER : 1;
-  return Math.round(COCOON_BASE_MS * (1 + COCOON_PER_TIER * tier) * fertile);
+  const silk = state ? almanacCocoonMultiplier(state) : 1;
+  return Math.round(COCOON_BASE_MS * (1 + COCOON_PER_TIER * tier) * fertile * silk);
 }
 
 /**
@@ -388,9 +426,10 @@ export function startBreeding(state: GameState, parentAId: string, parentBId: st
   if (parentAId === parentBId) return false;
   if (!mothById(state, parentAId) || !mothById(state, parentBId)) return false;
   if (postOf(state, parentAId) !== null || postOf(state, parentBId) !== null) return false; // on watch
+  if (isAtSea(state, parentAId) || isAtSea(state, parentBId)) return false; // riding a bottle
   const a = mothById(state, parentAId)!;
   const b = mothById(state, parentBId)!;
-  const duration = cocoonDurationMs(a, b);
+  const duration = cocoonDurationMs(a, b, state);
   state.cocoon = { parentIds: [parentAId, parentBId], readyAt: now + duration };
   addLog(state, `${a.name} and ${b.name} spin a cocoon together in the warm dark under the lamp. ${Math.round(duration / 60_000)} minutes, give or take a dream.`);
   return true;
@@ -425,7 +464,7 @@ export function hatchCocoon(state: GameState, rng: () => number, now: number = D
   const baseTier = rng() < 0.65 ? Math.max(tierA, tierB) : Math.min(tierA, tierB);
   // 2. tier shift — Prismatic is unstable; everything else drifts ±1
   const shiftRoll = rng();
-  const top = MOTH_PATTERNS.length - 1;
+  const top = MAX_TIER;
   let tier = baseTier;
   if (baseTier >= top) {
     if (shiftRoll >= PRISMATIC_TRUE_CHANCE) tier = top - 1;
@@ -452,9 +491,14 @@ export function hatchCocoon(state: GameState, rng: () => number, now: number = D
   };
   const trait = childTrait(rng, parentA, parentB);
   if (trait) child.trait = trait;
+  // Last roll: a Starlit or Prismatic cocoon opening in a Stormfront may be Tidelit.
+  const stormborn = pattern.tier >= MAX_TIER - 1 && tideAt(now).def.id === "storm" && rng() < TIDELIT_CHANCE;
+  if (stormborn) child.pattern = "tidelit";
   state.cocoon = null;
   state.moths.push(child);
-  addLog(state, `The cocoon opens: ${child.name}, ${pattern.name.toLowerCase()}-winged, generation ${child.generation}, glowing at ${glow}${traitPhrase(child)}. ${parentA.name} and ${parentB.name} look insufferably proud.`);
+  addLog(state, `The cocoon opens: ${child.name}, ${patternById(child.pattern).name.toLowerCase()}-winged, generation ${child.generation}, glowing at ${glow}${traitPhrase(child)}. ${parentA.name} and ${parentB.name} look insufferably proud.`);
+  if (stormborn) addLog(state, `${child.name} opened in the storm, and the storm stayed in its wings: a Tidelit moth, bright when the sea is rough and dim when it is still.`);
+  noteInAlmanac(state, child);
   return child;
 }
 
@@ -475,17 +519,24 @@ export function releasePayout(_state: GameState, moth: Moth): Decimal {
  * to the purse only (it doesn't count as earned lifetime). A moth sitting
  * in the cocoon can't be released. Returns the Lumen gained, or null.
  */
+/** Wing Scales a release leaves behind: 1 per tier + 1, and 1 more for a trait. */
+export function releaseScales(moth: Moth): number {
+  return patternById(moth.pattern).tier + 1 + (traitById(moth.trait) ? 1 : 0);
+}
+
 export function releaseMoth(state: GameState, mothId: string): Decimal | null {
   const moth = mothById(state, mothId);
   if (!moth) return null;
-  if (isCocoonParent(state, mothId)) return null;
+  if (isCocoonParent(state, mothId) || isAtSea(state, mothId)) return null;
   const value = releasePayout(state, moth);
   state.moths = state.moths.filter((m) => m.id !== mothId);
   state.mothDuty = state.mothDuty.filter((id) => id !== mothId);
   const post = postOf(state, mothId);
   if (post) delete state.mothPosts[post];
   state.lumen = state.lumen.add(value);
-  addLog(state, `${moth.name} drifts out over the glass sea, unhurried. The lamp is dimmer for it. (+${formatNumber(value, state.notation)} Lumen of stored lamplight)`);
+  const scales = releaseScales(moth);
+  state.wingScales += scales;
+  addLog(state, `${moth.name} drifts out over the glass sea, unhurried. The lamp is dimmer for it. (+${formatNumber(value, state.notation)} Lumen of stored lamplight, +${scales} Wing Scale${scales === 1 ? "" : "s"})`);
   return value;
 }
 
@@ -500,7 +551,7 @@ export function releaseMoth(state: GameState, mothId: string): Decimal | null {
 export function postMoth(state: GameState, mothId: string, lighthouseId: string): boolean {
   const moth = mothById(state, mothId);
   if (!moth || !state.litLighthouses.includes(lighthouseId)) return false;
-  if (isCocoonParent(state, mothId)) return false;
+  if (isCocoonParent(state, mothId) || isAtSea(state, mothId)) return false;
   if (state.mothPosts[lighthouseId] === mothId) return false;
   const previous = postOf(state, mothId);
   if (previous) delete state.mothPosts[previous];

@@ -69,7 +69,6 @@ import {
 } from "./game/expeditions";
 import { formatDuration, formatNumber } from "./game/format";
 import {
-  MAX_DUTY_MOTHS,
   attractMoth,
   cocoonReady,
   dutyGlowTotal,
@@ -87,7 +86,9 @@ import {
   rushAttractMoth,
   rushLureCost,
   lureStatus,
-  LURE_BANK,
+  SCENTED_LURE_SCALES,
+  scentedAttractMoth,
+  releaseScales,
   isOldLight,
   cocoonDurationMs,
   startBreeding,
@@ -95,7 +96,8 @@ import {
   postMoth,
   recallMoth,
 } from "./game/moths";
-import { dutyBonusOf, postBonusOf, postOf, postedMoth, traitById } from "./game/mothTraits";
+import { MOTH_TRAITS, dutyBonusOf, isAtSea, postBonusOf, postOf, postedMoth, riderOf, traitById } from "./game/mothTraits";
+import { ALMANAC_PATTERNS, ALMANAC_REWARDS, ALMANAC_SIZE, almanacHas, dutySlots, lureBankSize } from "./game/almanac";
 import { legacyMultiplier, startNgPlus } from "./game/ngplus";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
 import { STORY_ACTS, STORY_BEATS, checkStory } from "./game/story";
@@ -109,7 +111,7 @@ import {
   serializeState,
   startBoard,
 } from "./game/state";
-import type { BuyAmount, GameState } from "./game/types";
+import type { BuyAmount, GameState, Moth } from "./game/types";
 import { Sound } from "./audio/sound";
 import { ChainFlowRenderer } from "./scene/chainFlow";
 import { COAST_LAYOUT, CoastRenderer } from "./scene/coast";
@@ -808,11 +810,14 @@ const relicShelf = document.querySelector<HTMLDivElement>("#relic-shelf");
 let shoreStructureKey: string | null = null;
 let breedParentA = "";
 let breedParentB = "";
+/** The moth chosen to ride the next bottle ("" = none). */
+let bottleRider = "";
 
 interface ShoreRefs {
   attractBtn: HTMLButtonElement | null;
   attractNote: HTMLElement | null;
   rushBtn: HTMLButtonElement | null;
+  scentedBtn: HTMLButtonElement | null;
   roostBtn: HTMLButtonElement | null;
   roostNote: HTMLElement | null;
   cocoonNote: HTMLElement | null;
@@ -822,7 +827,7 @@ interface ShoreRefs {
   sendBtns: { routeId: string; btn: HTMLButtonElement; note: HTMLElement | null }[];
 }
 let shoreRefs: ShoreRefs = {
-  attractBtn: null, attractNote: null, rushBtn: null, roostBtn: null, roostNote: null,
+  attractBtn: null, attractNote: null, rushBtn: null, scentedBtn: null, roostBtn: null, roostNote: null,
   cocoonNote: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
 };
 
@@ -834,15 +839,17 @@ function shoreKey(): string {
     Object.entries(state.mothPosts).map(([l, m]) => `${l}=${m}`).join(","),
     state.litLighthouses.join(","),
     state.roostExpansions,
+    state.almanac.length,
+    state.moths.map((m) => m.trait ?? "").join(","),
     state.cocoon ? `${state.cocoon.parentIds.join("+")}@${state.cocoon.readyAt}` : "-",
-    state.expedition ? `${state.expedition.routeId}@${state.expedition.returnsAt}` : "-",
+    state.expedition ? `${state.expedition.routeId}@${state.expedition.returnsAt}:${state.expedition.riderId ?? ""}` : "-",
     state.relics.join(","),
   ].join("|");
 }
 
 function rebuildShore(): void {
   shoreRefs = {
-    attractBtn: null, attractNote: null, rushBtn: null, roostBtn: null, roostNote: null,
+    attractBtn: null, attractNote: null, rushBtn: null, scentedBtn: null, roostBtn: null, roostNote: null,
     cocoonNote: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
   };
 
@@ -864,12 +871,20 @@ function rebuildShore(): void {
         <div class="gen-name">🦋 The Roost</div>
         <p class="muted moth-roost-line"></p>
         <div class="shore-actions">
-          <span class="shore-action"><button class="buy moth-attract">Attract a moth</button><button class="buy moth-rush">Rush lure</button><span class="gen-note muted moth-attract-note"></span></span>
+          <span class="shore-action"><button class="buy moth-attract">Attract a moth</button><button class="buy moth-rush">Rush lure</button><button class="buy moth-scented">Scented lure</button><span class="gen-note muted moth-attract-note"></span></span>
           <span class="shore-action"><button class="buy moth-roost">Expand the roost (+2)</button><span class="gen-note muted moth-roost-note"></span></span>
         </div>`;
       shoreRefs.attractBtn = controls.querySelector<HTMLButtonElement>(".moth-attract");
       shoreRefs.attractNote = controls.querySelector<HTMLElement>(".moth-attract-note");
       shoreRefs.rushBtn = controls.querySelector<HTMLButtonElement>(".moth-rush");
+      shoreRefs.scentedBtn = controls.querySelector<HTMLButtonElement>(".moth-scented");
+      shoreRefs.scentedBtn?.addEventListener("click", () => {
+        if (scentedAttractMoth(state, Math.random)) {
+          sound.chime();
+          saveState(state);
+          renderDynamic();
+        }
+      });
       shoreRefs.roostBtn = controls.querySelector<HTMLButtonElement>(".moth-roost");
       shoreRefs.roostNote = controls.querySelector<HTMLElement>(".moth-roost-note");
       shoreRefs.attractBtn?.addEventListener("click", () => {
@@ -903,18 +918,19 @@ function rebuildShore(): void {
         const isDuty = onDuty.some((m) => m.id === moth.id);
         const inCocoon = isCocoonParent(state, moth.id);
         const post = postOf(state, moth.id);
+        const atSea = isAtSea(state, moth.id);
         const trait = traitById(moth.trait);
         const card = document.createElement("div");
         card.className = `gen moth${isDuty || post ? " purchased" : ""}`;
         card.innerHTML = `
           <div class="moth-portrait"><div class="moth-swatch" style="background:${pattern.swatch}"></div></div>
           <div class="gen-main">
-            <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${post ? ` <span class="perm">at ${chainLighthouseById(post).name}</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}${trait ? ` <span class="moth-trait" title="${trait.effect}">${trait.name}</span>` : ""}</div>
+            <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${post ? ` <span class="perm">at ${chainLighthouseById(post).name}</span>` : ""}${atSea ? ` <span class="perm">riding a bottle</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}${trait ? ` <span class="moth-trait" title="${trait.effect}">${trait.name}</span>` : ""}</div>
             <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow}${isOldLight(moth) ? ` <span class="perm" title="From before the moth rebalance: it keeps its glow above the ${pattern.name} ceiling. Its children are held to theirs.">old light</span>` : ` of ${pattern.glowCeiling}`} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(dutyBonusOf(moth) * 100).toFixed(1)}%` : ""}${post ? ` · post bonus +${(postBonusOf(moth) * 100).toFixed(1)}% support` : ""}</div>${trait ? `<div class="gen-flavor moth-trait-line">${trait.name}: ${trait.effect}</div>` : ""}
           </div>
           <div class="gen-buy moth-actions">
-            <button class="buy moth-duty"${post ? ` disabled title="Recall it from its post first"` : ""}>${isDuty ? "Stand down" : "Put on duty"}</button>
-            <button class="buy moth-release">Release (+${fmt(releasePayout(state, moth))})</button>
+            <button class="buy moth-duty"${post ? ` disabled title="Recall it from its post first"` : atSea ? ` disabled title="It is out at sea"` : ""}>${isDuty ? "Stand down" : "Put on duty"}</button>
+            <button class="buy moth-release"${atSea ? " disabled" : ""}>Release (+${fmt(releasePayout(state, moth))}, +${releaseScales(moth)} scale${releaseScales(moth) === 1 ? "" : "s"})</button>
           </div>`;
         const dutyBtn = card.querySelector<HTMLButtonElement>(".moth-duty");
         dutyBtn?.addEventListener("click", () => {
@@ -924,7 +940,7 @@ function rebuildShore(): void {
           }
         });
         const releaseBtn = card.querySelector<HTMLButtonElement>(".moth-release");
-        if (releaseBtn && !inCocoon) {
+        if (releaseBtn && !inCocoon && !atSea) {
           armTwoStep(releaseBtn, `Are you sure? ${moth.name} won't come back`, () => {
             if (releaseMoth(state, moth.id) !== null) {
               saveState(state);
@@ -948,7 +964,7 @@ function rebuildShore(): void {
         const rows = lit.map((l) => {
           const here = postedMoth(state, l.id);
           const options = state.moths
-            .filter((m) => m.id !== here?.id && !isCocoonParent(state, m.id))
+            .filter((m) => m.id !== here?.id && !isCocoonParent(state, m.id) && !isAtSea(state, m.id))
             .map((m) => {
               const elsewhere = postOf(state, m.id);
               const note = elsewhere ? `, at ${chainLighthouseById(elsewhere).name}` : onDuty.some((d) => d.id === m.id) ? ", on duty" : "";
@@ -990,6 +1006,34 @@ function rebuildShore(): void {
         mothArea.appendChild(posts);
       }
 
+      // The Wing Almanac: patterns × traits, and its rewards.
+      {
+        const book = document.createElement("div");
+        book.className = "card";
+        const columns = [null, ...MOTH_TRAITS];
+        const head = columns.map((t) => `<th title="${t ? t.effect : "Moths without a trait"}">${t ? t.name : "No trait"}</th>`).join("");
+        const body = ALMANAC_PATTERNS.map((pid) => {
+          const p = patternById(pid);
+          const cells = columns
+            .map((t) => {
+              const has = almanacHas(state, pid, t?.id);
+              return `<td class="${has ? "almanac-has" : "almanac-missing"}" title="${p.name}, ${t ? t.name : "no trait"}${has ? "" : " — not yet"}">${has ? p.emoji : "·"}</td>`;
+            })
+            .join("");
+          return `<tr><th scope="row">${p.name}</th>${cells}</tr>`;
+        }).join("");
+        const rewards = ALMANAC_REWARDS.map((r) => {
+          const earned = state.almanac.length >= r.entries;
+          return `<li class="${earned ? "learned" : "muted"}">${earned ? "✓" : `${r.entries}`} · <strong>${r.name}</strong>: ${r.effect}</li>`;
+        }).join("");
+        book.innerHTML = `
+          <div class="gen-name">📖 The Wing Almanac — ${state.almanac.length}/${ALMANAC_SIZE}</div>
+          <p class="muted">A page for every wing and trait. A page fills the first time you hold such a moth, and stays filled. Release moths for Wing Scales: ${SCENTED_LURE_SCALES} buy a scented lure, which always brings a moth with a trait.</p>
+          <div class="almanac-scroll"><table class="almanac"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>
+          <ul class="almanac-rewards">${rewards}</ul>`;
+        mothArea.appendChild(book);
+      }
+
       // Breeding: two selects + cocoon card.
       const breed = document.createElement("div");
       breed.className = "card";
@@ -1010,8 +1054,8 @@ function rebuildShore(): void {
             renderDynamic();
           }
         });
-      } else if (state.moths.filter((m) => postOf(state, m.id) === null).length >= 2) {
-        const home = state.moths.filter((m) => postOf(state, m.id) === null);
+      } else if (state.moths.filter((m) => postOf(state, m.id) === null && !isAtSea(state, m.id)).length >= 2) {
+        const home = state.moths.filter((m) => postOf(state, m.id) === null && !isAtSea(state, m.id));
         if (!home.some((m) => m.id === breedParentA)) breedParentA = home[0].id;
         if (!home.some((m) => m.id === breedParentB) || breedParentB === breedParentA) {
           breedParentB = home.find((m) => m.id !== breedParentA)?.id ?? "";
@@ -1034,7 +1078,7 @@ function rebuildShore(): void {
         const showTime = () => {
           const a = mothById(state, breedParentA);
           const b = mothById(state, breedParentB);
-          if (timeNote) timeNote.textContent = a && b && a !== b ? `This pair's cocoon: ${formatDuration(cocoonDurationMs(a, b) / 1000)}.` : "";
+          if (timeNote) timeNote.textContent = a && b && a !== b ? `This pair's cocoon: ${formatDuration(cocoonDurationMs(a, b, state) / 1000)}.` : "";
         };
         if (selA) {
           selA.value = breedParentA;
@@ -1068,8 +1112,10 @@ function rebuildShore(): void {
       const route = routeById(state.expedition.routeId);
       const card = document.createElement("div");
       card.className = "card challenge active";
+      const rider = riderOf(state);
       card.innerHTML = `
         <div class="gen-name">🍾 Out at sea — ${route?.name ?? "an unknown route"}</div>
+        ${rider ? `<p class="muted">${rider.name} rides on the cork.</p>` : ""}
         <p class="muted expedition-note"></p>
         <button class="buy expedition-claim">Claim the bottle</button>`;
       shoreRefs.expeditionNote = card.querySelector<HTMLElement>(".expedition-note");
@@ -1083,6 +1129,30 @@ function rebuildShore(): void {
       });
       expeditionArea.appendChild(card);
     }
+    // A moth to ride the next bottle.
+    const riders = state.moths.filter((m) => !isCocoonParent(state, m.id));
+    if (!riders.some((m) => m.id === bottleRider)) bottleRider = "";
+    const chosenRider = (): Moth | null => riders.find((m) => m.id === bottleRider) ?? null;
+    const chanceSpans: { route: (typeof EXPEDITION_ROUTES)[number]; el: HTMLElement | null }[] = [];
+    if (!state.expedition && riders.length > 0) {
+      const pick = document.createElement("div");
+      pick.className = "card";
+      pick.innerHTML = `
+        <div class="gen-name">🦋 A rider for the bottle</div>
+        <p class="muted">A moth can ride along: relic chance + glow ÷ 10 points (a Seeker adds 10 more). It leaves duty and its post for the trip. On the Deep Glass Crossing, a moth without a trait comes home with one 1 time in 10.</p>
+        <select class="breed-select rider-select"><option value="">No rider</option>${riders
+          .map((m) => `<option value="${m.id}">${m.name} (glow ${m.glow}${traitById(m.trait) ? `, ${traitById(m.trait)!.name}` : ""})</option>`)
+          .join("")}</select>`;
+      const select = pick.querySelector<HTMLSelectElement>(".rider-select");
+      if (select) {
+        select.value = bottleRider;
+        select.addEventListener("change", () => {
+          bottleRider = select.value;
+          for (const { route, el } of chanceSpans) if (el) el.textContent = `${Math.round(relicChanceFor(state, route, chosenRider()) * 100)}%`;
+        });
+      }
+      expeditionArea.appendChild(pick);
+    }
     const routes = document.createElement("div");
     routes.className = "card-list";
     for (const route of EXPEDITION_ROUTES) {
@@ -1091,14 +1161,16 @@ function rebuildShore(): void {
       card.innerHTML = `
         <div class="gen-name">${route.name}</div>
         <p class="muted">${route.flavor}</p>
-        <p class="muted">${route.durationMinutes >= 60 ? `${route.durationMinutes / 60} hour${route.durationMinutes > 60 ? "s" : ""}` : `${route.durationMinutes} minutes`} · relic chance ${Math.round(relicChanceFor(state, route) * 100)}% · cache at least ${fmt(route.minCache)} Lumen</p>
+        <p class="muted">${route.durationMinutes >= 60 ? `${route.durationMinutes / 60} hour${route.durationMinutes > 60 ? "s" : ""}` : `${route.durationMinutes} minutes`} · relic chance <span class="route-chance">${Math.round(relicChanceFor(state, route, state.expedition ? riderOf(state) : chosenRider()) * 100)}%</span> · cache at least ${fmt(route.minCache)} Lumen</p>
         <button class="buy route-send">Send a bottle — ${fmt(route.cost)} Lumen</button>
         <span class="gen-note muted route-note"></span>`;
       const btn = card.querySelector<HTMLButtonElement>(".route-send");
       const note = card.querySelector<HTMLElement>(".route-note");
+      chanceSpans.push({ route, el: card.querySelector<HTMLElement>(".route-chance") });
       if (btn) {
         btn.addEventListener("click", () => {
-          if (sendExpedition(state, route.id)) {
+          if (sendExpedition(state, route.id, Date.now(), bottleRider || undefined)) {
+            bottleRider = "";
             sound.buy();
             saveState(state);
             renderDynamic();
@@ -1131,7 +1203,7 @@ function updateShoreView(now: number): void {
   const roostLine = mothArea?.querySelector<HTMLElement>(".moth-roost-line");
   if (roostLine) {
     const duty = dutyMoths(state);
-    roostLine.textContent = `Roost: ${state.moths.length}/${mothCapacity(state)} moths · ${duty.length}/${MAX_DUTY_MOTHS} on duty (duty glow ${Math.round(dutyGlowTotal(state) * 10) / 10} → +${(dutyGlowTotal(state) * 0.2).toFixed(1)}% production). Moths are permanent — Rekindle can't touch them.`;
+    roostLine.textContent = `Roost: ${state.moths.length}/${mothCapacity(state)} moths · ${duty.length}/${dutySlots(state)} on duty (duty glow ${Math.round(dutyGlowTotal(state) * 10) / 10} → +${(dutyGlowTotal(state) * 0.2).toFixed(1)}% production) · ${state.wingScales} Wing Scale${state.wingScales === 1 ? "" : "s"}. Moths are permanent — Rekindle can't touch them.`;
   }
   if (shoreRefs.attractBtn && shoreRefs.attractNote) {
     const lures = lureStatus(state, now);
@@ -1139,7 +1211,14 @@ function updateShoreView(now: number): void {
     const ready = lures.held > 0;
     shoreRefs.attractBtn.disabled = full || !ready;
     shoreRefs.attractBtn.classList.toggle("affordable", !full && ready);
-    shoreRefs.attractBtn.textContent = `Attract a moth — ${lures.held}/${LURE_BANK} lures`;
+    shoreRefs.attractBtn.textContent = `Attract a moth — ${lures.held}/${lureBankSize(state)} lures`;
+    if (shoreRefs.scentedBtn) {
+      const can = !full && state.wingScales >= SCENTED_LURE_SCALES;
+      shoreRefs.scentedBtn.classList.toggle("hidden", state.wingScales < SCENTED_LURE_SCALES);
+      shoreRefs.scentedBtn.disabled = !can;
+      shoreRefs.scentedBtn.classList.toggle("affordable", can);
+      shoreRefs.scentedBtn.textContent = `Scented lure — ${SCENTED_LURE_SCALES} of ${state.wingScales} scales`;
+    }
     if (shoreRefs.rushBtn) {
       const cost = rushLureCost(state, now);
       const show = !ready;

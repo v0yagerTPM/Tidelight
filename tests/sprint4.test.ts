@@ -128,14 +128,14 @@ describe("lantern moths — attracting with lures", () => {
   });
 
   it("odds: a wild Prismatic is 1 in 200, and the six weights sum to 100", () => {
-    expect(MOTH_PATTERNS.map((p) => p.weight)).toEqual([44, 26, 16, 9, 4.5, 0.5]);
+    expect(MOTH_PATTERNS.map((p) => p.weight)).toEqual([44, 26, 16, 9, 4.5, 0.5, 0]); // Tidelit is never wild
     expect(MOTH_PATTERNS.reduce((sum, p) => sum + p.weight, 0)).toBe(100);
     expect(attractMoth(gardenState(), stubRng([0.996, 0.5, 0, 0, 0.25]), 0)!.pattern).toBe("prismatic");
     expect(attractMoth(gardenState(), stubRng([0.994, 0.5, 0, 0, 0.25]), 0)!.pattern).toBe("starlit");
   });
 
   it("wild glow rolls 1 to 60% of the pattern's ceiling, so nothing arrives perfect", () => {
-    expect(MOTH_PATTERNS.map((p) => p.glowCeiling)).toEqual([40, 55, 70, 80, 90, 100]);
+    expect(MOTH_PATTERNS.map((p) => p.glowCeiling)).toEqual([40, 55, 70, 80, 90, 100, 100]);
     const rng = mulberry32(2026);
     for (let i = 0; i < 600; i++) {
       const state = gardenState();
@@ -610,7 +610,7 @@ describe("permanence & save migration (v4 → v5)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v4Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(8);
+    expect(restored?.version).toBe(9);
     expect(restored?.moths).toEqual([]);
     expect(restored?.mothDuty).toEqual([]);
     expect(restored?.roostExpansions).toBe(0);
@@ -631,7 +631,7 @@ describe("permanence & save migration (v4 → v5)", () => {
     state.expedition = { routeId: "coastal", startedAt: 100, returnsAt: 200 };
     state.cocoon = { parentIds: ["m1", "m2"], readyAt: 999 };
     const saved = serializeState(state);
-    expect(saved.version).toBe(8);
+    expect(saved.version).toBe(9);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.moths).toEqual(state.moths);
     expect(restored?.mothDuty).toEqual(["m1"]);

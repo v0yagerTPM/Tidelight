@@ -1,3 +1,4 @@
+import { dutySlots } from "./almanac";
 import { tideAt } from "./tides";
 import type { GameState, Moth } from "./types";
 
@@ -34,6 +35,7 @@ export function traitById(id: string | null | undefined): MothTraitDef | null {
   return MOTH_TRAITS.find((t) => t.id === id) ?? null;
 }
 
+/** Duty slots without the Almanac's A Fourth Wing (dutySlots gives the live number). */
 export const MAX_DUTY_MOTHS = 3;
 /** Each duty moth grants +(glow × this)% production — glow 50 → +10%. */
 export const DUTY_GLOW_BONUS = 0.002;
@@ -49,13 +51,14 @@ export function hasTrait(moth: Moth, id: MothTraitId): boolean {
   return moth.trait === id;
 }
 
-/** The moths actually on duty (ids sanitized against the collection, max 3). */
+/** The moths actually on duty (ids sanitized against the collection, up to dutySlots). */
 export function dutyMothsOf(state: GameState): Moth[] {
   const duty: Moth[] = [];
+  const slots = dutySlots(state);
   for (const id of state.mothDuty) {
     const moth = state.moths.find((m) => m.id === id);
     if (moth && !duty.includes(moth)) duty.push(moth);
-    if (duty.length >= MAX_DUTY_MOTHS) break;
+    if (duty.length >= slots) break;
   }
   return duty;
 }
@@ -100,6 +103,46 @@ export function tidewiseMultiplier(state: GameState, now?: number): number {
   const tide = tideAt(now).def.id;
   if (tide !== "high" && tide !== "storm") return 1;
   return 1 + dutyMothsOf(state).filter((m) => hasTrait(m, "tidewise")).reduce((sum, m) => sum + dutyBonusOf(m), 0);
+}
+
+/**
+ * Tidelit moths on duty follow the tide: in a Stormfront their duty bonus
+ * counts double; in Glass Calm it counts half. Final rate only, never chain demand; neutral without `now`.
+ */
+export function tidelitMultiplier(state: GameState, now?: number): number {
+  if (now === undefined) return 1;
+  const tide = tideAt(now).def.id;
+  if (tide !== "storm" && tide !== "calm") return 1;
+  const tidelit = dutyMothsOf(state).filter((m) => m.pattern === "tidelit").reduce((sum, m) => sum + dutyBonusOf(m), 0);
+  // The base rate already carries the whole duty multiplier (1 + all): swap
+  // the Tidelit share for its tide-adjusted share at the very end.
+  const all = dutyProductionMultiplier(state);
+  return (all + (tide === "storm" ? tidelit : -tidelit / 2)) / all;
+}
+
+// ── Moths riding with bottles ────────────────────────────────────────────────
+
+/** A riding moth adds glow × this to a bottle's relic chance (glow 100 → +10 points). */
+export const RIDER_RELIC_PER_GLOW = 0.001;
+/** A Seeker riding a bottle adds this on top. */
+export const SEEKER_RIDER_RELIC_BONUS = 0.1;
+/** On the Deep Glass Crossing, a rider without a trait comes home with one this often. */
+export const CROSSING_TRAIT_CHANCE = 0.1;
+
+/** The moth riding the bottle at sea, if any. */
+export function riderOf(state: GameState): Moth | null {
+  const id = state.expedition?.riderId;
+  return id ? state.moths.find((m) => m.id === id) ?? null : null;
+}
+
+export function isAtSea(state: GameState, mothId: string): boolean {
+  return state.expedition?.riderId === mothId;
+}
+
+/** The relic-chance bonus a moth gives riding a bottle. */
+export function riderRelicBonus(moth: Moth | null): number {
+  if (!moth) return 0;
+  return moth.glow * RIDER_RELIC_PER_GLOW + (hasTrait(moth, "seeker") ? SEEKER_RIDER_RELIC_BONUS : 0);
 }
 
 // ── Lighthouse posts ─────────────────────────────────────────────────────────
