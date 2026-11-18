@@ -11,6 +11,11 @@ spread the light from lighthouse to lighthouse. When the numbers wall you,
 **Rekindle**: let the light gutter out and light it again, stronger, banking
 Embers that make every future flame burn brighter.
 
+**Play it in your browser:** https://v0yagertpm.github.io/Tidelight/ —
+deployed from `main` by `.github/workflows/pages.yml` whenever it changes
+(only if the typecheck and tests pass). Progress saves in your browser;
+use Export / Import in the Log tab to carry a save between devices.
+
 ## Status
 
 **Sprint 5 — complete. All five sprints shipped.** All seven
