@@ -2,7 +2,8 @@ import type { GameState, Moth } from "./types";
 
 // ── The Wing Almanac ─────────────────────────────────────────────────────────
 // A collection book: one entry for every wing pattern and trait pairing
-// (no trait counts as a column). An entry fills the first time the keeper
+// (no trait counts as a column), Hollow moths included (56 pages; a Hollow
+// moth's two traits fill two pages). An entry fills the first time the keeper
 // HOLDS such a moth, whether attracted, bred or brought home; releasing it
 // later never empties the page. Filled entries earn lasting rewards.
 //
@@ -11,7 +12,7 @@ import type { GameState, Moth } from "./types";
 // are kept literal here; tests/almanac.test.ts checks they match moths.ts
 // and mothTraits.ts.
 
-export const ALMANAC_PATTERNS: readonly string[] = ["plain", "spotted", "striped", "crescent", "starlit", "prismatic", "tidelit"];
+export const ALMANAC_PATTERNS: readonly string[] = ["plain", "spotted", "striped", "crescent", "starlit", "prismatic", "tidelit", "hollow"];
 /** "none" is the column for moths without a trait. */
 export const ALMANAC_TRAITS: readonly string[] = ["none", "lamp-loyal", "night-flier", "chain-tender", "seeker", "fertile", "tidewise"];
 export const ALMANAC_SIZE = ALMANAC_PATTERNS.length * ALMANAC_TRAITS.length;
@@ -33,15 +34,25 @@ export function almanacCount(state: GameState): number {
   return state.almanac.length;
 }
 
-/** Note a moth in the Almanac. Returns true when it fills a new entry. */
-export function recordAlmanac(state: GameState, moth: Moth): boolean {
-  const key = almanacKey(moth.pattern, moth.trait);
-  if (!isAlmanacKey(key) || state.almanac.includes(key)) return false;
-  state.almanac.push(key);
-  return true;
+/** The pages a moth fills: one for its trait (or none), and a Hollow moth's second trait. */
+export function almanacKeysOf(moth: Moth): string[] {
+  const keys = [almanacKey(moth.pattern, moth.trait)];
+  if (moth.trait2) keys.push(almanacKey(moth.pattern, moth.trait2));
+  return keys.filter(isAlmanacKey);
 }
 
-export type AlmanacRewardId = "deep-bank" | "fourth-duty" | "quick-cocoons" | "swift-lures" | "lamp-halo";
+/** Note a moth in the Almanac. Returns true when it fills a new entry. */
+export function recordAlmanac(state: GameState, moth: Moth): boolean {
+  let filled = false;
+  for (const key of almanacKeysOf(moth)) {
+    if (state.almanac.includes(key)) continue;
+    state.almanac.push(key);
+    filled = true;
+  }
+  return filled;
+}
+
+export type AlmanacRewardId = "deep-bank" | "fourth-duty" | "quick-cocoons" | "swift-lures" | "lamp-halo" | "hollow-pages";
 
 export interface AlmanacReward {
   id: AlmanacRewardId;
@@ -56,7 +67,8 @@ export const ALMANAC_REWARDS: readonly AlmanacReward[] = [
   { id: "fourth-duty",   entries: 12,           name: "A Fourth Wing",  effect: "A fourth moth can stand duty." },
   { id: "quick-cocoons", entries: 24,           name: "Warm Silk",      effect: "Cocoons take 15% less time." },
   { id: "swift-lures",   entries: 36,           name: "Sweet Oil",      effect: "A lure regrows every 15 minutes." },
-  { id: "lamp-halo",     entries: ALMANAC_SIZE, name: "The Whole Book", effect: "The lamp wears a halo the colour of your brightest moth." },
+  { id: "lamp-halo",     entries: 49,           name: "Every Living Wing", effect: "The lamp wears a halo the colour of your brightest moth." },
+  { id: "hollow-pages",  entries: ALMANAC_SIZE, name: "The Hollow Pages",  effect: "A fifth moth can stand duty." },
 ];
 
 export function hasAlmanacReward(state: GameState, id: AlmanacRewardId): boolean {
@@ -74,9 +86,9 @@ export function lureRegrowMs(state: GameState): number {
   return (hasAlmanacReward(state, "swift-lures") ? 15 : 20) * 60 * 1000;
 }
 
-/** Moths that can stand duty at once: 3, or 4 with A Fourth Wing. */
+/** Moths that can stand duty at once: 3, 4 with A Fourth Wing, 5 with The Hollow Pages. */
 export function dutySlots(state: GameState): number {
-  return hasAlmanacReward(state, "fourth-duty") ? 4 : 3;
+  return 3 + (hasAlmanacReward(state, "fourth-duty") ? 1 : 0) + (hasAlmanacReward(state, "hollow-pages") ? 1 : 0);
 }
 
 /** Cocoon time multiplier from Warm Silk (×0.85). */

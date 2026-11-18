@@ -1,5 +1,5 @@
 import Decimal from "break_infinity.js";
-import { ALMANAC_TRAITS, almanacKey, isAlmanacKey } from "./almanac";
+import { ALMANAC_TRAITS, almanacKeysOf, isAlmanacKey } from "./almanac";
 import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, GENERATORS, chainLighthouseById } from "./config";
 // The definition tables below are only read inside deserializeState (call
 // time), so these imports form no load-time cycle with modules that import
@@ -22,9 +22,9 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 9;
-/** Older saves (Sprint 0 = v1 … moth traits = v8) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8];
+export const SAVE_VERSION = 10;
+/** Older saves (Sprint 0 = v1 … the Wing Almanac = v9) migrate on load. */
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 const MAX_LOG_ENTRIES = 60;
 
@@ -80,7 +80,7 @@ const MOTH_TRAIT_IDS: readonly string[] = ALMANAC_TRAITS.filter((t) => t !== "no
 /** The largest lure bank (almanac.ts lureBankSize); kept literal: moths.ts imports this module. */
 const LURE_BANK = 4;
 /** Duty slots at most (almanac.ts dutySlots). */
-const MAX_DUTY_SLOTS = 4;
+const MAX_DUTY_SLOTS = 5;
 
 function sanitizeMoth(raw: unknown): Moth | null {
   if (typeof raw !== "object" || raw === null) return null;
@@ -92,7 +92,7 @@ function sanitizeMoth(raw: unknown): Moth | null {
     pattern: typeof m.pattern === "string" ? m.pattern : "plain",
     glow:
       typeof m.glow === "number" && Number.isFinite(m.glow)
-        ? Math.max(1, Math.min(100, Math.floor(m.glow)))
+        ? Math.max(1, Math.min(120, Math.floor(m.glow)))
         : 1,
     generation:
       typeof m.generation === "number" && Number.isFinite(m.generation)
@@ -100,6 +100,10 @@ function sanitizeMoth(raw: unknown): Moth | null {
         : 1,
     // v8: traits. A save before them has none; an unknown id is dropped.
     ...(typeof m.trait === "string" && MOTH_TRAIT_IDS.includes(m.trait) ? { trait: m.trait } : {}),
+    // v10: a Hollow moth's second trait (kept only beside a different first one).
+    ...(typeof m.trait === "string" && MOTH_TRAIT_IDS.includes(m.trait) && typeof m.trait2 === "string" && m.trait2 !== m.trait && MOTH_TRAIT_IDS.includes(m.trait2)
+      ? { trait2: m.trait2 }
+      : {}),
   };
 }
 
@@ -127,7 +131,7 @@ function sanitizeExpedition(raw: unknown, mothIds: Set<string> = new Set()): Exp
 
 function sanitizeAlmanac(raw: unknown, moths: Moth[]): string[] {
   const keys = Array.isArray(raw) ? raw.filter((k): k is string => typeof k === "string" && isAlmanacKey(k)) : [];
-  for (const m of moths) keys.push(almanacKey(m.pattern, m.trait));
+  for (const m of moths) keys.push(...almanacKeysOf(m));
   return [...new Set(keys)].filter(isAlmanacKey);
 }
 

@@ -162,11 +162,24 @@ describe("lighthouse bonuses", () => {
 });
 
 describe("story beats", () => {
-  it("has 21 beats across three acts (6 / 8 / 7)", () => {
-    expect(STORY_BEATS).toHaveLength(21);
+  it("has 24 beats across three acts (6 / 10 / 8)", () => {
+    expect(STORY_BEATS).toHaveLength(24);
     expect(STORY_BEATS.filter((b) => b.act === 1)).toHaveLength(6);
-    expect(STORY_BEATS.filter((b) => b.act === 2)).toHaveLength(8);
-    expect(STORY_BEATS.filter((b) => b.act === 3)).toHaveLength(7);
+    expect(STORY_BEATS.filter((b) => b.act === 2)).toHaveLength(10);
+    expect(STORY_BEATS.filter((b) => b.act === 3)).toHaveLength(8);
+  });
+
+  it("the moth beats: a first trait, a first post, a first Hollow moth", () => {
+    const state = createInitialState();
+    checkStory(state);
+    state.moths.push({ id: "m1", name: "Testwing", pattern: "plain", glow: 20, generation: 1 });
+    expect(checkStory(state).map((b) => b.id)).toEqual(["first-moth"]);
+    state.moths[0].trait = "seeker";
+    expect(checkStory(state).map((b) => b.id)).toEqual(["first-trait"]);
+    state.mothPosts["first-light"] = "m1";
+    expect(checkStory(state).map((b) => b.id)).toEqual(["first-post"]);
+    state.moths.push({ id: "m2", name: "Hollowwing", pattern: "hollow", glow: 110, generation: 9, trait: "seeker", trait2: "fertile" });
+    expect(checkStory(state).map((b) => b.id)).toEqual(["first-bred", "first-hollow"]);
   });
 
   it("fires in order as the state progresses, and never twice", () => {
@@ -360,7 +373,7 @@ describe("save export/import and the v5 → v6 migration", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v5Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(9);
+    expect(restored?.version).toBe(10);
     expect(restored?.litLighthouses).toEqual([FIRST_LIGHT_ID, GULL_ROCK_ID]); // Gull Rock stays lit
     expect(restored?.chainBoards[GULL_ROCK_ID]).toEqual({ wick: 1, oil: 0, lens: 0, beam: 0 });
     expect(restored?.storySeen).toEqual([]);

@@ -13,6 +13,7 @@ import {
   dutyProductionMultiplier,
   hasTrait,
   isAtSea,
+  traitsOf,
   postOf,
   traitById,
 } from "./mothTraits";
@@ -67,6 +68,8 @@ export const MOTH_PATTERNS: readonly MothPatternDef[] = [
   { id: "prismatic", name: "Prismatic", tier: 5, weight: 0.5, glowCeiling: 100,  emoji: "🌈", swatch: "linear-gradient(135deg, #f28ba8, #f7d774, #8fd18b, #7fb5d9, #b48fd9)" },
   // Never wild and never bred true: a Starlit or Prismatic cocoon that opens in a Stormfront is Tidelit 5% of the time.
   { id: "tidelit",   name: "Tidelit",   tier: 5, weight: 0, glowCeiling: 100, emoji: "🌊", swatch: "repeating-linear-gradient(160deg, #2d6f86 0 5px, #8fd6c4 5px 8px, #1d3f5c 8px 13px)" },
+  // Only after the ending: two glow-100 Prismatics have a 2% chance of a Hollow child (glow 100–120, two traits). It never breeds true.
+  { id: "hollow",    name: "Hollow",    tier: 6, weight: 0, glowCeiling: 120, emoji: "🌑", swatch: "radial-gradient(circle at 50% 50%, #0b1220 22%, transparent 23%), radial-gradient(circle at 50% 50%, #f4f7ff 0 40%, #b9c6e8 60%, #6d7fa8 100%)" },
 ];
 
 const PATTERNS_BY_ID: ReadonlyMap<string, MothPatternDef> = new Map(MOTH_PATTERNS.map((p) => [p.id, p]));
@@ -151,6 +154,10 @@ export { lureBankSize, lureRegrowMs };
 export const SCENTED_LURE_SCALES = 8;
 /** During a Stormfront, a Starlit or Prismatic hatchling is Tidelit this often. */
 export const TIDELIT_CHANCE = 0.05;
+/** After the ending, two glow-100 Prismatics have this chance of a Hollow child. */
+export const HOLLOW_CHANCE = 0.02;
+export const HOLLOW_GLOW_MIN = 100;
+export const HOLLOW_GLOW_MAX = 120;
 /** A rush lure costs this share of all-time Lumen (at least RUSH_LURE_MIN_COST)… */
 export const RUSH_LURE_SHARE = 0.005;
 export const RUSH_LURE_MIN_COST = 500;
@@ -362,8 +369,8 @@ function wildMoth(state: GameState, rng: () => number, scented = false): Moth {
 /** Fill the moth's Almanac entry, if new, and say so in the log. */
 export function noteInAlmanac(state: GameState, moth: Moth): void {
   if (!recordAlmanac(state, moth)) return;
-  const trait = traitById(moth.trait);
-  addLog(state, `A new page in the Wing Almanac: ${patternById(moth.pattern).name} wings, ${trait ? trait.name.toLowerCase() : "no trait"} (${state.almanac.length} filled).`);
+  const traits = traitsOf(moth).map((t) => t.name.toLowerCase());
+  addLog(state, `A new page in the Wing Almanac: ${patternById(moth.pattern).name} wings, ${traits.length > 0 ? traits.join(" and ") : "no trait"} (${state.almanac.length} filled).`);
 }
 
 function randomTrait(rng: () => number): string {
@@ -385,8 +392,8 @@ function childTrait(rng: () => number, parentA: Moth, parentB: Moth): string | n
 }
 
 function traitPhrase(moth: Moth): string {
-  const trait = traitById(moth.trait);
-  return trait ? `, and ${trait.name.toLowerCase()}` : "";
+  const names = traitsOf(moth).map((t) => t.name.toLowerCase());
+  return names.length > 0 ? `, and ${names.join(" and ")}` : "";
 }
 
 /** Expand the roost: +2 collection capacity, at roostExpansionCost(). */
@@ -496,10 +503,25 @@ export function hatchCocoon(state: GameState, rng: () => number, now: number = D
   // Last roll: a Starlit or Prismatic cocoon opening in a Stormfront may be Tidelit.
   const stormborn = pattern.tier >= MAX_TIER - 1 && tideAt(now).def.id === "storm" && rng() < TIDELIT_CHANCE;
   if (stormborn) child.pattern = "tidelit";
+  // And after the ending, two perfect Prismatics may make something new.
+  const perfect = (m: Moth) => m.pattern === "prismatic" && m.glow >= 100;
+  const hollowborn = state.endingSeen && perfect(parentA) && perfect(parentB) && rng() < HOLLOW_CHANCE;
+  if (hollowborn) {
+    child.pattern = "hollow";
+    child.glow = HOLLOW_GLOW_MIN + Math.floor(rng() * (HOLLOW_GLOW_MAX - HOLLOW_GLOW_MIN + 1));
+    // One trait from each parent where they have them; otherwise what it rolled.
+    const traits = [...new Set([parentA.trait, parentB.trait, parentA.trait2, parentB.trait2, child.trait])].filter(
+      (t): t is string => traitById(t) !== null,
+    );
+    delete child.trait;
+    if (traits[0]) child.trait = traits[0];
+    if (traits[1]) child.trait2 = traits[1];
+  }
   state.cocoon = null;
   state.moths.push(child);
-  addLog(state, `The cocoon opens: ${child.name}, ${patternById(child.pattern).name.toLowerCase()}-winged, generation ${child.generation}, glowing at ${glow}${traitPhrase(child)}. ${parentA.name} and ${parentB.name} look insufferably proud.`);
-  if (stormborn) addLog(state, `${child.name} opened in the storm, and the storm stayed in its wings: a Tidelit moth, bright when the sea is rough and dim when it is still.`);
+  addLog(state, `The cocoon opens: ${child.name}, ${patternById(child.pattern).name.toLowerCase()}-winged, generation ${child.generation}, glowing at ${child.glow}${traitPhrase(child)}. ${parentA.name} and ${parentB.name} look insufferably proud.`);
+  if (stormborn && !hollowborn) addLog(state, `${child.name} opened in the storm, and the storm stayed in its wings: a Tidelit moth, bright when the sea is rough and dim when it is still.`);
+  if (hollowborn) addLog(state, `${child.name}'s wings are not a colour at all. They are the shape the light leaves when it passes: a Hollow moth, glowing at ${child.glow}. It will never have a Hollow child of its own; nothing that rare repeats.`);
   noteInAlmanac(state, child);
   return child;
 }
@@ -523,7 +545,7 @@ export function releasePayout(_state: GameState, moth: Moth): Decimal {
  */
 /** Wing Scales a release leaves behind: 1 per tier + 1, and 1 more for a trait. */
 export function releaseScales(moth: Moth): number {
-  return patternById(moth.pattern).tier + 1 + (traitById(moth.trait) ? 1 : 0);
+  return patternById(moth.pattern).tier + 1 + traitsOf(moth).length;
 }
 
 export function releaseMoth(state: GameState, mothId: string): Decimal | null {

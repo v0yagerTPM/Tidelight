@@ -120,8 +120,9 @@ a hearth whose fire grows with the Embers you'd bank.
   every wing and trait (49 in all) and rewards you at 6, 12, 24, 36 and
   every page; released moths leave **Wing Scales** that buy scented
   lures. A cocoon that opens in a Stormfront may hatch a rare **Tidelit**
-  moth, and a moth can **ride a bottle** for better relic odds. Moths are
-  permanent: Rekindle can't touch the roost.
+  moth, and a moth can **ride a bottle** for better relic odds. After the
+  ending, two perfect Prismatics may hatch a **Hollow** moth: glow up to
+  120 and two traits. Moths are permanent: Rekindle can't touch the roost.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache, a
   story fragment for the Log, and maybe one of eight permanent RELICS —

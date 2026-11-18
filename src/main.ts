@@ -96,7 +96,7 @@ import {
   postMoth,
   recallMoth,
 } from "./game/moths";
-import { MOTH_TRAITS, dutyBonusOf, isAtSea, postBonusOf, postOf, postedMoth, riderOf, traitById } from "./game/mothTraits";
+import { MOTH_TRAITS, dutyBonusOf, isAtSea, postBonusOf, postOf, postedMoth, riderOf, traitsOf } from "./game/mothTraits";
 import { ALMANAC_PATTERNS, ALMANAC_REWARDS, ALMANAC_SIZE, almanacHas, dutySlots, lureBankSize } from "./game/almanac";
 import { legacyMultiplier, startNgPlus } from "./game/ngplus";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
@@ -831,6 +831,11 @@ let shoreRefs: ShoreRefs = {
   cocoonNote: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
 };
 
+/** ", Seeker" / ", Seeker, Fertile" for a moth's select option; "" with no trait. */
+function traitList(moth: Moth): string {
+  return traitsOf(moth).map((t) => `, ${t.name}`).join("");
+}
+
 function shoreKey(): string {
   return [
     mothsUnlocked(state) ? "U" : "L",
@@ -840,7 +845,7 @@ function shoreKey(): string {
     state.litLighthouses.join(","),
     state.roostExpansions,
     state.almanac.length,
-    state.moths.map((m) => m.trait ?? "").join(","),
+    state.moths.map((m) => `${m.trait ?? ""}+${m.trait2 ?? ""}`).join(","),
     state.cocoon ? `${state.cocoon.parentIds.join("+")}@${state.cocoon.readyAt}` : "-",
     state.expedition ? `${state.expedition.routeId}@${state.expedition.returnsAt}:${state.expedition.riderId ?? ""}` : "-",
     state.relics.join(","),
@@ -919,14 +924,14 @@ function rebuildShore(): void {
         const inCocoon = isCocoonParent(state, moth.id);
         const post = postOf(state, moth.id);
         const atSea = isAtSea(state, moth.id);
-        const trait = traitById(moth.trait);
+        const traits = traitsOf(moth);
         const card = document.createElement("div");
         card.className = `gen moth${isDuty || post ? " purchased" : ""}`;
         card.innerHTML = `
           <div class="moth-portrait"><div class="moth-swatch" style="background:${pattern.swatch}"></div></div>
           <div class="gen-main">
-            <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${post ? ` <span class="perm">at ${chainLighthouseById(post).name}</span>` : ""}${atSea ? ` <span class="perm">riding a bottle</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}${trait ? ` <span class="moth-trait" title="${trait.effect}">${trait.name}</span>` : ""}</div>
-            <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow}${isOldLight(moth) ? ` <span class="perm" title="From before the moth rebalance: it keeps its glow above the ${pattern.name} ceiling. Its children are held to theirs.">old light</span>` : ` of ${pattern.glowCeiling}`} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(dutyBonusOf(moth) * 100).toFixed(1)}%` : ""}${post ? ` · post bonus +${(postBonusOf(moth) * 100).toFixed(1)}% support` : ""}</div>${trait ? `<div class="gen-flavor moth-trait-line">${trait.name}: ${trait.effect}</div>` : ""}
+            <div class="gen-name">${pattern.emoji} ${moth.name}${isDuty ? ` <span class="perm">on duty</span>` : ""}${post ? ` <span class="perm">at ${chainLighthouseById(post).name}</span>` : ""}${atSea ? ` <span class="perm">riding a bottle</span>` : ""}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}${traits.map((t) => ` <span class="moth-trait" title="${t.effect}">${t.name}</span>`).join("")}</div>
+            <div class="gen-flavor">${pattern.name} wings (tier ${pattern.tier}) · glow ${moth.glow}${isOldLight(moth) ? ` <span class="perm" title="From before the moth rebalance: it keeps its glow above the ${pattern.name} ceiling. Its children are held to theirs.">old light</span>` : ` of ${pattern.glowCeiling}`} · generation ${moth.generation}${isDuty ? ` · duty bonus +${(dutyBonusOf(moth) * 100).toFixed(1)}%` : ""}${post ? ` · post bonus +${(postBonusOf(moth) * 100).toFixed(1)}% support` : ""}</div>${traits.map((t) => `<div class="gen-flavor moth-trait-line">${t.name}: ${t.effect}</div>`).join("")}
           </div>
           <div class="gen-buy moth-actions">
             <button class="buy moth-duty"${post ? ` disabled title="Recall it from its post first"` : atSea ? ` disabled title="It is out at sea"` : ""}>${isDuty ? "Stand down" : "Put on duty"}</button>
@@ -968,8 +973,7 @@ function rebuildShore(): void {
             .map((m) => {
               const elsewhere = postOf(state, m.id);
               const note = elsewhere ? `, at ${chainLighthouseById(elsewhere).name}` : onDuty.some((d) => d.id === m.id) ? ", on duty" : "";
-              const t = traitById(m.trait);
-              return `<option value="${m.id}">${m.name} (glow ${m.glow}${t ? `, ${t.name}` : ""}${note}) → +${(postBonusOf(m) * 100).toFixed(1)}%</option>`;
+              return `<option value="${m.id}">${m.name} (glow ${m.glow}${traitList(m)}${note}) → +${(postBonusOf(m) * 100).toFixed(1)}%</option>`;
             })
             .join("");
           return `
@@ -1061,7 +1065,7 @@ function rebuildShore(): void {
           breedParentB = home.find((m) => m.id !== breedParentA)?.id ?? "";
         }
         const options = home
-          .map((m) => `<option value="${m.id}">${m.name} (${patternById(m.pattern).name}, glow ${m.glow}${traitById(m.trait) ? `, ${traitById(m.trait)!.name}` : ""})</option>`)
+          .map((m) => `<option value="${m.id}">${m.name} (${patternById(m.pattern).name}, glow ${m.glow}${traitList(m)})</option>`)
           .join("");
         breed.innerHTML = `
           <div class="gen-name">🌀 Breeding</div>
@@ -1141,7 +1145,7 @@ function rebuildShore(): void {
         <div class="gen-name">🦋 A rider for the bottle</div>
         <p class="muted">A moth can ride along: relic chance + glow ÷ 10 points (a Seeker adds 10 more). It leaves duty and its post for the trip. On the Deep Glass Crossing, a moth without a trait comes home with one 1 time in 10.</p>
         <select class="breed-select rider-select"><option value="">No rider</option>${riders
-          .map((m) => `<option value="${m.id}">${m.name} (glow ${m.glow}${traitById(m.trait) ? `, ${traitById(m.trait)!.name}` : ""})</option>`)
+          .map((m) => `<option value="${m.id}">${m.name} (glow ${m.glow}${traitList(m)})</option>`)
           .join("")}</select>`;
       const select = pick.querySelector<HTMLSelectElement>(".rider-select");
       if (select) {

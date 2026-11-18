@@ -48,7 +48,12 @@ export const POST_GLOW_BONUS = 0.002;
 export const CHAIN_TENDER_POST_MULTIPLIER = 2;
 
 export function hasTrait(moth: Moth, id: MothTraitId): boolean {
-  return moth.trait === id;
+  return moth.trait === id || moth.trait2 === id;
+}
+
+/** A moth's traits (none, one, or a Hollow moth's two). */
+export function traitsOf(moth: Moth): MothTraitDef[] {
+  return [traitById(moth.trait), traitById(moth.trait2)].filter((t): t is MothTraitDef => t !== null);
 }
 
 /** The moths actually on duty (ids sanitized against the collection, up to dutySlots). */

@@ -11,7 +11,7 @@ import { addLog } from "./state";
 import type { GameState } from "./types";
 
 // ── The story of the Hollow Sea (Sprint 5) ───────────────────────────────────
-// Twenty-one beats in three acts, delivered by unlock order — no
+// Twenty-four beats in three acts, delivered by unlock order — no
 // cutscenes, no interruptions. Each beat is a pure predicate over the
 // state; checkStory (called from the main loop and on load) fires every
 // beat whose moment has arrived and hasn't been seen, in the order the
@@ -129,6 +129,22 @@ export const STORY_BEATS: readonly StoryBeat[] = [
     text: "The cocoon opens at the exact moment the beam swings past, as if the small thing inside had been waiting for the light to look at it. It has its mother's wings and its father's glow and something else entirely that belongs to neither — the sea's contribution, perhaps, or the lamp's. You write its name in the roost ledger with ridiculous ceremony. Some things deserve ridiculous ceremony.",
   },
   {
+    id: "first-trait",
+    act: 2,
+    title: "A Moth With Habits",
+    hint: "Keep a moth with a trait.",
+    trigger: (s) => s.moths.some((m) => m.trait !== undefined),
+    text: "Most moths are content to be moths. This one has opinions. It will only sleep on the left-hand side of the lamp; it is first to the glass when the tide turns; it has, you are almost sure, been counting the bottles. The old roost ledger has a column for this, headed in faded ink: habits. You had assumed it was a joke. You fill it in now, carefully, because the old keepers never wrote down anything that did not matter.",
+  },
+  {
+    id: "first-post",
+    act: 2,
+    title: "A Moth on Watch",
+    hint: "Post a moth at a lighthouse.",
+    trigger: (s) => Object.keys(s.mothPosts).length > 0,
+    text: "You carry the moth up the tower stairs cupped in both hands, and it walks off your palm onto the lamp-room sill as though it has been waiting a century for the job. It has, probably. The old towers all had one — a moth on watch, the ledgers say, as plainly as they say oil and wick — and you had thought it a figure of speech. The beam leans a little steadier on the glass that night. The moth does not look round. It is working.",
+  },
+  {
     id: "cormorant",
     act: 2,
     title: "The Roost at Cormorant",
@@ -208,6 +224,14 @@ export const STORY_BEATS: readonly StoryBeat[] = [
     hint: "Relight The Hollow Light.",
     trigger: (s) => s.endingSeen,
     text: "The last tower stands at the heart of the Hollow Sea, where the glass is deepest and the dark is oldest. You climb it the way you climbed the first one — kettle, tools, ridiculous hope — and at the top you find the lamp already laid: wick trimmed, oil full, lens polished, a century of some keeper's faith that this night would come. You strike the match. And the light goes out across the glass in a widening ring, tower answering tower, Candlewick to Gull Rock to the Roost, the Walk, the Bellwether, the Rest — and where the light touches, the glass remembers it was water. It begins, very gently, to move. A wave. A real one, small as a held breath let go. The ships that are mostly memory turn, all together, toward home — and the memories, at last, arrive. You did that. Keeper, you did that.",
+  },
+  {
+    id: "first-hollow",
+    act: 3,
+    title: "The Shape the Light Leaves",
+    hint: "After the ending, breed two perfect Prismatic moths and hope.",
+    trigger: (s) => s.moths.some((m) => m.pattern === "hollow"),
+    text: "It hatches the colour of nothing at all — not dark, not pale, but the exact shape the beam leaves on the glass after it has passed. The other moths go very quiet. A Hollow moth, the ledger calls it, in a hand that is not quite steady: a moth the sea made only after the light came home, out of the space where the dark used to be. It settles on the lamp and the lamp, for one long breath, burns brighter than it has any right to. The Hollow Sea, it seems, has one more thing to say. It is saying thank you.",
   },
   {
     id: "next-keeping",

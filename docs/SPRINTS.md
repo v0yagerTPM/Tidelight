@@ -619,3 +619,39 @@ and the bottles.
 Pacing, same method as the rebalance (the bot breeds the two best and
 spends every lure, but ignores Fertile and scented lures): first
 Prismatic 12.6h, three Prismatics at glow 100 91h (was 100h).
+
+## ✅ Post-launch — late-game performance
+
+At ~3B Lumen/s the game fell to ~6 fps on every tab. A CPU profile put
+99% of the time in the Rekindle recovery estimate: a bot sim of a whole
+new run (~350 ms at that scale), cached on a key that included the exact
+Ember gain, which late in the game changes almost every frame, so it
+re-ran on every UI refresh whichever tab was open.
+
+- [x] The estimate runs only while the Rekindle tab is open and restarts
+      only when the gain moves ~5% (or Embers, perks, lights or the
+      challenge change).
+- [x] It runs in a lazily loaded Web Worker (`estimateWorker.ts`); where
+      a worker can't load (the single-file build) it is stepped a few
+      milliseconds per refresh (`createRecoveryEstimator`).
+- [x] Map lookups for lighthouse, generator, upgrade and pattern ids; a
+      per-generator upgrade list; memoised `boardNodeSupport`.
+
+At 2.94B/s: 60 fps on every tab (was ~6); with a 4× slower CPU the
+Rekindle tab's worst frame is 33 ms. The scene's own cost doesn't grow
+with production.
+
+## ✅ Post-launch — Hollow moths and the moth story
+
+The last moth PR.
+
+- [x] **Hollow moths.** Only after the ending: two glow-100 Prismatics
+      bred together have a 2% chance of a Hollow child (tier 6, glow
+      100–120, never wild, never bred true). It carries one trait from
+      each parent: two traits, both working, both filling Almanac pages.
+- [x] **The Almanac** gains a Hollow row (56 pages). The halo stays at 49
+      pages ("Every Living Wing"); all 56 earn a fifth duty slot.
+- [x] **Story:** "A Moth With Habits" (a first trait), "A Moth on Watch"
+      (a first post), "The Shape the Light Leaves" (a first Hollow moth):
+      24 beats, acts 6 / 10 / 8.
+- [x] **Saves → v10:** `trait2`; glow kept up to 120.
