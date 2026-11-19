@@ -316,6 +316,16 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
 // late in the game), so by map rather than a linear search.
 const LIGHTHOUSES_BY_ID: ReadonlyMap<string, ChainLighthouseDef> = new Map(CHAIN_LIGHTHOUSES.map((l) => [l.id, l]));
 
+/**
+ * The most any single purchase costs: The Hollow Light's relight price.
+ * A keeper who has lit it can afford anything in the game, so every
+ * upgrade, roost expansion and rush lure is capped here (helper copies and
+ * chain levels are bought one at a time and keep climbing, by design).
+ */
+export function priceCeiling(): number {
+  return CHAIN_LIGHTHOUSES.find((l) => l.id === HOLLOW_LIGHT_ID)?.relightCost ?? Infinity;
+}
+
 export function chainLighthouseById(id: string): ChainLighthouseDef {
   const def = LIGHTHOUSES_BY_ID.get(id);
   if (!def) throw new Error(`Unknown chain lighthouse id: ${id}`);

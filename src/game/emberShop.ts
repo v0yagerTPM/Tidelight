@@ -122,9 +122,10 @@ export const LONG_WATCH_SECONDS = 3600;
 export const KINDLINGS: readonly KindlingDef[] = [
   { id: "ember-glow",    name: "Ember Glow",    perLevel: "All production +5%",       factor: 1.05, baseCost: 1_000, growth: 10, maxLevel: 10 },
   { id: "long-watch",    name: "Long Watch",    perLevel: "Offline cap +1 hour",      factor: 0, baseCost: 1_000, growth: 4, maxLevel: 8 },
-  { id: "quick-lures",   name: "Quick Lures",   perLevel: "Lures regrow 5% sooner",   factor: SHORE_KINDLING_FACTOR, baseCost: 2_000, growth: 10, maxLevel: 20 },
-  { id: "spinning-silk", name: "Spinning Silk", perLevel: "Cocoons spin 5% faster",   factor: SHORE_KINDLING_FACTOR, baseCost: 2_000, growth: 10, maxLevel: 20 },
-  { id: "tailwind",      name: "Tailwind",      perLevel: "Bottles come home 5% sooner", factor: SHORE_KINDLING_FACTOR, baseCost: 2_000, growth: 10, maxLevel: 20 },
+  // ×3 a level, so the 20th (2.3 trillion Embers) is within reach by the ending.
+  { id: "quick-lures",   name: "Quick Lures",   perLevel: "Lures regrow 5% sooner",   factor: SHORE_KINDLING_FACTOR, baseCost: 2_000, growth: 3, maxLevel: 20 },
+  { id: "spinning-silk", name: "Spinning Silk", perLevel: "Cocoons spin 5% faster",   factor: SHORE_KINDLING_FACTOR, baseCost: 2_000, growth: 3, maxLevel: 20 },
+  { id: "tailwind",      name: "Tailwind",      perLevel: "Bottles come home 5% sooner", factor: SHORE_KINDLING_FACTOR, baseCost: 2_000, growth: 3, maxLevel: 20 },
 ];
 
 const KINDLINGS_BY_ID: ReadonlyMap<string, KindlingDef> = new Map(KINDLINGS.map((k) => [k.id, k]));

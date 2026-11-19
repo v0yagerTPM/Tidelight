@@ -1,6 +1,6 @@
 import Decimal from "break_infinity.js";
 import { almanacCocoonMultiplier, dutySlots, lureBankSize, lureRegrowMs, recordAlmanac } from "./almanac";
-import { CHAIN_LIGHTHOUSES } from "./config";
+import { CHAIN_LIGHTHOUSES, priceCeiling } from "./config";
 import { MOTH_LANTERN_COCOON_MULTIPLIER, kindlingMultiplier } from "./emberShop";
 import { relicMothGlowBonus } from "./expeditions";
 import { productionPerSecond } from "./engine";
@@ -213,7 +213,7 @@ export function roostExpansionCost(state: GameState): Decimal {
   const ladder = new Decimal(ROOST_BASE_COST).mul(new Decimal(ROOST_COST_GROWTH).pow(state.roostExpansions));
   const minutes = ROOST_PRODUCTION_MINUTES * ROOST_PRODUCTION_GROWTH ** state.roostExpansions;
   const fromProduction = productionPerSecond(state).mul(minutes * 60);
-  return Decimal.max(ladder, fromProduction).ceil();
+  return Decimal.min(Decimal.max(ladder, fromProduction).ceil(), priceCeiling());
 }
 
 /** The production half of the next expansion's price, in minutes (for the UI). */
@@ -266,7 +266,7 @@ function settleLures(state: GameState, now: number): void {
  */
 export function rushLureCost(state: GameState, now: number = Date.now()): Decimal {
   const base = Decimal.max(RUSH_LURE_MIN_COST, state.allTimeLumen.mul(RUSH_LURE_SHARE));
-  return base.mul(new Decimal(RUSH_LURE_GROWTH).pow(lureStatus(state, now).rushes)).ceil();
+  return Decimal.min(base.mul(new Decimal(RUSH_LURE_GROWTH).pow(lureStatus(state, now).rushes)).ceil(), priceCeiling());
 }
 
 export function mothById(state: GameState, id: string): Moth | undefined {
