@@ -155,6 +155,40 @@ export const PERK_ICONS: Record<string, string> = {
   "second-wind": svg(
     `<path d="M3 12h15a4 4 0 1 0-4-4"/><path d="M3 18h21a4 4 0 1 1-4 4"/><path d="M3 24h9" opacity=".6"/><circle cx="26" cy="9" r="2" fill="var(--lamp)" stroke="none"/>`,
   ),
+  // Late perks
+  quartermaster: svg(
+    `<rect x="7" y="5" width="18" height="23" rx="2"/><path d="M12 5V3h8v2"/><path d="M11 12l2 2 4-4M11 19l2 2 4-4" stroke="var(--lamp)"/><path d="M19 13h3M19 20h3"/>`,
+  ),
+  "lamp-crew": svg(
+    `<circle cx="10" cy="10" r="3"/><circle cx="22" cy="10" r="3"/><path d="M4 24c0-4 3-7 6-7s6 3 6 7M16 24c0-4 3-7 6-7s6 3 6 7"/>${FLAME(16, 8, 0.8)}`,
+  ),
+  "warm-hearth": svg(
+    `<path d="M5 27V14l11-8 11 8v13z"/><path d="M12 27v-6a4 4 0 0 1 8 0v6"/>${FLAME(16, 24, 0.9)}`,
+  ),
+  "steward-ledger": svg(
+    `<path d="M6 6h9a3 3 0 0 1 3 3v17a2 2 0 0 0-2-2H6zM26 6h-6a2 2 0 0 0-2 2"/><path d="M26 6v18h-8"/><path d="M9 11h5M9 15h5M9 19h3" stroke="var(--lamp)"/>`,
+  ),
+  "storm-charts": svg(
+    `<path d="M4 7l8-3 8 3 8-3v21l-8 3-8-3-8 3z"/><path d="M12 4v21M20 7v21" opacity=".5"/><path d="M17 11l-3 5h4l-3 5" stroke="var(--lamp)"/>`,
+  ),
+  "moth-lantern": svg(
+    `<path d="M12 5h8M13 5v3h6V5M11 8h10l-1 15H12z"/><path d="M14 27h4"/><path d="M16 15c-2-2-4-2-4 0s2 2 4 0c2 2 4 2 4 0s-2-2-4 0z" fill="var(--lamp)" fill-opacity=".6" stroke="none"/>`,
+  ),
+  "ember-memory": svg(
+    `<path d="M16 5a9 9 0 0 0-9 9c0 3.5 2 5.5 2 8v3h14v-3c0-2.5 2-4.5 2-8a9 9 0 0 0-9-9z"/><path d="M12 28h8"/>${FLAME(16, 18, 1.1)}`,
+  ),
+  "glass-charts": svg(
+    `<path d="M5 8l7-3 8 3 7-3v19l-7 3-8-3-7 3z"/><path d="M12 5v19M20 8v19" opacity=".5"/><path d="M8 18c3-4 7-2 9-6s5-3 7-3" stroke="var(--lamp)" stroke-dasharray="2 2"/>`,
+  ),
+};
+
+/** Kindlings: repeatable Ember perks. */
+export const KINDLING_ICONS: Record<string, string> = {
+  "ember-glow": svg(`<circle cx="16" cy="17" r="7" fill="var(--lamp)" fill-opacity=".3"/><path d="M16 3v4M16 27v2M4 17H2M30 17h-2M7 8l2 2M25 8l-2 2"/>${FLAME(16, 21, 1.4)}`),
+  "quick-lures": svg(`<path d="M16 4v8"/><circle cx="16" cy="15" r="3" fill="var(--lamp)" stroke="none"/><path d="M9 22c2-2 4-2 7 0 3-2 5-2 7 0M5 27h22" opacity=".7"/><path d="M24 6l3-2M24 10h4" stroke="var(--lamp)"/>`),
+  "spinning-silk": svg(`<path d="M16 3v5"/><ellipse cx="16" cy="17" rx="6" ry="9"/><path d="M10.5 13c3 1.5 8 1.5 11 0M10.5 19c3 1.5 8 1.5 11 0" opacity=".6"/><path d="M25 8a6 6 0 0 1 0 8" stroke="var(--lamp)"/>`),
+  tailwind: svg(`<path d="M3 11h16a3 3 0 1 0-3-3M3 17h21a3 3 0 1 1-3 3"/><path d="M20 26c3-1 5-3 6-6" stroke="var(--lamp)"/><path d="M3 23h8" opacity=".6"/>`),
+  "long-watch": svg(`<circle cx="16" cy="17" r="10"/><path d="M16 11v6l4 3"/><path d="M12 4h8" stroke="var(--lamp)"/>`),
 };
 
 /** The three challenges. */

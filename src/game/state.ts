@@ -5,7 +5,7 @@ import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, GENERATORS, chainLig
 // time), so these imports form no load-time cycle with modules that import
 // addLog from here.
 import { CHALLENGES } from "./challenges";
-import { EMBER_PERKS } from "./emberShop";
+import { EMBER_PERKS, KINDLINGS } from "./emberShop";
 import { RELICS } from "./expeditions";
 import { STORY_BEATS } from "./story";
 import { UPGRADES } from "./upgrades";
@@ -22,9 +22,9 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 11;
-/** Older saves (Sprint 0 = v1 … Hollow moths = v10) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+export const SAVE_VERSION = 12;
+/** Older saves (Sprint 0 = v1 … Chain Steward = v11) migrate on load. */
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 /** supply.ts STEWARD_SHARES / STEWARD_TARGETS (literal: this module stays a leaf). */
 const STEWARD_SHARE_CHOICES: readonly number[] = [0.1, 0.25, 0.5];
 const STEWARD_TARGET_CHOICES: readonly number[] = [0.8, 0.9, 1];
@@ -80,8 +80,8 @@ function sanitizeChain(
 
 /** mothTraits.ts trait ids (kept literal here so this module stays a leaf). */
 const MOTH_TRAIT_IDS: readonly string[] = ALMANAC_TRAITS.filter((t) => t !== "none");
-/** The largest lure bank (almanac.ts lureBankSize); kept literal: moths.ts imports this module. */
-const LURE_BANK = 4;
+/** The largest lure bank (almanac.ts lureBankSize: 3, +1 Almanac, +1 Moth Lantern); kept literal: moths.ts imports this module. */
+const LURE_BANK = 5;
 /** Duty slots at most (almanac.ts dutySlots). */
 const MAX_DUTY_SLOTS = 5;
 
@@ -241,6 +241,9 @@ export function createInitialState(now: number = Date.now()): GameState {
     stewardShare: 0.25,
     stewardTarget: 1,
     stewardPurse: new Decimal(0),
+    kindlings: {},
+    autoLearn: true,
+    autoHire: true,
     expedition: null,
     relics: [],
     storyFragmentIndex: 0,
@@ -299,6 +302,9 @@ export function serializeState(state: GameState): SavedState {
     stewardShare: state.stewardShare,
     stewardTarget: state.stewardTarget,
     stewardPurse: state.stewardPurse.toString(),
+    kindlings: { ...state.kindlings },
+    autoLearn: state.autoLearn,
+    autoHire: state.autoHire,
     expedition: state.expedition ? { ...state.expedition } : null,
     relics: [...state.relics],
     storyFragmentIndex: state.storyFragmentIndex,
@@ -317,6 +323,16 @@ export function serializeState(state: GameState): SavedState {
 
 function validBuyAmount(value: unknown): BuyAmount {
   return value === 10 || value === 100 || value === "max" ? value : 1;
+}
+
+function sanitizeKindlings(value: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!value || typeof value !== "object") return out;
+  for (const def of KINDLINGS) {
+    const level = sanitizeCount((value as Record<string, unknown>)[def.id]);
+    if (level > 0) out[def.id] = def.maxLevel !== undefined ? Math.min(def.maxLevel, level) : level;
+  }
+  return out;
 }
 
 function sanitizeCount(value: unknown): number {
@@ -402,6 +418,11 @@ export function deserializeState(raw: unknown): GameState | null {
       stewardShare: typeof s.stewardShare === "number" && STEWARD_SHARE_CHOICES.includes(s.stewardShare) ? s.stewardShare : 0.25,
       stewardTarget: typeof s.stewardTarget === "number" && STEWARD_TARGET_CHOICES.includes(s.stewardTarget) ? s.stewardTarget : 1,
       stewardPurse: safeDecimal(s.stewardPurse),
+      // v12: Kindling levels (known ids only, whole numbers, within any cap)
+      // and the Quartermaster / Lamp Crew switches, on unless switched off.
+      kindlings: sanitizeKindlings(s.kindlings),
+      autoLearn: s.autoLearn !== false,
+      autoHire: s.autoHire !== false,
       // Sprint 5 migration: story unseen, ending unwitnessed, no Keepings
       // yet, standard notation — unless the save says otherwise.
       storySeen: sanitizeIdList(s.storySeen, STORY_BEATS),

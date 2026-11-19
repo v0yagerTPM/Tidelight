@@ -157,8 +157,9 @@ export function startChallenge(state: GameState, id: string): boolean {
   const def = challengeById(id);
   if (state.activeChallenge !== null) return false;
   if (isChallengeCompleted(state, id)) return false;
-  resetRun(state);
+  // The rule is set first, so the reset's Warm Hearth helpers obey it.
   state.activeChallenge = id;
+  resetRun(state);
   addLog(
     state,
     `Challenge begun — ${def.name}: ${def.ruleText} Reach ${def.goalLifetime.toLocaleString("en-US")} lifetime Lumen to earn ${def.rewardName}.`,

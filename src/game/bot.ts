@@ -8,7 +8,8 @@ import {
   nodeCost,
   relightLighthouse,
 } from "./chain";
-import { baseProductionPerSecond, buyGenerator, clickValue, costFor, productionPerSecond } from "./engine";
+import { baseProductionPerSecond, buyGenerator, clickValue, costFor, lastingProductionMultiplier, productionPerSecond } from "./engine";
+import { EMBER_PERKS, KINDLINGS, buyKindling, buyPerk, hasPerk, kindlingCost, kindlingLevel } from "./emberShop";
 import { canBuyGenerator } from "./challenges";
 import type { GameState } from "./types";
 import { UPGRADES, buyUpgrade, isUnlocked } from "./upgrades";
@@ -275,4 +276,63 @@ export function botBuyPhase(
       hooks.onUpgradeBought?.(state.upgrades[state.upgrades.length - 1]);
     }
   }
+}
+
+// ── The Ember shop, as the bot plays it ──────────────────────────────────────
+// After each Rekindle the bot spends Embers the way a careful keeper would:
+//   • a purchase that raises production (Second Wind, Ember Heart, Ember
+//     Glow) only when the lasting multiplier is higher AFTER paying for it,
+//     held-Ember bonus lost included;
+//   • anything else (perks, Deep Draw, Long Wick, Long Watch) only when it
+//     costs no more than a tenth of the Embers held.
+// The automation perks change nothing for a bot that already buys
+// everything itself; it still buys them under the tenth rule.
+
+/** Share of held Embers the bot will spend on a perk that doesn't raise production directly. */
+export const BOT_SHOP_SHARE = 0.1;
+const PRODUCTION_PERKS = new Set(["second-wind", "ember-heart"]);
+
+function lastingWith(state: GameState, apply: () => void, undo: () => void): Decimal {
+  apply();
+  const m = lastingProductionMultiplier(state);
+  undo();
+  return m;
+}
+
+/** Spend Embers in the shop; returns the names bought (in order). */
+export function botShop(state: GameState): string[] {
+  const bought: string[] = [];
+  for (let guard = 0; guard < 200; guard++) {
+    const now = lastingProductionMultiplier(state);
+    let pick: { name: string; run: () => boolean } | null = null;
+    for (const def of EMBER_PERKS) {
+      if (hasPerk(state, def.id) || state.embers < def.costEmbers) continue;
+      const ok = PRODUCTION_PERKS.has(def.id)
+        ? lastingWith(
+            state,
+            () => { state.emberPerks.push(def.id); state.embers -= def.costEmbers; },
+            () => { state.emberPerks.pop(); state.embers += def.costEmbers; },
+          ).gt(now)
+        : def.costEmbers <= state.embers * BOT_SHOP_SHARE;
+      if (ok) { pick = { name: def.name, run: () => buyPerk(state, def.id) }; break; }
+    }
+    if (!pick) {
+      for (const def of KINDLINGS) {
+        const cost = kindlingCost(state, def.id);
+        if (!Number.isFinite(cost) || state.embers < cost) continue;
+        const ok =
+          def.id === "ember-glow"
+            ? lastingWith(
+                state,
+                () => { state.kindlings[def.id] = kindlingLevel(state, def.id) + 1; state.embers -= cost; },
+                () => { state.kindlings[def.id] = kindlingLevel(state, def.id) - 1; state.embers += cost; },
+              ).gt(now)
+            : cost <= state.embers * BOT_SHOP_SHARE;
+        if (ok) { pick = { name: `${def.name} ${kindlingLevel(state, def.id) + 1}`, run: () => buyKindling(state, def.id) }; break; }
+      }
+    }
+    if (!pick || !pick.run()) break;
+    bought.push(pick.name);
+  }
+  return bought;
 }

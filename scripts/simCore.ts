@@ -28,7 +28,7 @@
 // The bot is a PESSIMISTIC bound on a real keeper: no Ember perks, no
 // challenges, no moths, no relics, no tides, no bottles.
 import Decimal from "break_infinity.js";
-import { BOT_CLICK_WINDOW_SECONDS, botBuyPhase } from "../src/game/bot";
+import { BOT_CLICK_WINDOW_SECONDS, botBuyPhase, botShop } from "../src/game/bot";
 import { CHAIN_LIGHTHOUSES, GENERATORS, HOLLOW_LIGHT_ID, PRESTIGE_RECOMMENDED_EMBERS } from "../src/game/config";
 import { chainStatus, lighthouseStatus, nextLighthouseId } from "../src/game/chain";
 import { clickBeam, productionPerSecond, tick } from "../src/game/engine";
@@ -72,6 +72,10 @@ export interface SimResult {
    * between the two is time with nothing new to learn.
    */
   runsByLit: Record<number, { runs: number; avgMinutes: number; lastUpgradeMinutes: number; upgradesOwned: number }>;
+  /** Ember perks in the order the bot bought them, with the sim hour. */
+  perksBought: string[];
+  /** Kindling levels at the stop. */
+  finalKindlings: Record<string, number>;
 }
 
 /**
@@ -87,6 +91,12 @@ export interface SimOptions {
   stopWhenLit?: string;
   /** Tuning shortcut: stop at this many sim hours. */
   stopAfterHours?: number;
+  /**
+   * Spend Embers in the shop after every Rekindle (bot.ts botShop). Off for
+   * the pacing gate, the plain keeper the game has always been balanced on;
+   * on for the "keeper who buys everything" line of the report.
+   */
+  shop?: boolean;
 }
 
 export function runSim(opts: SimOptions = {}): SimResult {
@@ -116,6 +126,11 @@ export function runSim(opts: SimOptions = {}): SimResult {
     });
   };
   let lastUpgradeRunT = 0;
+  const perksBought: string[] = [];
+  const shop = () => {
+    if (!opts.shop) return;
+    for (const name of botShop(state)) if (!/ \d+$/.test(name)) perksBought.push(`${(totalT / 3600).toFixed(1)}h: ${name}`);
+  };
   const runStats: { lit: number; minutes: number; lastUpgrade: number; owned: number }[] = [];
   const noteRunEnd = () => {
     if (inPhaseB) runStats.push({ lit: state.litLighthouses.length, minutes: runT / 60, lastUpgrade: lastUpgradeRunT / 60, owned: state.upgrades.length });
@@ -151,6 +166,7 @@ export function runSim(opts: SimOptions = {}): SimResult {
         if (firstRekindleAt === null) firstRekindleAt = totalT;
         else secondRekindleAt = totalT;
         say(`★ Rekindle at ${(totalT / 60).toFixed(1)} min (+${gained} Embers)`);
+        shop();
         runT = 0;
         continue;
       }
@@ -222,6 +238,7 @@ export function runSim(opts: SimOptions = {}): SimResult {
       if (rekindle(state) >= 1) {
         rekindles++;
         runT = 0;
+        shop();
       }
       savingSince = null;
       continue;
@@ -231,6 +248,7 @@ export function runSim(opts: SimOptions = {}): SimResult {
       if (rekindle(state) >= 1) {
         rekindles++;
         runT = 0;
+        shop();
       }
     }
     for (const hr of SAMPLE_HOURS) {
@@ -262,6 +280,8 @@ export function runSim(opts: SimOptions = {}): SimResult {
     earlyUpgrades,
     log: out,
     curve,
+    perksBought,
+    finalKindlings: { ...state.kindlings },
     runsByLit: (() => {
       const out: SimResult["runsByLit"] = {};
       for (const lit of [...new Set(runStats.map((r) => r.lit))]) {

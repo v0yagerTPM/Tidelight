@@ -610,7 +610,7 @@ describe("permanence & save migration (v4 → v5)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v4Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(11);
+    expect(restored?.version).toBe(12);
     expect(restored?.moths).toEqual([]);
     expect(restored?.mothDuty).toEqual([]);
     expect(restored?.roostExpansions).toBe(0);
@@ -631,7 +631,7 @@ describe("permanence & save migration (v4 → v5)", () => {
     state.expedition = { routeId: "coastal", startedAt: 100, returnsAt: 200 };
     state.cocoon = { parentIds: ["m1", "m2"], readyAt: 999 };
     const saved = serializeState(state);
-    expect(saved.version).toBe(11);
+    expect(saved.version).toBe(12);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.moths).toEqual(state.moths);
     expect(restored?.mothDuty).toEqual(["m1"]);

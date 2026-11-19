@@ -13,12 +13,14 @@ import {
   CHAIN_NODES,
   CHAIN_NODE_IDS,
   CHAIN_UNLOCK_GENERATORS,
+  EMBER_CURVE,
   FIRST_LIGHT_ID,
   GENERATORS,
   HOLLOW_LIGHT_ID,
   MILESTONE_THRESHOLDS,
   PRESTIGE_RECOMMENDED_EMBERS,
   chainLighthouseById,
+  effectiveEmbers,
   milestoneMultiplier,
   type ChainNodeId,
   type GeneratorDef,
@@ -45,7 +47,17 @@ import {
   relightLighthouse,
   totalSupport,
 } from "./game/chain";
-import { EMBER_PERKS, buyPerk, type EmberPerkDef } from "./game/emberShop";
+import {
+  EMBER_PERKS,
+  KINDLINGS,
+  buyKindling,
+  buyPerk,
+  kindlingCost,
+  kindlingLevel,
+  type EmberPerkDef,
+  type KindlingDef,
+} from "./game/emberShop";
+import { autoHire, autoLearn } from "./game/automation";
 import {
   advanceToNow,
   LIVE_GAP_LIMIT_SECONDS,
@@ -70,12 +82,13 @@ import {
   routeById,
   sendExpedition,
   relicChanceFor,
+  voyageMs,
   type ExpeditionClaim,
 } from "./game/expeditions";
 import { Splash, type SplashPage } from "./ui/splash";
 import { tutorialPages } from "./ui/tutorial";
 import { infoTip, initTips, setTip, tipAttr } from "./ui/tips";
-import { bottleneckAtDemand, efficiencyAtDemand, feedNode, feedQuote, fillChain, stewardActive, stewardUnlocked, tendChain } from "./game/supply";
+import { bottleneckAtDemand, efficiencyAtDemand, feedNode, feedQuote, fillChain, stewardActive, stewardPurseCapSeconds, stewardUnlocked, tendChain } from "./game/supply";
 import { formatDuration, formatNumber } from "./game/format";
 import {
   attractMoth,
@@ -135,6 +148,7 @@ import {
   EMBER_GLYPH,
   GENERATOR_ICONS,
   GLOBAL_UPGRADE_ICONS,
+  KINDLING_ICONS,
   PERK_ICONS,
   HEARTH_ART,
   RELIC_ICONS,
@@ -424,7 +438,7 @@ ${[
 
       <h3 class="section-title">Ember Shop ${infoTip("Spend held Embers on permanent perks. Every Ember spent lowers your held-Ember production bonus: that's the trade.", "About the Ember Shop")}</h3>
       <p class="muted"><span id="shop-held"></span></p>
-      <div id="ember-shop" class="perk-grid"></div>
+      <div id="ember-shop" class="ember-shop"></div>
 
       <h3 class="section-title">Challenges ${infoTip("Opt-in rule-changing runs. Starting one resets your run like a Rekindle, but grants no Embers. Reach the goal to bank a permanent reward; the run then continues. Abandoning resets the run with no reward.", "About challenges")}</h3>
       <div id="challenges" class="trial-list"></div>
@@ -759,23 +773,80 @@ function rebuildUpgrades(): void {
 // Every view's structure key starts as null ("never built"), not "": a
 // keeper with no perks has an empty key, and an empty starting key once meant
 // the shop never built at all until a perk was owned — which needed the shop.
-interface PerkRow {
-  def: EmberPerkDef;
+interface ShopRow {
+  /** Embers the next purchase costs (Infinity once there is nothing left to buy). */
+  cost: () => number;
   buy: HTMLButtonElement;
   warning: HTMLElement;
 }
 const shopContainer = document.querySelector<HTMLDivElement>("#ember-shop");
-let shopRows: PerkRow[] = [];
+let shopRows: ShopRow[] = [];
 let shopStructureKey: string | null = null;
+
+function emberShopKey(): string {
+  return `${state.emberPerks.join(",")}|${KINDLINGS.map((k) => kindlingLevel(state, k.id)).join(",")}|${state.autoLearn}|${state.autoHire}`;
+}
+
+/** What an automation perk's switch controls, by perk id. */
+const AUTOMATION_SWITCHES: Record<string, { key: "autoLearn" | "autoHire"; label: string }> = {
+  quartermaster: { key: "autoLearn", label: "Learning upgrades" },
+  "lamp-crew": { key: "autoHire", label: "Hiring helpers" },
+};
+
+/** The total effect a Kindling's levels give, in words ("×2.25 production"). */
+function kindlingTotal(def: KindlingDef, level: number): string {
+  if (level === 0) return "Not kindled yet";
+  switch (def.id) {
+    case "ember-glow":
+      return `Now: all production +${Math.round((def.factor ** level - 1) * 100)}%`;
+    case "quick-lures":
+    case "spinning-silk":
+    case "tailwind":
+      return `Now: ${Math.round((1 - def.factor ** level) * 100)}% less waiting`;
+    case "long-watch":
+      return `Now: offline cap +${level} hour${level === 1 ? "" : "s"}`;
+    default:
+      return `Level ${level}`;
+  }
+}
 
 function rebuildEmberShop(): void {
   shopRows = [];
   if (!shopContainer) return;
   shopContainer.innerHTML = "";
-  for (const def of EMBER_PERKS) {
+  const shelf = (title: string, note: string): HTMLDivElement => {
+    const head = document.createElement("h4");
+    head.className = "shelf-title";
+    head.innerHTML = `${title} ${infoTip(note, `About ${title}`)}`;
+    const grid = document.createElement("div");
+    grid.className = "perk-grid";
+    shopContainer.append(head, grid);
+    return grid;
+  };
+  const addRow = (card: HTMLElement, cost: () => number, onBuy: () => boolean) => {
+    const buy = card.querySelector<HTMLButtonElement>(".buy");
+    const warning = card.querySelector<HTMLElement>(".perk-warning");
+    if (!buy || !warning) return;
+    buy.addEventListener("click", () => {
+      if (onBuy()) {
+        sound.chime();
+        saveState(state);
+        renderDynamic();
+      }
+    });
+    shopRows.push({ cost, buy, warning });
+  };
+
+  const perkCard = (def: EmberPerkDef): HTMLElement => {
     const owned = state.emberPerks.includes(def.id);
+    const sw = AUTOMATION_SWITCHES[def.id];
     const card = document.createElement("article");
     card.className = `perk${owned ? " owned" : ""}`;
+    const foot = !owned
+      ? `<span class="perk-cost">${EMBER_GLYPH}${fmt(def.costEmbers)}</span><button class="buy">Kindle</button>`
+      : sw
+        ? `<span class="learned">${sw.label}</span><button class="toggle-btn perk-switch${state[sw.key] ? " active" : ""}" data-auto="${sw.key}" aria-pressed="${state[sw.key]}">${state[sw.key] ? "On" : "Off"}</button>`
+        : `<span class="learned">Kindled ✓ · permanent</span>`;
     card.innerHTML = `
       <div class="perk-art">${PERK_ICONS[def.id] ?? UNKNOWN_ICON}</div>
       <div class="perk-body">
@@ -783,29 +854,49 @@ function rebuildEmberShop(): void {
         <p class="perk-effect">${def.effect}</p>
         ${owned ? "" : `<p class="perk-warning"></p>`}
       </div>
-      <div class="perk-foot">
-        ${
-          owned
-            ? `<span class="learned">Kindled ✓ · permanent</span>`
-            : `<span class="perk-cost">${EMBER_GLYPH}${fmt(def.costEmbers)}</span><button class="buy">Kindle</button>`
-        }
-      </div>`;
-    if (!owned) {
-      const buy = card.querySelector<HTMLButtonElement>(".buy");
-      const warning = card.querySelector<HTMLElement>(".perk-warning");
-      if (!buy || !warning) continue;
-      buy.addEventListener("click", () => {
-        if (buyPerk(state, def.id)) {
-          sound.chime();
-          saveState(state);
-          renderDynamic();
-        }
-      });
-      shopRows.push({ def, buy, warning });
-    }
-    shopContainer.appendChild(card);
+      <div class="perk-foot">${foot}</div>`;
+    if (!owned) addRow(card, () => def.costEmbers, () => buyPerk(state, def.id));
+    return card;
+  };
+
+  const keeper = shelf("Keeper's perks", "One-time perks, kept forever.");
+  for (const def of EMBER_PERKS.filter((p) => p.shelf === "keeper")) keeper.appendChild(perkCard(def));
+
+  const kindlings = shelf("Kindlings", "Repeatable perks: every level adds the same again, and the next costs more. There's always one more to kindle.");
+  for (const def of KINDLINGS) {
+    const level = kindlingLevel(state, def.id);
+    const maxed = def.maxLevel !== undefined && level >= def.maxLevel;
+    const card = document.createElement("article");
+    card.className = `perk kindling${level > 0 ? " owned" : ""}`;
+    card.innerHTML = `
+      <div class="perk-art">${KINDLING_ICONS[def.id] ?? UNKNOWN_ICON}</div>
+      <div class="perk-body">
+        <h4 class="perk-name">${def.name} <span class="kindling-level">${level > 0 ? `Level ${level}${def.maxLevel !== undefined ? ` of ${def.maxLevel}` : ""}` : ""}</span></h4>
+        <p class="perk-effect">${def.perLevel} per level.</p>
+        <p class="kindling-total">${kindlingTotal(def, level)}</p>
+        ${maxed ? "" : `<p class="perk-warning"></p>`}
+      </div>
+      <div class="perk-foot">${
+        maxed
+          ? `<span class="learned">Fully kindled ✓</span>`
+          : `<span class="perk-cost">${EMBER_GLYPH}${fmt(kindlingCost(state, def.id))}</span><button class="buy">${level > 0 ? "Kindle again" : "Kindle"}</button>`
+      }</div>`;
+    if (!maxed) addRow(card, () => kindlingCost(state, def.id), () => buyKindling(state, def.id));
+    kindlings.appendChild(card);
   }
+
+  const late = shelf("Late perks", "One-time perks for a keeper deep in the game, priced ten times apart. Quartermaster and Lamp Crew work while the game is open and can be switched off.");
+  for (const def of EMBER_PERKS.filter((p) => p.shelf === "late")) late.appendChild(perkCard(def));
 }
+// The automation switches on owned perk cards.
+shopContainer?.addEventListener("click", (e) => {
+  const btn = (e.target as Element | null)?.closest<HTMLButtonElement>("[data-auto]");
+  if (!btn) return;
+  const key = btn.dataset.auto === "autoLearn" ? "autoLearn" : "autoHire";
+  state[key] = !state[key];
+  saveState(state);
+  renderDynamic();
+});
 
 // ── Challenges: illustrated trial cards (rebuilt on active/completed change)
 const challengeContainer = document.querySelector<HTMLDivElement>("#challenges");
@@ -1046,7 +1137,7 @@ function rebuildShore(): void {
       card.innerHTML = `
         <div class="gen-name">${route.name}</div>
         <p class="muted">${route.flavor}</p>
-        <p class="muted">${route.durationMinutes >= 60 ? `${route.durationMinutes / 60} hour${route.durationMinutes > 60 ? "s" : ""}` : `${route.durationMinutes} minutes`} · relic chance <span class="route-chance">${Math.round(relicChanceFor(state, route, state.expedition ? riderOf(state) : chosenRider()) * 100)}%</span> · cache at least ${fmt(route.minCache)} Lumen</p>
+        <p class="muted">${formatDuration(voyageMs(state, route) / 1000)} · relic chance <span class="route-chance">${Math.round(relicChanceFor(state, route, state.expedition ? riderOf(state) : chosenRider()) * 100)}%</span> · cache at least ${fmt(route.minCache)} Lumen</p>
         <button class="buy route-send">Send a bottle — ${fmt(route.cost)} Lumen</button>
         <span class="gen-note muted route-note"></span>`;
       const btn = card.querySelector<HTMLButtonElement>(".route-send");
@@ -2361,7 +2452,7 @@ let logStructureKey: string | null = null;
 
 // ── The supply strip: the chain, fed from the Light view ────────────────────
 // Wick, Oil and Lens as gauges of support against demand (the bottleneck
-// glows), the Beam bonus, a Feed button on each (the best-value level on
+// glows), the Beam bonus, a Feed button on each (the cheapest level on
 // any lit board: supply.ts), Fill the chain, and the Chain Steward's
 // settings. The board-by-board view stays on the Lighthouses tab.
 const supplyStrip = document.querySelector<HTMLElement>("#supply-strip");
@@ -2467,7 +2558,7 @@ function updateSupplyStrip(now: number): void {
       if (ref.feed && quote.board) {
         setTip(
           ref.feed,
-          `Buys the best-value ${CHAIN_NODES[ref.nodeId].name} level, on ${boardName}: +${fmt(quote.supportGain)}/s support` +
+          `Buys the cheapest ${CHAIN_NODES[ref.nodeId].name} level, on ${boardName}: +${fmt(quote.supportGain)}/s support` +
             (pct(quote.efficiencyAfter) !== pct(chain.efficiency)
               ? `, beam ${pct(chain.efficiency)} → ${pct(quote.efficiencyAfter)}.`
               : isBottleneck
@@ -2508,7 +2599,7 @@ function updateSupplyStrip(now: number): void {
     stewardPanel.querySelectorAll<HTMLButtonElement>("[data-steward-target]").forEach((b) => b.classList.toggle("active", Number(b.dataset.stewardTarget) === state.stewardTarget));
     if (stewardStatus) {
       stewardStatus.textContent = stewardActive(state)
-        ? `Purse ${fmt(state.stewardPurse)} · fed ${stewardLevels} level${stewardLevels === 1 ? "" : "s"} since you opened the game. It never spends more than its purse, which holds at most ten minutes of production.`
+        ? `Purse ${fmt(state.stewardPurse)} · fed ${stewardLevels} level${stewardLevels === 1 ? "" : "s"} since you opened the game. It never spends more than its purse, which holds at most ${stewardPurseCapSeconds(state) / 60} minutes of production.`
         : "Off: the chain is yours to feed.";
     }
   }
@@ -2689,11 +2780,16 @@ function renderDynamic(): void {
   const perEmberPct = Math.round(emberBonusPerEmber(state) * 100);
   if (hud.rkGain) hud.rkGain.textContent = fmt(gain);
   if (hud.rkHeld) hud.rkHeld.textContent = fmt(state.embers);
-  if (hud.rkHeldLabel) hud.rkHeldLabel.textContent = `Embers held (each: +${perEmberPct}% production)`;
+  if (hud.rkHeldLabel) {
+    hud.rkHeldLabel.textContent =
+      state.embers > EMBER_CURVE.knee
+        ? `Embers held (+${perEmberPct}% each for the first ${EMBER_CURVE.knee}, then less)`
+        : `Embers held (each: +${perEmberPct}% production)`;
+  }
   if (hud.rkTotal) hud.rkTotal.textContent = fmt(state.embersTotalEarned);
-  if (hud.rkBonus) hud.rkBonus.textContent = bonusText(state.embers * perEmberPct);
+  if (hud.rkBonus) hud.rkBonus.textContent = bonusText(effectiveEmbers(state.embers) * perEmberPct);
   if (hud.rkAfter) {
-    hud.rkAfter.textContent = state.activeChallenge !== null || gain < 1 ? "—" : bonusText((state.embers + gain) * perEmberPct);
+    hud.rkAfter.textContent = state.activeChallenge !== null || gain < 1 ? "—" : bonusText(effectiveEmbers(state.embers + gain) * perEmberPct);
   }
   // The hearth's fire grows toward the recommended Rekindle (40 Embers) —
   // and beyond it, with the gain relative to what's already held.
@@ -2779,7 +2875,7 @@ function renderDynamic(): void {
   }
 
   // Ember Shop: rebuild on ownership change, refresh affordability in place.
-  const shopKey = state.emberPerks.join(",");
+  const shopKey = emberShopKey();
   if (shopKey !== shopStructureKey) {
     shopStructureKey = shopKey;
     rebuildEmberShop();
@@ -2788,11 +2884,18 @@ function renderDynamic(): void {
     hud.shopHeld.textContent = `You hold ${fmt(state.embers)} Embers (${fmt(state.embersTotalEarned)} earned all-time).`;
   }
   for (const row of shopRows) {
-    const affordable = state.embers >= row.def.costEmbers;
+    const cost = row.cost();
+    const affordable = state.embers >= cost;
     row.buy.disabled = !affordable;
     row.buy.classList.toggle("affordable", affordable);
-    const bonusLoss = row.def.costEmbers * perEmberPct;
-    row.warning.textContent = `Spending ${row.def.costEmbers} Embers lowers your held bonus by ${bonusLoss}% (from ${bonusText(state.embers * perEmberPct)} to ${bonusText((state.embers - row.def.costEmbers) * perEmberPct)}).`;
+    if (affordable) {
+      const share = cost / Math.max(1, state.embers);
+      row.warning.textContent = `Spends ${pct(share)} of your Embers`;
+      setTip(row.warning, `Spending ${fmt(cost)} Embers lowers your held bonus from ${bonusText(effectiveEmbers(state.embers) * perEmberPct)} to ${bonusText(effectiveEmbers(state.embers - cost) * perEmberPct)}.`);
+    } else {
+      row.warning.textContent = `${fmt(cost - state.embers)} more Embers`;
+      setTip(row.warning, `You hold ${fmt(state.embers)} Embers.`);
+    }
   }
 
   // The Shore: rebuild on structure change, refresh costs/countdowns in place.
@@ -2872,6 +2975,7 @@ learnAllBtn?.addEventListener("click", () => {
 // long ones (a sleeping laptop) by the offline rules, as if the tab had been
 // closed. A render error is logged once and never stops the clock.
 let renderErrorLogged = false;
+let lastAutomationAt = 0;
 function gameTick(): void {
   const now = Date.now();
   // A long gap (a sleeping laptop) is time away: note the Shore before it's settled.
@@ -2882,6 +2986,12 @@ function gameTick(): void {
   if (fed > 0) {
     stewardLevels += fed;
     pulseSupply();
+  }
+  // The Quartermaster and the Lamp Crew (Ember perks) work once a second, while the game is open.
+  if (result.mode === "live" && now - lastAutomationAt >= 1000) {
+    lastAutomationAt = now;
+    autoLearn(state);
+    autoHire(state, now);
   }
   if (result.mode === "offline") {
     welcomeBack(result.gain, result.creditedSeconds, result.elapsedSeconds);

@@ -78,6 +78,19 @@ export const PRESTIGE_DIVISOR = 5_000;
 export const PRESTIGE_RECOMMENDED_EMBERS = 40;
 /** Production bonus for each Ember held (not spent): +2%. */
 export const EMBER_PRODUCTION_BONUS = 0.02;
+/**
+ * The held-Ember curve: the first `knee` Embers count in full; beyond it,
+ * Embers count as knee × (held / knee) ^ power. Power 1 is a straight line.
+ * (An object, not constants, so the tuning harness can try other shapes.)
+ */
+export const EMBER_CURVE = { knee: 100, power: 1 };
+
+/** Held Embers as the production bonus counts them (see EMBER_CURVE). */
+export function effectiveEmbers(held: number): number {
+  const { knee, power } = EMBER_CURVE;
+  if (held <= knee || power === 1) return held;
+  return knee * (held / knee) ** power;
+}
 
 // ── Offline earnings (Sprint 0 values) ───────────────────────────────────────
 export const OFFLINE_CAP_SECONDS = 8 * 60 * 60; // 8 hours

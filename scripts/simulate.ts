@@ -3,7 +3,8 @@
 // the first two Rekindles, every relight, and the ending. The strategy and
 // its assumptions are documented in scripts/simCore.ts. The bot is a
 // PESSIMISTIC bound: no Ember perks, challenges, moths, relics, bottles or
-// tides — a real keeper is faster everywhere.
+// tides — a real keeper is faster everywhere. A second run then lets the
+// same bot buy everything in the Ember shop, for the fast end of the range.
 //
 // Run with:  npm run sim
 import { CHAIN_LIGHTHOUSES, GENERATORS, PRESTIGE_RECOMMENDED_EMBERS } from "../src/game/config";
@@ -45,6 +46,14 @@ for (const [lit, x] of Object.entries(r.runsByLit)) {
 }
 console.log(`Upgrades bought in the two early runs (${r.earlyUpgrades.length}):`);
 for (const line of r.earlyUpgrades) console.log(`  ${line}`);
+console.log("\n── A keeper who buys everything in the Ember shop ──");
+const shopper = runSim({ shop: true });
+console.log(
+  `  lit at ${CHAIN_LIGHTHOUSES.slice(1).map((l) => (shopper.litAtHours[l.id] !== undefined ? `${shopper.litAtHours[l.id].toFixed(1)}h` : "—")).join(" / ")}` +
+    ` · ending ${shopper.endingHours !== null ? `${shopper.endingHours.toFixed(1)}h` : "not reached"}`,
+);
+console.log(`  Ember perks bought: ${shopper.perksBought.join(" · ") || "none"}`);
+console.log(`  Kindling levels at stop: ${JSON.stringify(shopper.finalKindlings)}`);
 if (r.firstRekindleMinutes === null || r.secondRekindleMinutes === null || r.endingHours === null) {
   console.log("WARNING: a target was not reached within its sim cap.");
   process.exitCode = 1;

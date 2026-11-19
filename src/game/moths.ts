@@ -1,6 +1,7 @@
 import Decimal from "break_infinity.js";
 import { almanacCocoonMultiplier, dutySlots, lureBankSize, lureRegrowMs, recordAlmanac } from "./almanac";
 import { CHAIN_LIGHTHOUSES } from "./config";
+import { MOTH_LANTERN_COCOON_MULTIPLIER, kindlingMultiplier } from "./emberShop";
 import { relicMothGlowBonus } from "./expeditions";
 import { formatNumber } from "./format";
 import {
@@ -421,7 +422,9 @@ export function cocoonDurationMs(parentA: Moth, parentB: Moth, state?: GameState
   const tier = Math.max(patternById(parentA.pattern).tier, patternById(parentB.pattern).tier);
   const fertile = hasTrait(parentA, "fertile") || hasTrait(parentB, "fertile") ? FERTILE_COCOON_MULTIPLIER : 1;
   const silk = state ? almanacCocoonMultiplier(state) : 1;
-  return Math.round(COCOON_BASE_MS * (1 + COCOON_PER_TIER * tier) * fertile * silk);
+  const lantern = state?.emberPerks.includes("moth-lantern") ? MOTH_LANTERN_COCOON_MULTIPLIER : 1;
+  const spinning = state ? kindlingMultiplier(state, "spinning-silk") : 1;
+  return Math.round(COCOON_BASE_MS * (1 + COCOON_PER_TIER * tier) * fertile * silk * lantern * spinning);
 }
 
 /**

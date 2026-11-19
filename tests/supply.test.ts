@@ -1,11 +1,11 @@
 import Decimal from "break_infinity.js";
 import { describe, expect, it } from "vitest";
-import { bestBoardFor } from "../src/game/bot";
-import { chainStatus } from "../src/game/chain";
+import { chainStatus, nodeCost } from "../src/game/chain";
 import { CHAIN_LIGHTHOUSES, WIDOWS_WALK_ID } from "../src/game/config";
 import { createInitialState, deserializeState, serializeState, startBoard } from "../src/game/state";
 import {
   STEWARD_PURSE_CAP_SECONDS,
+  cheapestBoardFor,
   efficiencyAtDemand,
   feedNode,
   feedQuote,
@@ -31,9 +31,12 @@ function starved(lumen = 1e12): GameState {
 }
 
 describe("feeding the chain from the Light view", () => {
-  it("feeding a node buys its best-value level on any lit board", () => {
+  it("feeding a node buys its cheapest level on any lit board", () => {
     const state = starved();
-    const board = bestBoardFor(state, "oil")!;
+    const board = cheapestBoardFor(state, "oil")!;
+    for (const id of state.litLighthouses) {
+      expect(nodeCost(board, "oil", state.chainBoards[board].oil, state).lte(nodeCost(id, "oil", state.chainBoards[id].oil, state))).toBe(true);
+    }
     const before = state.chainBoards[board].oil;
     expect(feedNode(state, "oil")).toBe(true);
     expect(state.chainBoards[board].oil).toBe(before + 1);
@@ -43,7 +46,7 @@ describe("feeding the chain from the Light view", () => {
     const state = starved();
     const st = chainStatus(state);
     const quote = feedQuote(state, st.bottleneck!);
-    expect(quote.board).toBe(bestBoardFor(state, st.bottleneck!));
+    expect(quote.board).toBe(cheapestBoardFor(state, st.bottleneck!));
     expect(quote.affordable).toBe(true);
     const lumenBefore = state.lumen;
     feedNode(state, st.bottleneck!);

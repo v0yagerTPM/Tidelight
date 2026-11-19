@@ -492,7 +492,7 @@ export function offlineRateFor(state: GameState): number {
  * Fails (false, no state change) when already owned, still locked, or
  * the player can't afford it.
  */
-export function buyUpgrade(state: GameState, id: string): boolean {
+export function buyUpgrade(state: GameState, id: string, log = true): boolean {
   const def = upgradeById(id);
   if (hasUpgrade(state, id)) return false;
   if (!isUnlocked(state, def)) return false;
@@ -500,6 +500,6 @@ export function buyUpgrade(state: GameState, id: string): boolean {
   if (state.lumen.lt(cost)) return false;
   state.lumen = state.lumen.sub(cost);
   state.upgrades.push(id);
-  addLog(state, `Upgrade learned: ${def.name} — ${def.effect}.`);
+  if (log) addLog(state, `Upgrade learned: ${def.name} — ${def.effect}.`);
   return true;
 }

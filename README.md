@@ -102,13 +102,29 @@ a hearth whose fire grows with the Embers you'd bank.
   lists that name your upgrades, Ember perks, and challenge rewards. Two
   upgrades (Longer Wicks, Ember Resonance) are keeper knowledge and
   survive the reset.
-- **The Ember Shop** — eight permanent perks bought with held Embers:
-  Head Start (runs open with 1,000 Lumen), Warm Lamp Oil (click ×2),
-  Friend of Gulls (Gull Rock at half price), Deep Wicks (chain support
-  +25%), The Long Night (12h offline cap), Full Reservoir (offline rate
-  +10 points, cap 90%), Ember Heart (+1% per held Ember), Second Wind
-  (+50% production). Spending lowers your held-Ember bonus — the shop
-  shows exactly how much.
+- **The Ember Shop** — three shelves, all bought with held Embers.
+  Spending lowers your held-Ember bonus, and each card shows how much.
+  - **Keeper's perks** (one-time): Head Start (runs open with 1,000 Lumen),
+    Warm Lamp Oil (click ×2), Friend of Gulls (Gull Rock at half price),
+    Deep Wicks (chain support +25%), The Long Night (12h offline cap), Full
+    Reservoir (offline rate +10 points, cap 90%), Ember Heart (+1% per held
+    Ember), Second Wind (+50% production).
+  - **Kindlings** (bought again and again, each level ×10 the last): Ember
+    Glow (+5% production a level, 10 levels), Long Watch (+1h offline cap,
+    8 levels), and Quick Lures, Spinning Silk and Tailwind (lures, cocoons
+    and bottles 5% sooner a level, 20 levels each).
+  - **Late perks** (one-time, 500 to 5 billion Embers):
+    - Quartermaster learns upgrades for you, and Lamp Crew hires helpers
+      for you without starving the beam; each has an on/off switch.
+    - Warm Hearth starts each run with 10 of each of the first three helpers.
+    - The Steward's Ledger lets the Chain Steward's purse hold 30 minutes.
+    - Storm Charts halve a Stormfront's drain on the chain.
+    - Moth Lantern adds a lure to the bank and spins cocoons 25% faster.
+    - Ember Memory keeps every helper's first upgrade through a Rekindle.
+    - Glass Charts bring bottles home 25% sooner.
+  It is a comfort shop on purpose: production boosts compound through
+  Embers, so the shop mostly buys automation, time away and a quicker
+  Shore.
 - **Challenges** — opt-in rule-changing runs for permanent rewards:
   Fogbound (half production), Still Hands (no clicking), First Light
   Only (tiers 1–3 only). Starting resets your run with no Embers;
@@ -187,7 +203,7 @@ npm run build      # typecheck + production build to dist/
   spend held Embers in the Ember Shop, and start or abandon challenges.
 - **The supply strip** — under the scene on the Light view: Wick, Oil
   and Lens as gauges (the bottleneck glows), the Beam bonus, a one-tap
-  **Feed** on each (the best-value level on any lit board) and **Fill the
+  **Feed** on each (the cheapest level on any lit board) and **Fill the
   chain**. Relight Widow's Walk and the **Chain Steward** feeds the chain
   from a share of your income. Helper rows warn when a purchase would
   starve the beam. The Lighthouses tab keeps the board-by-board view.
