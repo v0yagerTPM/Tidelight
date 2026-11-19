@@ -58,6 +58,7 @@ import {
   productionPerSecond,
   timeToAffordCost,
 } from "./game/engine";
+import { FlashRate } from "./game/clickRate";
 import { createRecoveryEstimator, type RecoveryEstimator } from "./game/estimate";
 import {
   EXPEDITION_ROUTES,
@@ -251,7 +252,7 @@ app.innerHTML = `
     <button id="sound-toggle" class="sound-toggle" aria-pressed="true" aria-label="Sound"></button>
     <div class="hud-stats">
       <div class="stat"><span class="stat-label">Lumen</span><strong id="hud-lumen">0</strong></div>
-      <div class="stat"><span class="stat-label">per second</span><strong id="hud-rate">0</strong></div>
+      <div class="stat" id="hud-rate-stat"><span class="stat-label">per second</span><strong id="hud-rate">0</strong></div>
       <div class="stat"><span class="stat-label">Embers</span><strong id="hud-embers">0</strong></div>
     </div>
   </header>
@@ -2100,10 +2101,14 @@ function updateCoastPins(): void {
   });
 }
 
+/** Recent flashes, so the header's "per second" counts your own hands too. */
+const flashRate = new FlashRate();
+
 function flashBeam(): void {
   const now = Date.now();
   const value = clickValue(state, now);
   clickBeam(state, now);
+  flashRate.add(now, value);
   sound.flash();
   if (value.gt(0)) scene?.flash(`+${fmt(value)}`);
   renderDynamic();
@@ -2242,6 +2247,7 @@ if (rkButton) {
 const hud = {
   lumen: document.querySelector<HTMLElement>("#hud-lumen"),
   rate: document.querySelector<HTMLElement>("#hud-rate"),
+  rateStat: document.querySelector<HTMLElement>("#hud-rate-stat"),
   embers: document.querySelector<HTMLElement>("#hud-embers"),
   rkGain: document.querySelector<HTMLElement>("#rk-gain"),
   rkHeld: document.querySelector<HTMLElement>("#rk-held"),
@@ -2420,7 +2426,20 @@ function updateSupplyStrip(now: number): void {
 function renderDynamic(): void {
   const nowMs = Date.now();
   if (hud.lumen) hud.lumen.textContent = fmt(state.lumen);
-  if (hud.rate) hud.rate.textContent = `${fmt(productionPerSecond(state, nowMs))}/s`;
+  if (hud.rate) {
+    const helpers = productionPerSecond(state, nowMs);
+    const flashes = flashRate.rate(nowMs);
+    hud.rate.textContent = `${fmt(helpers.add(flashes))}/s`;
+    hud.rate.classList.toggle("with-flashes", flashes.gt(0));
+    if (hud.rateStat) {
+      setTip(
+        hud.rateStat,
+        flashes.gt(0)
+          ? `${fmt(helpers)}/s from your helpers + ${fmt(flashes)}/s from your flashes (the last few seconds).`
+          : `${fmt(helpers)}/s from your helpers. Flashing the beam adds to this while you keep at it.`,
+      );
+    }
+  }
   if (hud.embers) hud.embers.textContent = fmt(state.embers);
   const flashBtn = document.querySelector("#flash");
   if (flashBtn) setTip(flashBtn, `+${fmt(clickValue(state, nowMs))} Lumen per flash (tapping the sea works too). Hire help below and the light keeps itself.`);

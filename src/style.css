@@ -1134,3 +1134,16 @@ html, body { overflow-x: clip; }
 .lh-name[data-tip], .node-name[data-tip] { cursor: help; text-decoration: underline dotted rgba(255, 226, 166, 0.35); text-underline-offset: 3px; }
 .scene .tide-strip[data-tip] { cursor: help; pointer-events: auto; }
 h2 .tip-i, h3 .tip-i { font-family: var(--body); font-size: 0.72rem; }
+
+/* ── Not a text field ──────────────────────────────── */
+/* The game is buttons and numbers, not a document: clicking text shouldn't
+   leave a blinking caret (some browsers show one, e.g. with caret browsing
+   on), and fast clicking shouldn't paint selections across the page. Text
+   fields, the log and the story still behave like text. */
+body { caret-color: transparent; }
+#app { -webkit-user-select: none; user-select: none; }
+input, textarea, select, [contenteditable="true"] { caret-color: auto; -webkit-user-select: text; user-select: text; }
+.log-list, .splash-body, .story-entry { -webkit-user-select: text; user-select: text; }
+
+/* Your own flashes are in the per-second figure. */
+#hud-rate.with-flashes { text-shadow: 0 0 12px rgba(255, 196, 99, 0.55); }
