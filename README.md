@@ -115,7 +115,8 @@ a hearth whose fire grows with the Embers you'd bank.
     and bottles 5% sooner a level, 20 levels each).
   - **Late perks** (one-time, 500 to 5 billion Embers):
     - Quartermaster learns upgrades for you, and Lamp Crew hires helpers
-      for you without starving the beam; each has an on/off switch.
+      for you without starving the beam. Each has an on/off switch on its
+      card and beside the controls it automates (Upgrades tab, buy amounts).
     - Warm Hearth starts each run with 10 of each of the first three helpers.
     - The Steward's Ledger lets the Chain Steward's purse hold 30 minutes.
     - Storm Charts halve a Stormfront's drain on the chain.

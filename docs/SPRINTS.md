@@ -906,3 +906,11 @@ hour 4.5 of a 62-hour game. Plan: the "Upgrades & Embers: the numbers" doc.
       set before its reset, so Warm Hearth obeys them.
 - [x] Tests: `tests/emberShelves.test.ts` (21), plus updated supply and
       version tests.
+
+## ✅ Post-launch — Automation switches where they work
+
+- [x] The Quartermaster's on/off switch now sits on the Upgrades tab, beside
+      Learn all affordable, and the Lamp Crew's beside the buy amounts on the
+      Light tab. Each appears once its perk is owned, and its tip says what it
+      does. The switches on the Ember Shop cards still work: one shared click
+      handler serves all four buttons.
