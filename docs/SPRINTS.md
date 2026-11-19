@@ -819,3 +819,37 @@ second half is arithmetic the sim's bot already did (`bestBoardFor`).
 - [x] **The Chain Steward now works on a fresh visit too:** time away
       settled at load gives it its share, as the live loop already did.
 - [x] Tests: `tests/away.test.ts` (8).
+
+## ✅ Post-launch — Upgrades that last the whole game
+
+The numbers (balance sim on main before this change): upgrades were worth
+×5 against ×10^9.7 from held Embers, all 24 unlocked by the 30th copy of a
+helper, and a late run spent its last 110 of 171 minutes with nothing new
+to learn. Plan and analysis: the "Upgrades & Embers: the numbers" doc.
+
+- [x] **48 new upgrades (72 in all)** in `src/game/upgrades.ts`:
+      - **Helper tiers III–V:** ×2 / ×3 / ×5 at 75 / 150 / 250 copies, each
+        priced at 10× the price of that copy (27).
+      - **Synergies:** a higher helper +1% per copy of a lower one, at 50 of
+        each, priced at 10× the target's 50th copy (6).
+      - **Lighthouse lessons:** two per lighthouse, surfacing when it is lit,
+        priced at 10% and 100% of its relight cost (12). Gull Rock: Wick ×2,
+        the first three helpers ×3. Cormorant Roost: Oil ×2, Oil Keepers and
+        Lens Polishers ×3. Widow's Walk: Lens ×2, Storm Lanterns and Beacon
+        Whales ×3. The Bellwether: Beam levels +7.5%, Memory Ships ×3.
+        Siren's Rest: all production ×2, The Seventh Light ×3. The Hollow
+        Light: all production ×3, Ember gain ×1.25.
+      - **Flash Echo:** each flash also pays 5% / 10% / 20% of a second's
+        production, unlocking at 1e8 / 1e12 / 1e16 Lumen in a run (3).
+- [x] **Learn all affordable** on the Upgrades tab, cheapest first; the
+      button counts how many fit.
+- [x] **Retune to keep the 62h ending:** Siren's Rest 2.5e22 → 5e25,
+      The Hollow Light 6.5e24 → 1e31 (their lessons follow, being priced off
+      the relight cost). Sim: lit at 3.4 / 6.1 / 11.8 / 20.2 / 34.2 / 62.0h,
+      first Rekindle still 85 min, no stalls.
+- [x] **The sim reports runs by stage:** average length, when the last
+      upgrade was bought, and upgrades owned. With all six lit: runs of 96
+      min, last upgrade at 76 min, 63 upgrades (was 171 / 62 min, 20).
+      `scripts/tune.ts` scales lesson prices with any relight override.
+- [x] Tests: `tests/lateUpgrades.test.ts` (11) for tiers, synergies,
+      lessons and Flash Echo.

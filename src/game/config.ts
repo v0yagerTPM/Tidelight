@@ -276,7 +276,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: SIRENS_REST_ID,
     name: "Siren's Rest",
     hint: "A low, lovely tower on the last rock before the deep glass. The sirens sleep here now, retired and harmless. Relight it and the night works harder for you: offline rate +10 points and the offline cap grows by 4 hours.",
-    relightCost: 2.5e22, // raised from 8.5e21 when Memory Ships joined the ladder
+    relightCost: 5e25, // 8.5e21 → 2.5e22 with Memory Ships → 5e25 with the late upgrades
     efficiencyRequirement: 0.75,
     productionBonus: 0,
     ...NO_BONUS,
@@ -289,7 +289,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: HOLLOW_LIGHT_ID,
     name: "The Hollow Light",
     hint: "The last tower, at the heart of the Hollow Sea — the light the sea itself was named for. No keeper has relit it. No keeper has come back from trying. Yet. +150% production, and whatever waits beyond it.",
-    relightCost: 6.5e24, // raised from 3.2e24 when Memory Ships joined the ladder
+    relightCost: 1e31, // 3.2e24 → 6.5e24 with Memory Ships → 1e31 with the late upgrades
     efficiencyRequirement: 0.8,
     productionBonus: 1.5,
     ...NO_BONUS,

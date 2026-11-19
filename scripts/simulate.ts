@@ -39,6 +39,10 @@ console.log(
 );
 console.log(`Rekindles: ${r.rekindles} · Embers held at stop: ${r.finalEmbers} · final production ${r.finalProduction.toExponential(3)} Lumen/s`);
 console.log(`Generators owned at stop: ${JSON.stringify(r.finalGenerators)}`);
+console.log("Endgame runs by lighthouses lit (average length · last upgrade bought · upgrades owned at the Rekindle):");
+for (const [lit, x] of Object.entries(r.runsByLit)) {
+  console.log(`  ${lit} lit: ${x.runs} runs · ${x.avgMinutes.toFixed(0)} min · last upgrade at ${x.lastUpgradeMinutes.toFixed(0)} min · ${x.upgradesOwned.toFixed(0)} upgrades`);
+}
 console.log(`Upgrades bought in the two early runs (${r.earlyUpgrades.length}):`);
 for (const line of r.earlyUpgrades) console.log(`  ${line}`);
 if (r.firstRekindleMinutes === null || r.secondRekindleMinutes === null || r.endingHours === null) {

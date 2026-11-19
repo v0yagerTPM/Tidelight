@@ -28,7 +28,7 @@ import { postSupportMultiplier } from "./mothTraits";
 import { addLog, startBoard } from "./state";
 import { tideSupportMultiplier } from "./tides";
 import type { ChainBoard, GameState } from "./types";
-import { totalGeneratorsOwned } from "./upgrades";
+import { totalGeneratorsOwned, upgradeBeamMultiplier, upgradeSupportMultiplier } from "./upgrades";
 
 // ── The supply chain: wick → oil → lens → beam ───────────────────────────────
 // Production ordering (see engine.ts):
@@ -144,7 +144,8 @@ export function nextLevelSupportGain(state: GameState, lighthouseId: string, nod
   return boardNodeSupport(lighthouseId, nodeId, level + 1)
     .sub(boardNodeSupport(lighthouseId, nodeId, level))
     .mul(postSupportMultiplier(state, lighthouseId))
-    .mul(supportMultiplier(state, now));
+    .mul(supportMultiplier(state, now))
+    .mul(upgradeSupportMultiplier(state, nodeId));
 }
 
 /**
@@ -164,7 +165,8 @@ export function totalSupport(state: GameState, nodeId: SupplyNodeId, now?: numbe
     .mul(chainSupportMultiplier(state))
     .mul(relicSupportMultiplier(state))
     .mul(lighthouseSupportMultiplier(state))
-    .mul(tideSupportMultiplier(now));
+    .mul(tideSupportMultiplier(now))
+    .mul(upgradeSupportMultiplier(state, nodeId));
 }
 
 /** Multiplicative support bonus from lit lighthouses (Widow's Walk ×1.5). */
@@ -209,9 +211,9 @@ export function totalBeamLevels(state: GameState): number {
   return totalNodeLevels(state, "beam");
 }
 
-/** Final-production multiplier from Beam levels: 1 + 5% per level, additive. */
+/** Final-production multiplier from Beam levels: 1 + 5% per level (7.5% with Bell Chorus), additive. */
 export function beamMultiplier(state: GameState): Decimal {
-  return new Decimal(1 + BEAM_BONUS_PER_LEVEL * totalBeamLevels(state));
+  return new Decimal(1 + BEAM_BONUS_PER_LEVEL * upgradeBeamMultiplier(state) * totalBeamLevels(state));
 }
 
 // ── Status ───────────────────────────────────────────────────────────────────

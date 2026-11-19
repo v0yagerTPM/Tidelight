@@ -26,6 +26,7 @@ import type { BuyAmount, GameState } from "./types";
 import {
   clickMultiplier,
   emberBonusPerEmber,
+  flashEchoShare,
   generatorUpgradeMultiplier,
   globalProductionMultiplier,
   offlineRateFor,
@@ -179,16 +180,18 @@ export function creditLumen(state: GameState, amount: Decimal): void {
 
 /**
  * Lumen gained per Flash the Beam click: click upgrades ×2 each,
- * Warm Lamp Oil (Ember perk) ×2, Salt Lens (relic) ×1.5, Glass Calm tide
- * ×2 (only when `now` is passed), and Still Hands (challenge) ×0.
+ * Warm Lamp Oil (Ember perk) ×2, Salt Lens (relic) ×1.5, plus Flash Echo
+ * (a share of a second's production); then Glass Calm tide ×2 (only when
+ * `now` is passed) and Still Hands (challenge) ×0 apply to the whole flash.
  */
 export function clickValue(state: GameState, now?: number): Decimal {
-  return new Decimal(CLICK_LUMEN)
+  let value = new Decimal(CLICK_LUMEN)
     .mul(clickMultiplier(state))
     .mul(emberShopClickMultiplier(state))
-    .mul(challengeClickMultiplier(state))
-    .mul(relicClickMultiplier(state))
-    .mul(tideClickMultiplier(now));
+    .mul(relicClickMultiplier(state));
+  const echo = flashEchoShare(state);
+  if (echo > 0) value = value.add(productionPerSecond(state, now).mul(echo));
+  return value.mul(challengeClickMultiplier(state)).mul(tideClickMultiplier(now));
 }
 
 /** Flash the Beam: +click value in Lumen. */

@@ -1165,3 +1165,7 @@ input, textarea, select, [contenteditable="true"] { caret-color: auto; -webkit-u
   .splash[data-kind="away"] .splash-art svg { width: 44px; height: 44px; }
   .away-rows .bottle-row { padding: 6px 10px; }
 }
+
+/* A section title with an action beside it (Upgrades: Learn all affordable). */
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 24px 0 10px; }
+.section-head .section-title { margin: 0; }

@@ -151,6 +151,7 @@ import {
   isPermanentUpgrade,
   isUnlocked,
   totalGeneratorsOwned,
+  generatorUpgradeTier,
   unlockProgress,
   unlockText,
   upgradeById,
@@ -343,7 +344,10 @@ ${[
     <section id="view-upgrades" class="view">
       <h2>Upgrades ${infoTip("One-time lessons for the light. Most are forgotten when you Rekindle; the ones marked ♾ are keeper knowledge and are kept.", "About upgrades")}</h2>
       <p class="muted"><span id="upgrades-summary"></span></p>
-      <h3 class="section-title">Ready to learn</h3>
+      <div class="section-head">
+        <h3 class="section-title">Ready to learn</h3>
+        <button id="learn-all" class="buy" disabled>Learn all affordable</button>
+      </div>
       <div id="upgrades-available" class="lesson-grid"></div>
       <h3 class="section-title">Not yet discovered</h3>
       <div id="upgrades-locked" class="lesson-grid locked-grid"></div>
@@ -629,21 +633,35 @@ function upgradesStructureKey(): string {
   ).join("");
 }
 
-/** The art for a lesson: its generator, the beam's lens, or a keeper-wide mark. */
+/** The art for a lesson: its generator, the beam's lens, a lighthouse, or a keeper-wide mark. */
 function lessonIcon(def: UpgradeDef): string {
-  if (def.kind === "generator" && def.generatorId) return GENERATOR_ICONS[def.generatorId] ?? UNKNOWN_ICON;
-  if (def.kind === "click") return CLICK_ICON;
+  if ((def.kind === "generator" || def.kind === "synergy") && def.generatorId) return GENERATOR_ICONS[def.generatorId] ?? UNKNOWN_ICON;
+  if (def.kind === "click" || def.kind === "echo") return CLICK_ICON;
+  if (def.kind === "lighthouse") return TAB_ICONS.lighthouses;
   return GLOBAL_UPGRADE_ICONS[def.id] ?? UNKNOWN_ICON;
 }
 
-/** Where a lesson belongs: "Candle Crab · lesson I", "Flash the Beam · tier 2", "Keeper-wide". */
+const LESSON_ROMAN = ["I", "II", "III", "IV", "V"];
+
+/** Where a lesson belongs: "Candle Crab · lesson III", "Flash the Beam · echo 2", "Gull Rock Light · lesson". */
 function lessonKind(def: UpgradeDef): string {
-  if (def.kind === "generator" && def.generatorId) {
-    const gen = GENERATORS.find((g) => g.id === def.generatorId);
-    return `${gen?.name ?? "Helper"} · lesson\u00a0${def.id.endsWith("-u2") ? "II" : "I"}`;
-  }
+  const genName = (id?: string) => GENERATORS.find((g) => g.id === id)?.name ?? "Helper";
+  if (def.kind === "generator") return `${genName(def.generatorId)} · lesson\u00a0${LESSON_ROMAN[generatorUpgradeTier(def) - 1]}`;
   if (def.kind === "click") return `Flash the Beam · tier\u00a0${def.id.replace("click-", "")}`;
+  if (def.kind === "echo") return `Flash the Beam · echo\u00a0${def.id.replace("echo-", "")}`;
+  if (def.kind === "synergy") return `${genName(def.generatorId)} · with ${genName(def.sourceId)}`;
+  if (def.kind === "lighthouse" && def.unlock.kind === "lighthouse-lit") return `${chainLighthouseById(def.unlock.lighthouseId).name} · lesson`;
   return "Keeper-wide";
+}
+
+/** The seal on a lesson's art: what it's worth at a glance ("×3", "+1%/copy"), or none. */
+function lessonSeal(def: UpgradeDef): string {
+  if (def.kind === "click") return "×2";
+  if (def.kind === "generator") return `×${def.multiplier ?? 2}`;
+  if (def.kind === "echo") return `+${Math.round((def.echoShare ?? 0) * 100)}%`;
+  if (def.kind === "synergy") return `+${Math.round((def.perCopy ?? 0) * 100)}%`;
+  const m = def.multiplier ?? def.supportMultiplier ?? def.beamMultiplier ?? def.productionMultiplier ?? def.emberGainMultiplier;
+  return def.kind === "lighthouse" && m ? `×${m}` : "";
 }
 
 function rebuildUpgrades(): void {
@@ -666,7 +684,8 @@ function rebuildUpgrades(): void {
   for (const def of available) {
     const card = document.createElement("article");
     card.className = `lesson${def.permanent ? " permanent" : ""}`;
-    const seal = def.kind === "global" ? "" : `<span class="lesson-seal">×2</span>`;
+    const sealText = lessonSeal(def);
+    const seal = sealText ? `<span class="lesson-seal">${sealText}</span>` : "";
     card.innerHTML = `
       <div class="lesson-art">${lessonIcon(def)}${seal}</div>
       <div class="lesson-body">
@@ -2637,6 +2656,19 @@ function renderDynamic(): void {
     upgradeStructureKey = key;
     rebuildUpgrades();
   }
+  if (learnAllBtn) {
+    // How many fit, cheapest first (the rows are already sorted by cost).
+    let budget = state.lumen;
+    let n = 0;
+    for (const row of availableUpgradeRows) {
+      if (budget.lt(row.def.cost)) break;
+      budget = budget.sub(row.def.cost);
+      n++;
+    }
+    learnAllBtn.disabled = n < 2;
+    learnAllBtn.classList.toggle("affordable", n >= 2);
+    learnAllBtn.textContent = n >= 2 ? `Learn all affordable (${n})` : "Learn all affordable";
+  }
   for (const row of availableUpgradeRows) {
     const affordable = state.lumen.gte(row.def.cost);
     row.buy.disabled = !affordable;
@@ -2818,6 +2850,21 @@ function renderDynamic(): void {
       .join("");
   }
 }
+
+// ── Learn all affordable: cheapest first, until the Lumen runs out ─────────
+const learnAllBtn = document.querySelector<HTMLButtonElement>("#learn-all");
+learnAllBtn?.addEventListener("click", () => {
+  const ready = UPGRADES.filter((u) => !state.upgrades.includes(u.id) && isUnlocked(state, u)).sort((a, b) => a.cost - b.cost);
+  const learned: string[] = [];
+  for (const def of ready) {
+    if (state.lumen.lt(def.cost)) break;
+    if (buyUpgrade(state, def.id)) learned.push(def.name);
+  }
+  if (learned.length === 0) return;
+  sound.chime();
+  saveState(state);
+  renderDynamic();
+});
 
 // ── Game loop: 10×/s from wall-clock time, autosave every 5s ───────────────
 // advanceToNow credits the real gap since the last tick: short gaps (even a
