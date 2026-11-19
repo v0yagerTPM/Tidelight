@@ -4,7 +4,6 @@ import { chainStatus, nodeCost, totalBeamLevels } from "../src/game/chain";
 import { CHAIN_LIGHTHOUSES, WIDOWS_WALK_ID } from "../src/game/config";
 import { createInitialState, deserializeState, serializeState, startBoard } from "../src/game/state";
 import {
-  STEWARD_BEAM_RESERVE,
   STEWARD_PURSE_CAP_SECONDS,
   cheapestBoardFor,
   efficiencyAtDemand,
@@ -116,15 +115,32 @@ describe("the Chain Steward", () => {
     expect(off.lumen.toNumber()).toBe(1e12);
   });
 
-  it("raises the Beam once the chain is fed, keeping half its purse for feeding", () => {
+  it("raises the Beam with its whole purse once the chain is fed", () => {
     const state = starved();
     fillChain(state, 1); // the chain at 100%, the Steward's target
-    const cap = productionPerSecond(state).mul(STEWARD_PURSE_CAP_SECONDS);
-    state.stewardPurse = cap;
+    state.stewardPurse = productionPerSecond(state).mul(STEWARD_PURSE_CAP_SECONDS);
     const beamBefore = totalBeamLevels(state);
     expect(tendChain(state, new Decimal(0))).toBeGreaterThan(0);
     expect(totalBeamLevels(state)).toBeGreaterThan(beamBefore);
-    expect(state.stewardPurse.gte(cap.mul(STEWARD_BEAM_RESERVE))).toBe(true);
+    // It spent until the next Beam level cost more than what was left.
+    const board = cheapestBoardFor(state, "beam")!;
+    expect(state.stewardPurse.lt(nodeCost(board, "beam", state.chainBoards[board].beam, state))).toBe(true);
+  });
+
+  it("keeps the Beam in step while it feeds: the cheaper of the two comes first", () => {
+    const state = starved();
+    state.stewardTarget = 1;
+    let beam = 0;
+    let supply = 0;
+    for (let i = 0; i < 200 && chainStatus(state).efficiency < 1; i++) {
+      const before = totalBeamLevels(state);
+      const bought = tendChain(state, new Decimal(1e9));
+      beam += totalBeamLevels(state) - before;
+      supply += bought - (totalBeamLevels(state) - before);
+    }
+    expect(chainStatus(state).efficiency).toBeGreaterThanOrEqual(1);
+    expect(supply).toBeGreaterThan(0);
+    expect(beam).toBeGreaterThan(0); // Beam levels came along before the chain was full
   });
 
   it("leaves the Beam alone when switched off, or while the chain is short", () => {

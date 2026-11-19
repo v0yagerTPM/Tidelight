@@ -928,3 +928,12 @@ hour 4.5 of a 62-hour game. Plan: the "Upgrades & Embers: the numbers" doc.
 - [x] Tests: two in `tests/supply.test.ts`. The Steward raises the Beam
       only above its reserve; it doesn't when switched off or while the
       chain is short.
+- [x] **Paced with the supplies instead** (follow-up): the half-purse
+      reserve kept the Steward off the Beam early in a run, when production
+      climbs fastest and each +5% matters most. The Beam is now its fourth
+      node. Below the target it buys the cheaper of the bottleneck's next
+      level and the next Beam level; at the target, only the Beam. In a test
+      run (three lighthouses past First Light, 20,000 Embers, a player
+      hiring with half their Lumen), Beam on gave 230 Beam levels and
+      5.0e10/s at 5 minutes; Beam off gave 4.1e8/s and a 3% beam. The panel
+      row reads "Raise the Beam too".
