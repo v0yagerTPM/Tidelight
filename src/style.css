@@ -1147,3 +1147,21 @@ input, textarea, select, [contenteditable="true"] { caret-color: auto; -webkit-u
 
 /* Your own flashes are in the per-second figure. */
 #hud-rate.with-flashes { text-shadow: 0 0 12px rgba(255, 196, 99, 0.55); }
+
+/* ── Welcome back (time away) ──────────────────────── */
+.splash[data-kind="away"] .splash-art svg { width: 64px; height: 64px; filter: drop-shadow(0 0 14px rgba(255, 170, 80, 0.55)); }
+.away-gain { display: grid; justify-items: center; gap: 2px; padding: 6px 0 4px; text-align: center; }
+.away-gain strong { font-family: var(--display); font-weight: 400; font-size: clamp(2.2rem, 7vw, 3rem); line-height: 1.05; color: var(--lamp) !important; text-shadow: 0 0 24px rgba(255, 170, 80, 0.5); animation: splash-page 0.5s ease-out 0.15s both; overflow-wrap: anywhere; }
+.away-unit { font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.splash-body ul.away-news { list-style: none; padding: 0; gap: 4px; }
+.away-news li { padding: 6px 10px; border-radius: 8px; background: rgba(143, 214, 196, 0.06); }
+.away-news li.away-cap { background: rgba(255, 196, 99, 0.08); color: var(--muted); }
+.away-shore { justify-self: center; }
+@media (prefers-reduced-motion: reduce) { .away-gain strong { animation: none; } }
+.away-rows .bottle-row > span:first-child { white-space: nowrap; }
+.away-rows .bottle-row strong { text-align: right; }
+.away-rows .tip-text { cursor: help; text-decoration: underline dotted rgba(255, 226, 166, 0.35); text-underline-offset: 3px; }
+@media (max-width: 560px) {
+  .splash[data-kind="away"] .splash-art svg { width: 44px; height: 44px; }
+  .away-rows .bottle-row { padding: 6px 10px; }
+}

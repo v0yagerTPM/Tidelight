@@ -799,3 +799,23 @@ second half is arithmetic the sim's bot already did (`bestBoardFor`).
       `caret-color: transparent` and the game UI `user-select: none`, so
       fast clicking doesn't paint selections either. The save box, the log,
       the story and the splash text still select and edit as text.
+
+## ✅ Post-launch — Welcome back
+
+- [x] **A welcome-back card** (`src/game/away.ts` gathers the numbers,
+      `showAwayCard` in `src/main.ts` draws it as a splash) when you return
+      after 5+ minutes and something happened. It shows on a fresh visit
+      and when a sleeping laptop wakes (the game loop's offline path).
+      - The headline: "You were away 9h 00m" and the Lumen your keepers
+        earned.
+      - Rows: time paid ("8h 00m of 9h 00m" when the cap cut it short), the
+        keepers' rate (share of production and Lumen/s, with a tip on what
+        raises it), Lumen now, and how many times the tide turned.
+      - News: the cap note, Chain Steward levels, a cocoon or bottle that
+        finished while you were gone (and a **Go to the Shore** button),
+        lures regrown, and story pages earned.
+      - It never covers the tutorial, another splash or a full-screen
+        moment; the log still records the same news.
+- [x] **The Chain Steward now works on a fresh visit too:** time away
+      settled at load gives it its share, as the live loop already did.
+- [x] Tests: `tests/away.test.ts` (8).
