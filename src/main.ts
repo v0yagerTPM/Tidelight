@@ -257,7 +257,7 @@ welcomeBack(offline.gain, offline.creditedSeconds, offline.awaySeconds);
 // The Chain Steward takes its share of the time away, as it does live.
 const bootStewardLevels = tendChain(state, offline.gain, bootNow);
 if (bootStewardLevels > 0) {
-  addLog(state, `While you were away, your Chain Steward saw to the supply line: ${bootStewardLevels} level${bootStewardLevels === 1 ? "" : "s"} of supplies.`);
+  addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${bootStewardLevels} level${bootStewardLevels === 1 ? "" : "s"}.`);
 }
 // Story beats can be earned offline too (a lighthouse of Lumen, a record
 // crossed in the dark) — deliver whatever is due before the first frame.
@@ -341,6 +341,9 @@ ${[
           </div>
           <div class="steward-row"><span>Keep the beam at</span>
             <span class="buy-toggle steward-toggle">${[0.8, 0.9, 1].map((v) => `<button class="toggle-btn" data-steward-target="${v}">${Math.round(v * 100)}%</button>`).join("")}</span>
+          </div>
+          <div class="steward-row"><span>Then raise the Beam</span>
+            <span class="buy-toggle steward-toggle"><button class="toggle-btn" data-steward-beam="1">On</button><button class="toggle-btn" data-steward-beam="0">Off</button></span>
           </div>
           <p class="muted steward-status" id="steward-status"></p>
         </div>
@@ -2327,7 +2330,7 @@ function showAwayCard(r: AwayReport): void {
       `<li class="away-cap">⏳ Your keepers rest after ${formatDuration(r.capSeconds)}, so ${formatDuration(r.awaySeconds - r.creditedSeconds)} went unpaid. Ember perks and lighthouses keep them out longer.</li>`,
     );
   }
-  if (r.stewardLevels > 0) news.push(`<li>⚙ Your Chain Steward fed the supply line: ${r.stewardLevels} level${r.stewardLevels === 1 ? "" : "s"}.</li>`);
+  if (r.stewardLevels > 0) news.push(`<li>⚙ Your Chain Steward tended the chain: ${r.stewardLevels} level${r.stewardLevels === 1 ? "" : "s"} of supplies and Beam.</li>`);
   const shoreNews: string[] = [];
   if (r.cocoonNew) shoreNews.push("<li>🐛 The cocoon is ready to hatch.</li>");
   if (r.bottleNew) shoreNews.push("<li>🍾 A bottle has washed back onto the glass.</li>");
@@ -2514,6 +2517,13 @@ stewardPanel?.querySelectorAll<HTMLButtonElement>("[data-steward-on]").forEach((
     renderDynamic();
   }),
 );
+stewardPanel?.querySelectorAll<HTMLButtonElement>("[data-steward-beam]").forEach((b) =>
+  b.addEventListener("click", () => {
+    state.stewardBeam = b.dataset.stewardBeam === "1";
+    saveState(state);
+    renderDynamic();
+  }),
+);
 stewardPanel?.querySelectorAll<HTMLButtonElement>("[data-steward-share]").forEach((b) =>
   b.addEventListener("click", () => {
     state.stewardShare = Number(b.dataset.stewardShare);
@@ -2606,11 +2616,12 @@ function updateSupplyStrip(now: number): void {
   }
   if (stewardPanel && !stewardPanel.classList.contains("hidden")) {
     stewardPanel.querySelectorAll<HTMLButtonElement>("[data-steward-on]").forEach((b) => b.classList.toggle("active", (b.dataset.stewardOn === "1") === state.stewardOn));
+    stewardPanel.querySelectorAll<HTMLButtonElement>("[data-steward-beam]").forEach((b) => b.classList.toggle("active", (b.dataset.stewardBeam === "1") === state.stewardBeam));
     stewardPanel.querySelectorAll<HTMLButtonElement>("[data-steward-share]").forEach((b) => b.classList.toggle("active", Number(b.dataset.stewardShare) === state.stewardShare));
     stewardPanel.querySelectorAll<HTMLButtonElement>("[data-steward-target]").forEach((b) => b.classList.toggle("active", Number(b.dataset.stewardTarget) === state.stewardTarget));
     if (stewardStatus) {
       stewardStatus.textContent = stewardActive(state)
-        ? `Purse ${fmt(state.stewardPurse)} · fed ${stewardLevels} level${stewardLevels === 1 ? "" : "s"} since you opened the game. It never spends more than its purse, which holds at most ${stewardPurseCapSeconds(state) / 60} minutes of production.`
+        ? `Purse ${fmt(state.stewardPurse)} · ${stewardLevels} level${stewardLevels === 1 ? "" : "s"} bought since you opened the game. It never spends more than its purse, which holds at most ${stewardPurseCapSeconds(state) / 60} minutes of production${state.stewardBeam ? "; once the beam is at its target, it raises the Beam with anything beyond half of that" : ""}.`
         : "Off: the chain is yours to feed.";
     }
   }
@@ -3023,7 +3034,7 @@ function gameTick(): void {
   }
   if (result.mode === "offline") {
     welcomeBack(result.gain, result.creditedSeconds, result.elapsedSeconds);
-    if (fed > 0) addLog(state, `While you were away, your Chain Steward saw to the supply line: ${fed} level${fed === 1 ? "" : "s"} of supplies.`);
+    if (fed > 0) addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${fed} level${fed === 1 ? "" : "s"}.`);
   }
   // Story beats fire the moment their moment arrives (cheap predicates).
   const beats = checkStory(state);

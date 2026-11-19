@@ -914,3 +914,17 @@ hour 4.5 of a 62-hour game. Plan: the "Upgrades & Embers: the numbers" doc.
       Light tab. Each appears once its perk is owned, and its tip says what it
       does. The switches on the Ember Shop cards still work: one shared click
       handler serves all four buttons.
+
+## ✅ Post-launch — The Chain Steward raises the Beam
+
+- [x] Once the beam is at the Steward's target, `tendChain` (supply.ts)
+      spends what the purse holds beyond half its cap on the cheapest Beam
+      level, +5% production each. The other half is kept for the next time
+      demand climbs. Feeding still comes first every tick.
+- [x] A "Then raise the Beam" On/Off row in the Steward panel. The setting
+      is saved as `stewardBeam`, on unless switched off; older v12 saves
+      load with it on. The status line, the log and the welcome-back card
+      count Beam levels with supply levels.
+- [x] Tests: two in `tests/supply.test.ts`. The Steward raises the Beam
+      only above its reserve; it doesn't when switched off or while the
+      chain is short.

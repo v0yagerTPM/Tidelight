@@ -114,6 +114,8 @@ export interface GameState {
   stewardShare: number;
   stewardTarget: number;
   stewardPurse: Decimal;
+  /** Whether the Chain Steward also raises the Beam once the chain is fed. */
+  stewardBeam: boolean;
   /** Kindling levels by id (Ember shop, v12). */
   kindlings: Record<string, number>;
   /** Quartermaster and Lamp Crew switches (Ember shop, v12). */
@@ -176,6 +178,7 @@ export interface SavedState {
   stewardShare: number;
   stewardTarget: number;
   stewardPurse: string;
+  stewardBeam?: boolean;
   kindlings?: Record<string, number>;
   autoLearn?: boolean;
   autoHire?: boolean;

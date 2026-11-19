@@ -18,7 +18,8 @@ import type { GameState } from "./types";
 // The Chain Steward (Widow's Walk: "whoever waited here kept meticulous
 // stores") tends the chain by itself: it sets aside a share of what the
 // keeper earns and spends it feeding the bottleneck until the beam reaches
-// the keeper's target efficiency.
+// the keeper's target efficiency. With the chain fed, it raises the Beam
+// with whatever its purse holds beyond half its cap (a switch can stop it).
 
 /** The lit board where the next level of `nodeId` is cheapest (null when none is lit). */
 export function cheapestBoardFor(state: GameState, nodeId: ChainNodeId): string | null {
@@ -169,5 +170,31 @@ export function tendChain(state: GameState, earned: Decimal, now?: number): numb
   const budget = Decimal.min(state.stewardPurse, state.lumen);
   const result = fillChain(state, state.stewardTarget, budget, now, false);
   state.stewardPurse = Decimal.max(0, state.stewardPurse.sub(result.spent));
-  return result.levels;
+  return result.levels + raiseBeam(state, cap, now);
+}
+
+/** Share of its purse cap the Steward keeps back for feeding, when it raises the Beam. */
+export const STEWARD_BEAM_RESERVE = 0.5;
+
+/**
+ * The Steward's second job: once the beam is at its target, it spends what
+ * its purse holds beyond half its cap on the cheapest Beam level (+5%
+ * production each). The half it keeps is for feeding the next time demand
+ * climbs. Returns the Beam levels bought.
+ */
+function raiseBeam(state: GameState, cap: Decimal, now?: number): number {
+  if (!state.stewardBeam) return 0;
+  if (chainStatus(state, now).efficiency < state.stewardTarget - 1e-9) return 0;
+  const reserve = cap.mul(STEWARD_BEAM_RESERVE);
+  let levels = 0;
+  for (let guard = 0; guard < 200; guard++) {
+    const board = cheapestBoardFor(state, "beam");
+    if (!board) break;
+    const cost = nodeCost(board, "beam", state.chainBoards[board].beam, state);
+    if (state.stewardPurse.sub(cost).lt(reserve) || state.lumen.lt(cost)) break;
+    if (!buyNodeUpgrade(state, board, "beam", false)) break;
+    state.stewardPurse = state.stewardPurse.sub(cost);
+    levels++;
+  }
+  return levels;
 }
