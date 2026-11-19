@@ -149,6 +149,9 @@ a hearth whose fire grows with the Embers you'd bank.
   moth, and a moth can **ride a bottle** for better relic odds. After the
   ending, two perfect Prismatics may hatch a **Hollow** moth: glow up to
   120 and two traits. Moths are permanent: Rekindle can't touch the roost.
+  The roost starts at 6 moths; each expansion adds 2 and costs about 3
+  minutes of your production (×1.5 per expansion), or a small starting
+  price early on.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache, a
   story fragment for the Log, and maybe one of eight permanent RELICS —

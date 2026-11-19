@@ -162,7 +162,7 @@ describe("lantern moths — attracting with lures", () => {
     expect(rushLureCost(gardenState(), 0).toNumber()).toBe(500);
   });
 
-  it("the roost holds 6; expansions cost 10,000 × 6ⁿ or 3% of all-time Lumen × 3ⁿ, whichever is more", () => {
+  it("the roost holds 6; expansions cost 10,000 × 6ⁿ or 3 minutes of production × 1.5ⁿ, whichever is more", () => {
     const state = gardenState();
     for (let i = 0; i < 6; i++) state.moths.push(moth(`m${i}`, "plain", 10));
     expect(mothCapacity(state)).toBe(6);
@@ -172,8 +172,20 @@ describe("lantern moths — attracting with lures", () => {
     expect(mothCapacity(state)).toBe(8);
     expect(roostExpansionCost(state).toNumber()).toBe(60_000);
     expect(attractMoth(state, mulberry32(3), 0)).not.toBeNull();
-    state.allTimeLumen = new Decimal(1e12);
-    expect(roostExpansionCost(state).toNumber()).toBe(9e10); // 3% × 1e12 × 3
+    // All-time Lumen no longer matters (it once walled the roost at 10–12 moths).
+    state.allTimeLumen = new Decimal(1e30);
+    expect(roostExpansionCost(state).toNumber()).toBe(60_000);
+    // Minutes of production: 1,000 crabs make 500 × 8 (milestones) = 4,000/s.
+    state.generators[crab.id] = 1_000;
+    const perSecond = productionPerSecond(state).toNumber();
+    expect(roostExpansionCost(state).toNumber()).toBe(Math.ceil(perSecond * 3 * 1.5 * 60));
+    // Every expansion stays within reach of a run: by mid-game production the
+    // 11th costs under four hours of production (the 10,000 × 6ⁿ ladder only
+    // matters while production is small).
+    state.embers = 1e10;
+    state.roostExpansions = 10;
+    const midGame = productionPerSecond(state).toNumber();
+    expect(roostExpansionCost(state).div(midGame).toNumber()).toBeLessThan(4 * 3600);
   });
 });
 
