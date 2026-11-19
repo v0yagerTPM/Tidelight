@@ -48,6 +48,7 @@ import {
 import { EMBER_PERKS, buyPerk, type EmberPerkDef } from "./game/emberShop";
 import {
   advanceToNow,
+  LIVE_GAP_LIMIT_SECONDS,
   applyOfflineEarnings,
   lastingProductionMultiplier,
   buyQuote,
@@ -59,6 +60,7 @@ import {
   timeToAffordCost,
 } from "./game/engine";
 import { FlashRate } from "./game/clickRate";
+import { awayReport, shouldShowAway, snapshotAway, type AwayReport } from "./game/away";
 import { createRecoveryEstimator, type RecoveryEstimator } from "./game/estimate";
 import {
   EXPEDITION_ROUTES,
@@ -233,12 +235,23 @@ function welcomeBack(gain: Decimal, creditedSeconds: number, awaySeconds: number
   }
 }
 
+const awayBefore = snapshotAway(state);
 const offline = applyOfflineEarnings(state);
+const bootNow = state.lastSeen;
 welcomeBack(offline.gain, offline.creditedSeconds, offline.awaySeconds);
+// The Chain Steward takes its share of the time away, as it does live.
+const bootStewardLevels = tendChain(state, offline.gain, bootNow);
+if (bootStewardLevels > 0) {
+  addLog(state, `While you were away, your Chain Steward saw to the supply line: ${bootStewardLevels} level${bootStewardLevels === 1 ? "" : "s"} of supplies.`);
+}
 // Story beats can be earned offline too (a lighthouse of Lumen, a record
 // crossed in the dark) — deliver whatever is due before the first frame.
-checkStory(state);
+const bootBeats = checkStory(state);
 saveState(state);
+/** The welcome-back card for this visit (opened once the page is built). */
+const bootAway: AwayReport | null = loadedSave
+  ? awayReport(state, offline, awayBefore, bootNow, { stewardLevels: bootStewardLevels, storyTitles: bootBeats.map((b) => b.title) })
+  : null;
 
 // ── Static shell: persistent header + tab menu (separate views, no long page)
 initTips();
@@ -2172,6 +2185,65 @@ function openTutorial(): void {
   splash.open(tutorialPages(), { kind: "tutorial", finishLabel: "Start keeping" });
 }
 document.querySelector("#help-toggle")?.addEventListener("click", openTutorial);
+
+// ── Welcome back: the card for time away ────────────────────────────────────
+// Opens on a return (a new visit, or a laptop waking) when the time away was
+// long enough and brought something. It never covers a splash or a moment
+// already showing: the log has the same news.
+function showAwayCard(r: AwayReport): void {
+  if (!shouldShowAway(r)) return;
+  if (splash.isOpen || (momentEl && !momentEl.classList.contains("hidden"))) return;
+  const away = formatDuration(r.awaySeconds);
+  const rows = [
+    ["Time paid", r.capped ? `${formatDuration(r.creditedSeconds)} of ${away}` : away],
+    ["Keepers' rate", `<span class="tip-text"${tipAttr(`While you're away your keepers earn ${Math.round(r.offlineRate * 100)}% of your production (tides averaged out). Ember perks, relics, lighthouses and Night-flier moths raise it.`)}>${Math.round(r.offlineRate * 100)}% · ${fmt(r.perSecond)}/s</span>`],
+    ["Lumen now", fmt(r.lumenNow)],
+  ];
+  if (r.tidesTurned > 0) rows.push(["The tide turned", `${r.tidesTurned} time${r.tidesTurned === 1 ? "" : "s"}`]);
+  const news: string[] = [];
+  if (r.capped) {
+    news.push(
+      `<li class="away-cap">⏳ Your keepers rest after ${formatDuration(r.capSeconds)}, so ${formatDuration(r.awaySeconds - r.creditedSeconds)} went unpaid. Ember perks and lighthouses keep them out longer.</li>`,
+    );
+  }
+  if (r.stewardLevels > 0) news.push(`<li>⚙ Your Chain Steward fed the supply line: ${r.stewardLevels} level${r.stewardLevels === 1 ? "" : "s"}.</li>`);
+  const shoreNews: string[] = [];
+  if (r.cocoonNew) shoreNews.push("<li>🐛 The cocoon is ready to hatch.</li>");
+  if (r.bottleNew) shoreNews.push("<li>🍾 A bottle has washed back onto the glass.</li>");
+  if ((r.luresGained ?? 0) > 0) {
+    const full = r.luresHeld >= r.lureBank ? "your lure bank is full" : `${r.luresHeld} of ${r.lureBank} held`;
+    shoreNews.push(`<li>🦋 ${r.luresGained} lure${r.luresGained === 1 ? "" : "s"} regrew: ${full}.</li>`);
+  }
+  news.push(...shoreNews);
+  for (const title of r.storyTitles) news.push(`<li>📜 A new page of the story: <strong>${title}</strong>.</li>`);
+  const toShore = r.cocoonNew || r.bottleNew;
+  splash.open(
+    [
+      {
+        art: BRAND_MARK,
+        eyebrow: "Welcome back, keeper",
+        title: `You were away ${away}`,
+        html: `
+          <div class="away-gain">
+            <span class="stat-label">Your keepers kept the light</span>
+            <strong>${r.gain.gt(0) ? `+${fmt(r.gain)}` : "0"}</strong>
+            <span class="away-unit">Lumen</span>
+          </div>
+          <div class="bottle-haul away-rows">${rows.map(([k, v]) => `<div class="bottle-row"><span>${k}</span><strong>${v}</strong></div>`).join("")}</div>
+          ${news.length > 0 ? `<div class="bottle-label">While you were gone</div><ul class="away-news">${news.join("")}</ul>` : ""}
+          ${toShore ? `<button class="buy away-shore" data-away-go="shore">Go to the Shore</button>` : ""}`,
+      },
+    ],
+    { kind: "away", finishLabel: "Back to the light" },
+  );
+}
+// The card's "Go to the Shore" closes it and opens the Shore tab.
+document.addEventListener("click", (e) => {
+  const go = (e.target as Element | null)?.closest<HTMLElement>("[data-away-go]");
+  if (!go?.dataset.awayGo) return;
+  splash.close();
+  activateTab(go.dataset.awayGo);
+});
 document.querySelector("#desk-tutorial")?.addEventListener("click", openTutorial);
 
 function openBottleSplash(claim: ExpeditionClaim, routeName: string, relicChance: number): void {
@@ -2275,7 +2347,7 @@ let logStructureKey: string | null = null;
 // settings. The board-by-board view stays on the Lighthouses tab.
 const supplyStrip = document.querySelector<HTMLElement>("#supply-strip");
 /** Levels the Chain Steward has fed since the page opened. */
-let stewardLevels = 0;
+let stewardLevels = bootStewardLevels;
 const supplyNodes = (["wick", "oil", "lens", "beam"] as const).map((nodeId) => {
   const el = supplyStrip?.querySelector<HTMLElement>(`.supply-node[data-node="${nodeId}"]`) ?? null;
   const feed = el?.querySelector<HTMLButtonElement>(".sn-feed") ?? null;
@@ -2754,9 +2826,12 @@ function renderDynamic(): void {
 // closed. A render error is logged once and never stops the clock.
 let renderErrorLogged = false;
 function gameTick(): void {
-  const result = advanceToNow(state, Date.now());
+  const now = Date.now();
+  // A long gap (a sleeping laptop) is time away: note the Shore before it's settled.
+  const before = (now - state.lastSeen) / 1000 > LIVE_GAP_LIMIT_SECONDS ? snapshotAway(state) : null;
+  const result = advanceToNow(state, now);
   // The Chain Steward takes its share of what was just earned and feeds the chain.
-  const fed = tendChain(state, result.gain, Date.now());
+  const fed = tendChain(state, result.gain, now);
   if (fed > 0) {
     stewardLevels += fed;
     pulseSupply();
@@ -2764,12 +2839,19 @@ function gameTick(): void {
   if (result.mode === "offline") {
     welcomeBack(result.gain, result.creditedSeconds, result.elapsedSeconds);
     if (fed > 0) addLog(state, `While you were away, your Chain Steward saw to the supply line: ${fed} level${fed === 1 ? "" : "s"} of supplies.`);
-    saveState(state);
   }
   // Story beats fire the moment their moment arrives (cheap predicates).
-  if (checkStory(state).length > 0) {
+  const beats = checkStory(state);
+  if (beats.length > 0) {
     sound.story();
     saveState(state);
+  }
+  if (result.mode === "offline") {
+    saveState(state);
+    if (before) {
+      const offlineResult = { awaySeconds: result.elapsedSeconds, creditedSeconds: result.creditedSeconds, gain: result.gain };
+      showAwayCard(awayReport(state, offlineResult, before, now, { stewardLevels: fed, storyTitles: beats.map((b) => b.title) }));
+    }
   }
   if (document.hidden) return; // nothing to draw; the clock still runs
   try {
@@ -2796,5 +2878,7 @@ window.addEventListener("beforeunload", () => saveState(state));
 renderDynamic();
 syncSceneRunning();
 
-// A brand-new keeper (no save in this browser) starts with the guide open.
+// A brand-new keeper (no save in this browser) starts with the guide open;
+// a returning one sees what the time away brought.
 if (isNewKeeper) openTutorial();
+else if (bootAway) showAwayCard(bootAway);

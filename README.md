@@ -135,10 +135,13 @@ a hearth whose fire grows with the Embers you'd bank.
   current tide and the forecast, so you can plan around the storm.
 - **Offline earnings** — 50% of your rate for up to 8 hours (75% once you
   learn Longer Wicks; up to 12 hours and 90% with the right Ember perks
-  and relics; Siren's Rest adds +10 points and +4 hours more), reported
-  when you return — the welcome-back line also mentions a cocoon ready
-  to hatch or a bottle waiting on the glass. Cocoons hatch and bottles
-  wash back while you're away, too.
+  and relics; Siren's Rest adds +10 points and +4 hours more). After 5
+  minutes or more away, a **Welcome back** card shows what your keepers
+  earned, the time paid against the cap, the rate, how often the tide
+  turned, and the news: lures regrown, a cocoon ready, a bottle home (with
+  a Go to the Shore button), the Chain Steward's work and story pages
+  found. It shows on a fresh visit and when a sleeping laptop wakes.
+  Cocoons hatch and bottles wash back while you're away, too.
 - Balance-checked end to end: the greedy-bot simulation (`npm run sim`)
   reaches the first Rekindle in ~85 minutes and the second ~60 minutes
   later, then simply plays on — growing, keeping the chain fed, saving
