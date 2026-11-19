@@ -78,34 +78,73 @@ export function feedNode(state: GameState, nodeId: ChainNodeId, log = true): boo
 
 export interface FillResult {
   levels: number;
+  /** Of those, Beam levels. */
+  beamLevels: number;
   spent: Decimal;
   efficiency: number;
 }
 
+export interface FillOptions {
+  /**
+   * Raise the Beam too: while the chain is short, buy the cheaper of the
+   * bottleneck's next level and the next Beam level; once the chain is at
+   * the target, keep raising the Beam with levels costing no more than this
+   * share of the Lumen in hand. 0 or absent: supplies only.
+   */
+  beamShare?: number;
+}
+
+/** Fill the chain's Beam share: after the chain is full, Beam levels costing up to a tenth of your Lumen. */
+export const FILL_BEAM_SHARE = 0.1;
+
 /**
  * Feed the bottleneck (cheapest level first), again and again, until the beam reaches `target`
  * efficiency or the next level costs more than `budget` (default: the whole
- * purse). One log line for the lot.
+ * purse); with `beamShare`, Beam levels come along (see FillOptions). One
+ * log line for the lot.
  */
-export function fillChain(state: GameState, target = 1, budget: Decimal = state.lumen, now?: number, log = true): FillResult {
+export function fillChain(
+  state: GameState,
+  target = 1,
+  budget: Decimal = state.lumen,
+  now?: number,
+  log = true,
+  options: FillOptions = {},
+): FillResult {
+  const beamShare = options.beamShare ?? 0;
   let spent = new Decimal(0);
   let levels = 0;
+  let beamLevels = 0;
   for (let guard = 0; guard < 5000; guard++) {
     const st = chainStatus(state, now);
-    if (!st.unlocked || st.efficiency >= target || !st.bottleneck) break;
-    const board = cheapestBoardFor(state, st.bottleneck);
-    if (!board) break;
-    const cost = nodeCost(board, st.bottleneck, state.chainBoards[board][st.bottleneck], state);
-    if (spent.add(cost).gt(budget) || state.lumen.lt(cost)) break;
-    if (!buyNodeUpgrade(state, board, st.bottleneck, false)) break;
-    spent = spent.add(cost);
+    if (!st.unlocked) break;
+    const short = st.efficiency < target - 1e-9 && st.bottleneck !== null;
+    const feedBoard = short && st.bottleneck ? cheapestBoardFor(state, st.bottleneck) : null;
+    const beamBoard = beamShare > 0 ? cheapestBoardFor(state, "beam") : null;
+    const feedCost = feedBoard && st.bottleneck ? nodeCost(feedBoard, st.bottleneck, state.chainBoards[feedBoard][st.bottleneck], state) : null;
+    let beamCost = beamBoard ? nodeCost(beamBoard, "beam", state.chainBoards[beamBoard].beam, state) : null;
+    // Once the chain is at the target, the Beam only takes small bites of the purse.
+    if (!short && beamCost && beamCost.gt(state.lumen.mul(beamShare))) beamCost = null;
+    let pick: { board: string; nodeId: ChainNodeId; cost: Decimal } | null = null;
+    if (feedCost && feedBoard && st.bottleneck) pick = { board: feedBoard, nodeId: st.bottleneck, cost: feedCost };
+    if (beamCost && beamBoard && (!pick || beamCost.lt(pick.cost))) pick = { board: beamBoard, nodeId: "beam", cost: beamCost };
+    if (!pick) break;
+    if (spent.add(pick.cost).gt(budget) || state.lumen.lt(pick.cost)) break;
+    if (!buyNodeUpgrade(state, pick.board, pick.nodeId, false)) break;
+    spent = spent.add(pick.cost);
     levels++;
+    if (pick.nodeId === "beam") beamLevels++;
   }
   const efficiency = chainStatus(state, now).efficiency;
   if (log && levels > 0) {
-    addLog(state, `You walk the supply line and see to it: ${levels} level${levels === 1 ? "" : "s"} of supplies, the beam at ${Math.round(efficiency * 100)}%.`);
+    const supplies = levels - beamLevels;
+    const parts = [
+      supplies > 0 ? `${supplies} level${supplies === 1 ? "" : "s"} of supplies` : "",
+      beamLevels > 0 ? `${beamLevels} Beam level${beamLevels === 1 ? "" : "s"}` : "",
+    ].filter(Boolean);
+    addLog(state, `You walk the supply line and see to it: ${parts.join(" and ")}, the beam at ${Math.round(efficiency * 100)}%.`);
   }
-  return { levels, spent, efficiency };
+  return { levels, beamLevels, spent, efficiency };
 }
 
 /** Beam efficiency if base production (the chain's demand) rose by `extraDemand`. */

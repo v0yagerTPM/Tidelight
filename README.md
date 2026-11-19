@@ -205,7 +205,9 @@ npm run build      # typecheck + production build to dist/
 - **The supply strip** — under the scene on the Light view: Wick, Oil
   and Lens as gauges (the bottleneck glows), the Beam bonus, a one-tap
   **Feed** on each (the cheapest level on any lit board) and **Fill the
-  chain**. Relight Widow's Walk and the **Chain Steward** feeds the chain
+  chain**, which feeds until the beam is full and raises the Beam along
+  the way (whenever its next level is cheaper, then with levels costing up
+  to a tenth of your Lumen). Relight Widow's Walk and the **Chain Steward** feeds the chain
   from a share of your income, raising the Beam alongside the supplies
   (the cheaper first, and only the Beam once the chain is at its target;
   a switch in its panel turns the Beam off). Helper rows warn when a purchase would

@@ -4,6 +4,7 @@ import { chainStatus, nodeCost, totalBeamLevels } from "../src/game/chain";
 import { CHAIN_LIGHTHOUSES, WIDOWS_WALK_ID } from "../src/game/config";
 import { createInitialState, deserializeState, serializeState, startBoard } from "../src/game/state";
 import {
+  FILL_BEAM_SHARE,
   STEWARD_PURSE_CAP_SECONDS,
   cheapestBoardFor,
   efficiencyAtDemand,
@@ -113,6 +114,26 @@ describe("the Chain Steward", () => {
     off.stewardOn = false;
     expect(tendChain(off, new Decimal(1e13))).toBe(0);
     expect(off.lumen.toNumber()).toBe(1e12);
+  });
+
+  it("Fill the chain raises the Beam along the way, then only with small bites of the purse", () => {
+    const state = starved();
+    const lumen = state.lumen;
+    const r = fillChain(state, 1, state.lumen, undefined, false, { beamShare: FILL_BEAM_SHARE });
+    expect(chainStatus(state).efficiency).toBeGreaterThanOrEqual(1);
+    expect(r.beamLevels).toBeGreaterThan(0);
+    expect(r.levels).toBeGreaterThan(r.beamLevels);
+    // It stopped at a Beam level costing more than a tenth of what was left.
+    const board = cheapestBoardFor(state, "beam")!;
+    expect(nodeCost(board, "beam", state.chainBoards[board].beam, state).gt(state.lumen.mul(FILL_BEAM_SHARE))).toBe(true);
+    expect(state.lumen.gt(0)).toBe(true);
+    expect(lumen.sub(state.lumen).eq(r.spent)).toBe(true);
+  });
+
+  it("Fill the chain without the Beam option feeds supplies only", () => {
+    const state = starved();
+    const r = fillChain(state, 1);
+    expect(r.beamLevels).toBe(0);
   });
 
   it("raises the Beam with its whole purse once the chain is fed", () => {
