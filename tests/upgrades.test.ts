@@ -82,10 +82,14 @@ describe("buy amounts", () => {
 });
 
 describe("upgrade definitions", () => {
-  it("has 18 per-generator upgrades (two per helper), 3 click upgrades, and 3 globals", () => {
-    expect(UPGRADES.filter((u) => u.kind === "generator")).toHaveLength(18);
+  it("has 45 per-generator upgrades (five per helper), 3 click, 3 echo, 6 synergies, 12 lighthouse lessons and 3 globals", () => {
+    expect(UPGRADES.filter((u) => u.kind === "generator")).toHaveLength(45);
     expect(UPGRADES.filter((u) => u.kind === "click")).toHaveLength(3);
+    expect(UPGRADES.filter((u) => u.kind === "echo")).toHaveLength(3);
+    expect(UPGRADES.filter((u) => u.kind === "synergy")).toHaveLength(6);
+    expect(UPGRADES.filter((u) => u.kind === "lighthouse")).toHaveLength(12);
     expect(UPGRADES.filter((u) => u.kind === "global")).toHaveLength(3);
+    expect(new Set(UPGRADES.map((u) => u.id)).size).toBe(UPGRADES.length);
   });
 
   it("per-generator costs are 40× and 240× base cost, unlocked at 10 and 30 owned", () => {

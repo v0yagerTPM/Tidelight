@@ -3,6 +3,7 @@
 // runs the sim, and prints a one-line summary.
 //   TUNE='{"s":[1.085,1.095,1.105],"gates":[0.5,0.6,0.6,0.7,0.75,0.8]}' npx vite-node scripts/tune.ts
 import { CHAIN_LIGHTHOUSES, CHAIN_NODES } from "../src/game/config";
+import { UPGRADES } from "../src/game/upgrades";
 import { runSim } from "./simCore";
 
 interface Tune {
@@ -21,7 +22,14 @@ if (tune.s) nodes.forEach((n, i) => ((n as { supportGrowth: number }).supportGro
 if (tune.base) nodes.forEach((n, i) => ((n as { supportPerLevel: number }).supportPerLevel = tune.base![i]));
 if (tune.cost) nodes.forEach((n, i) => ((n as { baseCost: number }).baseCost = tune.cost![i]));
 if (tune.relight) {
-  CHAIN_LIGHTHOUSES.slice(1).forEach((l, i) => ((l as { relightCost: number | null }).relightCost = tune.relight![i]));
+  CHAIN_LIGHTHOUSES.slice(1).forEach((l, i) => {
+    // Lighthouse lessons are priced off their lighthouse's relight cost: keep them in step.
+    const ratio = tune.relight![i] / (l.relightCost ?? tune.relight![i]);
+    for (const u of UPGRADES) {
+      if (u.unlock.kind === "lighthouse-lit" && u.unlock.lighthouseId === l.id) (u as { cost: number }).cost *= ratio;
+    }
+    (l as { relightCost: number | null }).relightCost = tune.relight![i];
+  });
 }
 if (tune.gates) {
   CHAIN_LIGHTHOUSES.slice(1).forEach((l, i) => ((l as { efficiencyRequirement: number }).efficiencyRequirement = tune.gates![i]));

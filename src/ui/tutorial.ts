@@ -51,7 +51,7 @@ export function tutorialPages(): SplashPage[] {
       eyebrow: "The Upgrades tab · 3 of 8",
       title: "Learn upgrades",
       html: `
-        <p>Upgrades are one-time lessons, most of which double a helper's output or your clicks. They appear as you grow.</p>
+        <p>Upgrades are one-time lessons that multiply a helper, your flashes, the supply chain or everything at once. New ones surface as you own more helpers and relight more lighthouses; <strong>Learn all affordable</strong> buys every one you can, cheapest first.</p>
         <p>Most are forgotten when you Rekindle; the ones marked <strong>♾</strong> are keeper knowledge and stay with you.</p>`,
     },
     {

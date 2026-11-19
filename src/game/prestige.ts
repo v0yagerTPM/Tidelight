@@ -5,7 +5,7 @@ import { relicEmberGainMultiplier } from "./expeditions";
 import { formatNumber } from "./format";
 import { addLog, startBoard } from "./state";
 import type { GameState } from "./types";
-import { isPermanentUpgrade, upgradeById } from "./upgrades";
+import { isPermanentUpgrade, upgradeById, upgradeEmberGainMultiplier } from "./upgrades";
 
 /**
  * Embers a run is worth: floor(sqrt(lifetimeLumen / 5000)).
@@ -25,7 +25,7 @@ export function embersForLifetime(lifetime: Decimal | number | string): number {
  * at the end.
  */
 export function rekindleGain(state: GameState): number {
-  const mult = relicEmberGainMultiplier(state) * litEmberGainMultiplier(state.litLighthouses);
+  const mult = relicEmberGainMultiplier(state) * litEmberGainMultiplier(state.litLighthouses) * upgradeEmberGainMultiplier(state);
   return Math.floor(embersForLifetime(state.lifetimeLumen) * mult);
 }
 

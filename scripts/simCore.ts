@@ -66,6 +66,12 @@ export interface SimResult {
   log: string[];
   /** log10(production/s) sampled at whole hours of Phase B time (sim clock). */
   curve: Record<number, number>;
+  /**
+   * Endgame runs grouped by lighthouses lit: how many, their average length,
+   * and how far into the run the last upgrade was bought (minutes). The gap
+   * between the two is time with nothing new to learn.
+   */
+  runsByLit: Record<number, { runs: number; avgMinutes: number; lastUpgradeMinutes: number; upgradesOwned: number }>;
 }
 
 /**
@@ -109,8 +115,15 @@ export function runSim(opts: SimOptions = {}): SimResult {
       if ((state.generators[def.id] ?? 0) > 0) highestTier = Math.max(highestTier, i + 1);
     });
   };
+  let lastUpgradeRunT = 0;
+  const runStats: { lit: number; minutes: number; lastUpgrade: number; owned: number }[] = [];
+  const noteRunEnd = () => {
+    if (inPhaseB) runStats.push({ lit: state.litLighthouses.length, minutes: runT / 60, lastUpgrade: lastUpgradeRunT / 60, owned: state.upgrades.length });
+    lastUpgradeRunT = 0;
+  };
   const hooks = {
     onUpgradeBought: (id: string) => {
+      lastUpgradeRunT = runT;
       if (!inPhaseB) earlyUpgrades.push(`${(totalT / 60).toFixed(1)}m: ${upgradeById(id).name}`);
     },
     onLighthouseLit: (id: string) => {
@@ -205,6 +218,7 @@ export function runSim(opts: SimOptions = {}): SimResult {
     if (savingSince !== null && totalT - savingSince > STALL_SECONDS) {
       stalls++;
       say(`! Save for ${nextId} stalled at ${(totalT / 3600).toFixed(1)}h — Rekindling.`);
+      noteRunEnd();
       if (rekindle(state) >= 1) {
         rekindles++;
         runT = 0;
@@ -213,6 +227,7 @@ export function runSim(opts: SimOptions = {}): SimResult {
       continue;
     }
     if (!saving && rekindleGain(state) >= Math.max(PRESTIGE_RECOMMENDED_EMBERS, state.embers * rekindleGrowth)) {
+      noteRunEnd();
       if (rekindle(state) >= 1) {
         rekindles++;
         runT = 0;
@@ -247,6 +262,15 @@ export function runSim(opts: SimOptions = {}): SimResult {
     earlyUpgrades,
     log: out,
     curve,
+    runsByLit: (() => {
+      const out: SimResult["runsByLit"] = {};
+      for (const lit of [...new Set(runStats.map((r) => r.lit))]) {
+        const xs = runStats.filter((r) => r.lit === lit);
+        const avg = (f: (r: (typeof xs)[number]) => number) => xs.reduce((a, r) => a + f(r), 0) / xs.length;
+        out[lit] = { runs: xs.length, avgMinutes: avg((r) => r.minutes), lastUpgradeMinutes: avg((r) => r.lastUpgrade), upgradesOwned: avg((r) => r.owned) };
+      }
+      return out;
+    })(),
   };
 }
 

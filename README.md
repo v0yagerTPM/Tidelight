@@ -49,9 +49,18 @@ a hearth whose fire grows with the Embers you'd bank.
   Seventh Light with Siren's Rest.
 - **Buy amounts** — a ×1 / ×10 / ×100 / Max toggle prices the whole batch
   (cost + production gain on every row) and remembers your choice.
-- **22 upgrades** in their own tab — per-generator ×2s, click tiers that
-  take the beam from +1 to +8, and keeper-wide globals. Locked upgrades
-  appear as silhouettes with their unlock conditions.
+- **72 upgrades** in their own tab, with the nearest locked ones shown as
+  silhouettes with their unlock conditions:
+  - five tiers per helper (×2 at 10 and 30 copies, then ×2 / ×3 / ×5 at
+    75, 150 and 250);
+  - click tiers that take the beam from +1 to +8, and **Flash Echo**, which
+    adds 5% / 10% / 20% of a second's production to every flash;
+  - six **synergies** (a helper +1% per copy of another, at 50 of each);
+  - two **lighthouse lessons** per lit lighthouse: Wick, Oil or Lens support
+    ×2, Beam levels worth +7.5%, groups of helpers ×3, all production ×2
+    or ×3, Ember gain ×1.25;
+  - keeper-wide globals.
+  **Learn all affordable** buys every lesson that fits, cheapest first.
 - **The supply chain** — at 10 generators the chain wakes: Wick, Oil and
   Lens levels support your production rate, and the weakest node caps
   your beam efficiency (never below 25%). Each level supports a little
