@@ -546,8 +546,7 @@ interface GenRow {
   prod: HTMLElement;
   /** The icon with its milestone ring: its tip says how far the next ×2 is. */
   milestone: HTMLElement;
-  /** "beam 100% → 84% · feed Oil" when buying would starve the chain. */
-  chain: HTMLElement;
+  /** "+X Lumen/s", "affordable in …", or "⚠ beam 100% → 84% · feed Oil" when buying would starve the chain. */
   note: HTMLElement;
   buy: HTMLButtonElement;
 }
@@ -570,7 +569,6 @@ if (genList) {
       <div class="gen-buy">
         <button class="buy">Buy</button>
         <div class="gen-note muted"></div>
-        <div class="gen-chain hidden"></div>
       </div>`;
     const buy = row.querySelector<HTMLButtonElement>(".buy");
     if (!buy) continue;
@@ -592,7 +590,6 @@ if (genList) {
       owned: row.querySelector(".gen-owned") as HTMLElement,
       prod: row.querySelector(".gen-prod") as HTMLElement,
       milestone: row.querySelector(".gen-icon") as HTMLElement,
-      chain: row.querySelector(".gen-chain") as HTMLElement,
       note: row.querySelector(".gen-note") as HTMLElement,
       buy,
     });
@@ -1024,7 +1021,6 @@ let bottleRider = "";
 interface ShoreRefs {
   attractBtn: HTMLButtonElement | null;
   attractNote: HTMLElement | null;
-  rushBtn: HTMLButtonElement | null;
   scentedBtn: HTMLButtonElement | null;
   roostBtn: HTMLButtonElement | null;
   roostNote: HTMLElement | null;
@@ -1036,7 +1032,7 @@ interface ShoreRefs {
   sendBtns: { routeId: string; btn: HTMLButtonElement; note: HTMLElement | null }[];
 }
 let shoreRefs: ShoreRefs = {
-  attractBtn: null, attractNote: null, rushBtn: null, scentedBtn: null, roostBtn: null, roostNote: null,
+  attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
   cocoonNote: null, cocoonBar: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
 };
 
@@ -1064,7 +1060,7 @@ function shoreKey(): string {
 
 function rebuildShore(): void {
   shoreRefs = {
-    attractBtn: null, attractNote: null, rushBtn: null, scentedBtn: null, roostBtn: null, roostNote: null,
+    attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
     cocoonNote: null, cocoonBar: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
   };
 
@@ -1219,7 +1215,6 @@ function buildRoostBar(host: HTMLElement): void {
     </div>
     <div class="roost-actions">
       <button class="buy moth-attract">Attract</button>
-      <button class="buy moth-rush">Rush lure</button>
       <button class="buy moth-scented">Scented lure</button>
       <button class="buy moth-roost">Expand</button>
       <button class="buy almanac-open">📖 Almanac ${state.almanac.length}/${ALMANAC_SIZE}</button>
@@ -1228,19 +1223,12 @@ function buildRoostBar(host: HTMLElement): void {
     <span class="moth-roost-note hidden"></span>`;
   shoreRefs.attractBtn = bar.querySelector(".moth-attract");
   shoreRefs.attractNote = bar.querySelector(".moth-attract-note");
-  shoreRefs.rushBtn = bar.querySelector(".moth-rush");
   shoreRefs.scentedBtn = bar.querySelector(".moth-scented");
   shoreRefs.roostBtn = bar.querySelector(".moth-roost");
   shoreRefs.roostNote = bar.querySelector(".moth-roost-note");
+  // One button for both: a lure when one is ready, a rush lure (Lumen) when not.
   shoreRefs.attractBtn?.addEventListener("click", () => {
-    const moth = attractMoth(state, Math.random);
-    if (moth) {
-      selectedMoth = moth.id;
-      mothChanged(true);
-    }
-  });
-  shoreRefs.rushBtn?.addEventListener("click", () => {
-    const moth = rushAttractMoth(state, Math.random);
+    const moth = lureStatus(state).held > 0 ? attractMoth(state, Math.random) : rushAttractMoth(state, Math.random);
     if (moth) {
       selectedMoth = moth.id;
       mothChanged(true);
@@ -1529,24 +1517,27 @@ function updateShoreView(now: number): void {
     const lures = lureStatus(state, now);
     const full = state.moths.length >= mothCapacity(state);
     const ready = lures.held > 0;
-    shoreRefs.attractBtn.disabled = full || !ready;
-    shoreRefs.attractBtn.classList.toggle("affordable", !full && ready);
-    shoreRefs.attractBtn.textContent = `Attract · ${lures.held}/${lureBankSize(state)} lures`;
+    // Attract and Rush share one button, so the row never gains or loses one.
+    if (ready) {
+      shoreRefs.attractBtn.disabled = full;
+      shoreRefs.attractBtn.classList.toggle("affordable", !full);
+      shoreRefs.attractBtn.textContent = `Attract · ${lures.held}/${lureBankSize(state)} lures`;
+      setTip(shoreRefs.attractBtn, "Spend a lure: a wild moth follows the light home.");
+    } else {
+      const cost = rushLureCost(state, now);
+      const affordable = state.lumen.gte(cost);
+      shoreRefs.attractBtn.disabled = full || !affordable;
+      shoreRefs.attractBtn.classList.toggle("affordable", !full && affordable);
+      shoreRefs.attractBtn.textContent = `Rush lure · ${fmt(cost)}`;
+      setTip(shoreRefs.attractBtn, "No lure ready: pay Lumen to attract a moth now. Each rush triples the next until a lure regrows.");
+    }
     if (shoreRefs.scentedBtn) {
+      // Always shown (greyed until you hold enough scales), so the row keeps its shape.
       const can = !full && state.wingScales >= SCENTED_LURE_SCALES;
-      shoreRefs.scentedBtn.classList.toggle("hidden", state.wingScales < SCENTED_LURE_SCALES);
       shoreRefs.scentedBtn.disabled = !can;
       shoreRefs.scentedBtn.classList.toggle("affordable", can);
-      shoreRefs.scentedBtn.textContent = `Scented lure · ${SCENTED_LURE_SCALES} scales`;
-    }
-    if (shoreRefs.rushBtn) {
-      const cost = rushLureCost(state, now);
-      const show = !ready;
-      shoreRefs.rushBtn.classList.toggle("hidden", !show);
-      const affordable = state.lumen.gte(cost);
-      shoreRefs.rushBtn.disabled = full || !affordable;
-      shoreRefs.rushBtn.classList.toggle("affordable", show && !full && affordable);
-      shoreRefs.rushBtn.textContent = `Rush lure · ${fmt(cost)}`;
+      shoreRefs.scentedBtn.textContent = `Scented lure · ${Math.min(state.wingScales, SCENTED_LURE_SCALES)}/${SCENTED_LURE_SCALES}`;
+      setTip(shoreRefs.scentedBtn, `${SCENTED_LURE_SCALES} Wing Scales: a moth that always carries a trait. Release moths for scales (you hold ${state.wingScales}).`);
     }
     const next = lures.nextInMs === null ? "the lure bank is full" : `next lure in ${formatDuration(lures.nextInMs / 1000)}`;
     if (full) {
@@ -1781,12 +1772,12 @@ interface NodeRowRefs {
 }
 let nodeRows = new Map<ChainNodeId, NodeRowRefs>();
 
+// Levels are NOT part of the key: the node cards update them in place, and
+// with the Chain Steward and Fill the chain buying levels all the time, a
+// rebuild per level redrew the whole tab every few seconds.
 function lighthouseStructureKey(): string {
-  const levels = state.litLighthouses
-    .map((id) => CHAIN_NODE_IDS.map((n) => state.chainBoards[id]?.[n] ?? 0).join(","))
-    .join(";");
   const unlocked = totalGeneratorsOwned(state) >= CHAIN_UNLOCK_GENERATORS;
-  return `${state.litLighthouses.join(",")}|${selectedBoardId}|${unlocked}|${levels}`;
+  return `${state.litLighthouses.join(",")}|${selectedBoardId}|${unlocked}`;
 }
 
 function rebuildLighthouses(): void {
@@ -2749,23 +2740,25 @@ function renderDynamic(): void {
           ? `Buy ×${quote.count} · ${fmt(quote.cost)}`
           : `Buy · ${fmt(quote.cost)}`
         : `Buy ×${state.buyAmount} · ${fmt(quote.cost)}`;
-    // What this purchase does to the supply chain.
+    // What this purchase does to the supply chain. The warning takes the
+    // note's line (one line, always there) so rows never grow or shrink.
     let warn = "";
+    let warnTip = "";
     if (chainNow.unlocked && !waitingOn && quote.affordable && quote.productionGain.gt(0)) {
       const extra = quote.productionGain.mul(lighthouseMultiplier(state));
       const after = efficiencyAtDemand(state, extra, nowMs);
       if (pct(after) !== pct(chainNow.efficiency) && after < chainNow.efficiency) {
         const node = bottleneckAtDemand(state, extra, nowMs);
         warn = `⚠ beam ${pct(chainNow.efficiency)} → ${pct(after)}${node ? ` · feed ${CHAIN_NODES[node].name}` : ""}`;
-        setTip(
-          row.chain,
-          `These helpers would add ${fmt(extra)}/s of demand on the supply chain. ${node ? `${CHAIN_NODES[node].name} couldn't keep up, ` : ""}so the beam would drop to ${pct(after)} efficiency. Feed it from the supply strip above${stewardActive(state) ? ", or let the Chain Steward catch up" : ""}.`,
-        );
+        warnTip =
+          `These helpers would add +${fmt(quote.productionGain)} Lumen/s and ${fmt(extra)}/s of demand on the supply chain. ${node ? `${CHAIN_NODES[node].name} couldn't keep up, ` : ""}so the beam would drop to ${pct(after)} efficiency. Feed it from the supply strip above${stewardActive(state) ? ", or let the Chain Steward catch up" : ""}.`;
       }
     }
-    row.chain.textContent = warn;
-    row.chain.classList.toggle("hidden", warn === "");
-    if (waitingOn) {
+    row.note.classList.toggle("gen-warn", warn !== "");
+    setTip(row.note, warnTip);
+    if (warn) {
+      row.note.textContent = warn;
+    } else if (waitingOn) {
       row.note.textContent = `Answers the light of ${chainLighthouseById(waitingOn).name} — relight it to hire`;
     } else if (blockedByChallenge) {
       row.note.textContent = "Blocked — First Light Only challenge";

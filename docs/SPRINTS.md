@@ -963,3 +963,32 @@ hour 4.5 of a 62-hour game. Plan: the "Upgrades & Embers: the numbers" doc.
       minutes.
 - [x] Example save (6th expansion, 119M/s, a lifetime of 1e30 Lumen): it now
       costs 142B, about 23 minutes. The old price was 7.29e30.
+
+## ✅ Post-launch — A steady screen, and a price ceiling
+
+- [x] **No more jumping.** A browser audit sampled every button, card and
+      heading on each tab for 5 s of idle play at 1280 and 390 px. Things
+      moved by up to 104px before the fix; now nothing moves at either width.
+      - **Lighthouses tab:** it rebuilt itself whenever any chain level
+        changed, and with the Chain Steward and Fill the chain buying levels
+        constantly, it redrew every few seconds. Levels are no longer in its
+        structure key; the node cards update in place.
+      - **Helper rows:** the "⚠ beam …" warning added a line when it
+        appeared. It now takes the note's line, which is always there and
+        one line high, and the Buy column has a fixed width.
+      - **The roost:** Rush lure appeared and disappeared beside Attract, and
+        Scented lure appeared at 8 scales. Attract and Rush share one button
+        now, and Scented lure is always shown, greyed until "8/8".
+      - **Chain nodes:** the bottleneck's dashed border was 1px thicker,
+        resizing whichever card had it; it is now an outline. The flag and
+        the notes keep room for two lines.
+      - **Digits:** every digit is the same width
+        (`font-variant-numeric: tabular-nums` on the body).
+- [x] **Price ceiling** (`config.ts priceCeiling`): no single purchase costs
+      more than The Hollow Light's relight, 10.0No. Upgrades were already
+      under it (The Last Lesson is exactly 10.0No). Roost expansions and
+      rush lures, which follow production and all-time Lumen, are now capped
+      at it. Helper copies and chain levels keep climbing by design. The
+      Shore Kindlings now grow ×3 a level, not ×10, so their 20th level
+      costs 2.3 trillion Embers instead of 20 sextillion.
+      Tests: `tests/priceCeiling.test.ts`.

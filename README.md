@@ -151,7 +151,11 @@ a hearth whose fire grows with the Embers you'd bank.
   120 and two traits. Moths are permanent: Rekindle can't touch the roost.
   The roost starts at 6 moths; each expansion adds 2 and costs about 3
   minutes of your production (×1.5 per expansion), or a small starting
-  price early on.
+  price early on. Attract becomes a Rush lure (Lumen) when no lure is
+  ready; Scented lure shows your scales toward the 8 it needs.
+- **A price ceiling** — no single purchase (upgrade, relight, roost
+  expansion or rush lure) costs more than The Hollow Light's relight,
+  10.0No: a keeper who has lit it can afford anything.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache, a
   story fragment for the Log, and maybe one of eight permanent RELICS —
