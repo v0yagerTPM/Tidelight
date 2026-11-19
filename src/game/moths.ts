@@ -3,6 +3,7 @@ import { almanacCocoonMultiplier, dutySlots, lureBankSize, lureRegrowMs, recordA
 import { CHAIN_LIGHTHOUSES } from "./config";
 import { MOTH_LANTERN_COCOON_MULTIPLIER, kindlingMultiplier } from "./emberShop";
 import { relicMothGlowBonus } from "./expeditions";
+import { productionPerSecond } from "./engine";
 import { formatNumber } from "./format";
 import {
   DUTY_GLOW_BONUS,
@@ -164,11 +165,13 @@ export const RUSH_LURE_SHARE = 0.005;
 export const RUSH_LURE_MIN_COST = 500;
 /** …tripled for each rush since the last lure regrew (each regrowth forgives one). */
 export const RUSH_LURE_GROWTH = 3;
-/** Roost expansions cost the larger of a fixed ladder and a share of all-time Lumen. */
+/** Roost expansions cost the larger of a fixed ladder and minutes of current production. */
 export const ROOST_BASE_COST = 10_000;
 export const ROOST_COST_GROWTH = 6;
-export const ROOST_ALL_TIME_SHARE = 0.03;
-export const ROOST_ALL_TIME_GROWTH = 3;
+/** The first expansion's price in minutes of production (tide-neutral)… */
+export const ROOST_PRODUCTION_MINUTES = 3;
+/** …×1.5 for each expansion already built: about an hour at the 8th, three hours at the 11th. */
+export const ROOST_PRODUCTION_GROWTH = 1.5;
 /** A wild moth's glow rolls 1 to this share of its pattern's ceiling. */
 export const WILD_GLOW_SHARE = 0.6;
 /** A cocoon takes COCOON_BASE_MS × (1 + COCOON_PER_TIER × the higher parent's tier). */
@@ -200,14 +203,22 @@ export function mothCapacity(state: GameState): number {
 
 /**
  * Cost of the next roost expansion (+2 capacity): the larger of
- * 10,000 × 6^expansions and 3% of all-time Lumen × 3^expansions. Pricing
- * on ALL-TIME Lumen (which only grows) keeps the roost a real choice late
- * in the game without making it cheap right after a Rekindle.
+ * 10,000 × 6^expansions and 3 minutes of current production × 1.5^expansions.
+ * The production price follows the keeper wherever they are in a run, so
+ * every expansion is reachable by saving for a while. (It used to be 3% of
+ * ALL-TIME Lumen × 3^expansions: from the 4th expansion on that was more
+ * than a single run could ever hold, and the roost stalled at 10–12.)
  */
 export function roostExpansionCost(state: GameState): Decimal {
   const ladder = new Decimal(ROOST_BASE_COST).mul(new Decimal(ROOST_COST_GROWTH).pow(state.roostExpansions));
-  const share = state.allTimeLumen.mul(ROOST_ALL_TIME_SHARE).mul(new Decimal(ROOST_ALL_TIME_GROWTH).pow(state.roostExpansions));
-  return Decimal.max(ladder, share).ceil();
+  const minutes = ROOST_PRODUCTION_MINUTES * ROOST_PRODUCTION_GROWTH ** state.roostExpansions;
+  const fromProduction = productionPerSecond(state).mul(minutes * 60);
+  return Decimal.max(ladder, fromProduction).ceil();
+}
+
+/** The production half of the next expansion's price, in minutes (for the UI). */
+export function roostExpansionMinutes(state: GameState): number {
+  return ROOST_PRODUCTION_MINUTES * ROOST_PRODUCTION_GROWTH ** state.roostExpansions;
 }
 
 // ── Lures ────────────────────────────────────────────────────────────────────

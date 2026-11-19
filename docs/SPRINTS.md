@@ -950,3 +950,16 @@ hour 4.5 of a 62-hour game. Plan: the "Upgrades & Embers: the numbers" doc.
       beam at 100%" (an early save with 2M Lumen, which kept 1.34M).
 - [x] This keeps the Beam in step before Widow's Walk brings the Chain
       Steward. Tests: two in `tests/supply.test.ts`.
+
+## ✅ Post-launch — The roost grows with you
+
+- [x] Roost expansions cost the larger of 10,000 × 6ⁿ (the early floor) and
+      **3 minutes of production × 1.5ⁿ**, about an hour at the 8th and three
+      hours at the 11th. The old price was 3% of ALL-TIME Lumen × 3ⁿ, but
+      you can only pay with the Lumen held in this run. From the 4th
+      expansion on it asked for more than one run could ever hold, so the
+      roost stalled at 10–12 moths. The production price follows the keeper
+      wherever they are in a run. The Expand button's tip shows the
+      minutes.
+- [x] Example save (6th expansion, 119M/s, a lifetime of 1e30 Lumen): it now
+      costs 142B, about 23 minutes. The old price was 7.29e30.

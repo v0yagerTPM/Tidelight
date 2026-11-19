@@ -105,6 +105,7 @@ import {
   releaseMoth,
   releasePayout,
   roostExpansionCost,
+  roostExpansionMinutes,
   rushAttractMoth,
   rushLureCost,
   lureStatus,
@@ -1562,7 +1563,11 @@ function updateShoreView(now: number): void {
     shoreRefs.roostBtn.disabled = !affordable;
     shoreRefs.roostBtn.classList.toggle("affordable", affordable);
     shoreRefs.roostBtn.textContent = `Expand +2 · ${fmt(cost)}`;
-    shoreRefs.roostBtn.title = `Room for ${mothCapacity(state) + 2} moths`;
+    shoreRefs.roostBtn.title = "";
+    setTip(
+      shoreRefs.roostBtn,
+      `Room for ${mothCapacity(state) + 2} moths. Costs about ${formatDuration(roostExpansionMinutes(state) * 60)} of your production (×1.5 for each expansion), or the starting price if that's more.`,
+    );
     shoreRefs.roostNote.textContent = affordable ? `room for ${mothCapacity(state) + 2}` : "";
   }
   if (state.cocoon && shoreRefs.cocoonNote) {
