@@ -783,3 +783,19 @@ second half is arithmetic the sim's bot already did (`bestBoardFor`).
       2078 → 2054.
 - [x] **Saves → v11:** `stewardOn`, `stewardShare`, `stewardTarget`,
       `stewardPurse` (a corrupt purse loads as 0, never bricks a save).
+
+## ✅ Post-launch — flashes count, no stray caret
+
+- [x] **Flashes in the per-second figure** (`src/game/clickRate.ts`): the
+      header's "per second" adds what your flashes bring in, averaged over
+      the last 3 seconds (never less than a second, so one flash doesn't
+      read as a spike), and fades to the helpers' rate within 3 s of your
+      last flash. It glows while flashes are in it; its tip gives the split
+      ("X/s from your helpers + Y/s from your flashes"). Display only:
+      offline earnings, Rekindle estimates and chain demand still count
+      helpers alone.
+- [x] **No blinking caret on desktop:** clicking text left a caret in some
+      browsers (caret browsing, for one). The page sets
+      `caret-color: transparent` and the game UI `user-select: none`, so
+      fast clicking doesn't paint selections either. The save box, the log,
+      the story and the splash text still select and edit as text.

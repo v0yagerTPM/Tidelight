@@ -161,7 +161,9 @@ npm run build      # typecheck + production build to dist/
 ## Controls
 
 - **Flash the Beam** — +1 Lumen per click (upgradable to +8). Tap
-  anywhere on the lighthouse scene, or use the button.
+  anywhere on the lighthouse scene, or use the button. While you keep
+  flashing, the header's **per second** counts your flashes too (averaged
+  over the last 3 seconds; hover it for the split).
 - **Buy** — hire generators at the selected buy amount (×1/×10/×100/Max).
   Unaffordable buttons show how long until you can afford the batch.
 - **Upgrades tab** — spend Lumen on one-time upgrades as they unlock.
