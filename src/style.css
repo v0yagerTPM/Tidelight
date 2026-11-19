@@ -1177,3 +1177,9 @@ input, textarea, select, [contenteditable="true"] { caret-color: auto; -webkit-u
 .kindling-total { margin: 6px 0 0; font-size: 0.82rem; color: var(--seafoam); }
 .perk .perk-warning:empty { display: none; }
 .perk-switch { min-width: 56px; }
+
+/* Automation switches beside the controls they automate. */
+.section-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.auto-switch { display: inline-flex; align-items: center; gap: 6px; }
+.buy-toggle .auto-switch { margin-left: auto; }
+.auto-switch .toggle-btn { min-width: 52px; }

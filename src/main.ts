@@ -351,6 +351,10 @@ ${[
         <button class="toggle-btn" data-amount="10">×10</button>
         <button class="toggle-btn" data-amount="100">×100</button>
         <button class="toggle-btn" data-amount="max">Max</button>
+        <span class="auto-switch hidden" id="crew-switch">
+          <span class="buy-toggle-label">Lamp Crew</span>
+          <button class="toggle-btn" data-auto="autoHire" aria-pressed="true">On</button>
+        </span>
       </div>
       <div id="generators" class="gen-list"></div>
     </section>
@@ -360,7 +364,13 @@ ${[
       <p class="muted"><span id="upgrades-summary"></span></p>
       <div class="section-head">
         <h3 class="section-title">Ready to learn</h3>
-        <button id="learn-all" class="buy" disabled>Learn all affordable</button>
+        <div class="section-actions">
+          <span class="auto-switch hidden" id="qm-switch">
+            <span class="buy-toggle-label">Quartermaster</span>
+            <button class="toggle-btn" data-auto="autoLearn" aria-pressed="true">On</button>
+          </span>
+          <button id="learn-all" class="buy" disabled>Learn all affordable</button>
+        </div>
       </div>
       <div id="upgrades-available" class="lesson-grid"></div>
       <h3 class="section-title">Not yet discovered</h3>
@@ -888,8 +898,9 @@ function rebuildEmberShop(): void {
   const late = shelf("Late perks", "One-time perks for a keeper deep in the game, priced ten times apart. Quartermaster and Lamp Crew work while the game is open and can be switched off.");
   for (const def of EMBER_PERKS.filter((p) => p.shelf === "late")) late.appendChild(perkCard(def));
 }
-// The automation switches on owned perk cards.
-shopContainer?.addEventListener("click", (e) => {
+// The automation switches: on the owned perk cards, beside Learn all
+// affordable (Quartermaster) and beside the buy amounts (Lamp Crew).
+document.addEventListener("click", (e) => {
   const btn = (e.target as Element | null)?.closest<HTMLButtonElement>("[data-auto]");
   if (!btn) return;
   const key = btn.dataset.auto === "autoLearn" ? "autoLearn" : "autoHire";
@@ -2746,6 +2757,23 @@ function renderDynamic(): void {
   if (key !== upgradeStructureKey) {
     upgradeStructureKey = key;
     rebuildUpgrades();
+  }
+  // Automation switches where they matter, once the perk is owned.
+  for (const [id, perk, key, label] of [
+    ["#qm-switch", "quartermaster", "autoLearn", "The Quartermaster learns any upgrade that costs no more than a quarter of your Lumen, cheapest first."],
+    ["#crew-switch", "lamp-crew", "autoHire", "The Lamp Crew hires the best-value helper with up to a tenth of your Lumen, and never starves the beam."],
+  ] as const) {
+    const wrap = document.querySelector<HTMLElement>(id);
+    if (!wrap) continue;
+    const owned = state.emberPerks.includes(perk);
+    wrap.classList.toggle("hidden", !owned);
+    const btn = wrap.querySelector<HTMLButtonElement>("button");
+    if (!owned || !btn) continue;
+    const on = state[key];
+    if (btn.textContent !== (on ? "On" : "Off")) btn.textContent = on ? "On" : "Off";
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-pressed", String(on));
+    setTip(btn, `${label} ${on ? "Tap to switch it off." : "Off: tap to switch it back on."}`);
   }
   if (learnAllBtn) {
     // How many fit, cheapest first (the rows are already sorted by cost).
