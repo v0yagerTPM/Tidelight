@@ -904,5 +904,5 @@ hour 4.5 of a 62-hour game. Plan: the "Upgrades & Embers: the numbers" doc.
       plus `autoLearn` and `autoHire` (on unless switched off). The Moth
       Lantern raises the lure-bank clamp to 5. A challenge's rules are now
       set before its reset, so Warm Hearth obeys them.
-- [x] Tests: `tests/emberShelves.test.ts` (22), plus updated supply and
+- [x] Tests: `tests/emberShelves.test.ts` (21), plus updated supply and
       version tests.
