@@ -241,6 +241,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     stewardShare: 0.25,
     stewardTarget: 1,
     stewardPurse: new Decimal(0),
+    stewardBeam: true,
     kindlings: {},
     autoLearn: true,
     autoHire: true,
@@ -302,6 +303,7 @@ export function serializeState(state: GameState): SavedState {
     stewardShare: state.stewardShare,
     stewardTarget: state.stewardTarget,
     stewardPurse: state.stewardPurse.toString(),
+    stewardBeam: state.stewardBeam,
     kindlings: { ...state.kindlings },
     autoLearn: state.autoLearn,
     autoHire: state.autoHire,
@@ -418,6 +420,8 @@ export function deserializeState(raw: unknown): GameState | null {
       stewardShare: typeof s.stewardShare === "number" && STEWARD_SHARE_CHOICES.includes(s.stewardShare) ? s.stewardShare : 0.25,
       stewardTarget: typeof s.stewardTarget === "number" && STEWARD_TARGET_CHOICES.includes(s.stewardTarget) ? s.stewardTarget : 1,
       stewardPurse: safeDecimal(s.stewardPurse),
+      // The Steward raising the Beam: on unless switched off (added within v12).
+      stewardBeam: s.stewardBeam !== false,
       // v12: Kindling levels (known ids only, whole numbers, within any cap)
       // and the Quartermaster / Lamp Crew switches, on unless switched off.
       kindlings: sanitizeKindlings(s.kindlings),

@@ -1,9 +1,10 @@
 import Decimal from "break_infinity.js";
 import { describe, expect, it } from "vitest";
-import { chainStatus, nodeCost } from "../src/game/chain";
+import { chainStatus, nodeCost, totalBeamLevels } from "../src/game/chain";
 import { CHAIN_LIGHTHOUSES, WIDOWS_WALK_ID } from "../src/game/config";
 import { createInitialState, deserializeState, serializeState, startBoard } from "../src/game/state";
 import {
+  STEWARD_BEAM_RESERVE,
   STEWARD_PURSE_CAP_SECONDS,
   cheapestBoardFor,
   efficiencyAtDemand,
@@ -113,6 +114,33 @@ describe("the Chain Steward", () => {
     off.stewardOn = false;
     expect(tendChain(off, new Decimal(1e13))).toBe(0);
     expect(off.lumen.toNumber()).toBe(1e12);
+  });
+
+  it("raises the Beam once the chain is fed, keeping half its purse for feeding", () => {
+    const state = starved();
+    fillChain(state, 1); // the chain at 100%, the Steward's target
+    const cap = productionPerSecond(state).mul(STEWARD_PURSE_CAP_SECONDS);
+    state.stewardPurse = cap;
+    const beamBefore = totalBeamLevels(state);
+    expect(tendChain(state, new Decimal(0))).toBeGreaterThan(0);
+    expect(totalBeamLevels(state)).toBeGreaterThan(beamBefore);
+    expect(state.stewardPurse.gte(cap.mul(STEWARD_BEAM_RESERVE))).toBe(true);
+  });
+
+  it("leaves the Beam alone when switched off, or while the chain is short", () => {
+    const off = starved();
+    fillChain(off, 1);
+    off.stewardBeam = false;
+    off.stewardPurse = productionPerSecond(off).mul(STEWARD_PURSE_CAP_SECONDS);
+    const beamOff = totalBeamLevels(off);
+    tendChain(off, new Decimal(0));
+    expect(totalBeamLevels(off)).toBe(beamOff);
+
+    const short = starved(1e3); // too poor to feed: the chain stays starved
+    short.stewardPurse = new Decimal(1e3);
+    const beamShort = totalBeamLevels(short);
+    tendChain(short, new Decimal(0));
+    expect(totalBeamLevels(short)).toBe(beamShort);
   });
 
   it("its purse never holds more than ten minutes of production", () => {
