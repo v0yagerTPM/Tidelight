@@ -206,9 +206,9 @@ npm run build      # typecheck + production build to dist/
   and Lens as gauges (the bottleneck glows), the Beam bonus, a one-tap
   **Feed** on each (the cheapest level on any lit board) and **Fill the
   chain**. Relight Widow's Walk and the **Chain Steward** feeds the chain
-  from a share of your income; once the beam is at its target, it raises
-  the Beam with anything in its purse beyond half its cap (a switch in its
-  panel turns that off). Helper rows warn when a purchase would
+  from a share of your income, raising the Beam alongside the supplies
+  (the cheaper first, and only the Beam once the chain is at its target;
+  a switch in its panel turns the Beam off). Helper rows warn when a purchase would
   starve the beam. The Lighthouses tab keeps the board-by-board view.
 - **Tips** — hover (or press and hold on a phone) anything with a dotted
   underline or an ⓘ for more about it.

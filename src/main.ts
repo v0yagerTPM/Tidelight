@@ -342,7 +342,7 @@ ${[
           <div class="steward-row"><span>Keep the beam at</span>
             <span class="buy-toggle steward-toggle">${[0.8, 0.9, 1].map((v) => `<button class="toggle-btn" data-steward-target="${v}">${Math.round(v * 100)}%</button>`).join("")}</span>
           </div>
-          <div class="steward-row"><span>Then raise the Beam</span>
+          <div class="steward-row"><span>Raise the Beam too</span>
             <span class="buy-toggle steward-toggle"><button class="toggle-btn" data-steward-beam="1">On</button><button class="toggle-btn" data-steward-beam="0">Off</button></span>
           </div>
           <p class="muted steward-status" id="steward-status"></p>
@@ -2621,7 +2621,7 @@ function updateSupplyStrip(now: number): void {
     stewardPanel.querySelectorAll<HTMLButtonElement>("[data-steward-target]").forEach((b) => b.classList.toggle("active", Number(b.dataset.stewardTarget) === state.stewardTarget));
     if (stewardStatus) {
       stewardStatus.textContent = stewardActive(state)
-        ? `Purse ${fmt(state.stewardPurse)} · ${stewardLevels} level${stewardLevels === 1 ? "" : "s"} bought since you opened the game. It never spends more than its purse, which holds at most ${stewardPurseCapSeconds(state) / 60} minutes of production${state.stewardBeam ? "; once the beam is at its target, it raises the Beam with anything beyond half of that" : ""}.`
+        ? `Purse ${fmt(state.stewardPurse)} · ${stewardLevels} level${stewardLevels === 1 ? "" : "s"} bought since you opened the game. It never spends more than its purse, which holds at most ${stewardPurseCapSeconds(state) / 60} minutes of production${state.stewardBeam ? ". It raises the Beam alongside the supplies, whichever is cheaper first, and only the Beam once the chain is at your target" : ""}.`
         : "Off: the chain is yours to feed.";
     }
   }

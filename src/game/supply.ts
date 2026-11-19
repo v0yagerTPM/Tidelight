@@ -18,8 +18,10 @@ import type { GameState } from "./types";
 // The Chain Steward (Widow's Walk: "whoever waited here kept meticulous
 // stores") tends the chain by itself: it sets aside a share of what the
 // keeper earns and spends it feeding the bottleneck until the beam reaches
-// the keeper's target efficiency. With the chain fed, it raises the Beam
-// with whatever its purse holds beyond half its cap (a switch can stop it).
+// the keeper's target efficiency. It treats the Beam as a fourth node and
+// keeps it in step: below the target it buys whichever is cheaper, the
+// bottleneck's next level or the next Beam level; at the target, it raises
+// the Beam alone (a switch can stop that).
 
 /** The lit board where the next level of `nodeId` is cheapest (null when none is lit). */
 export function cheapestBoardFor(state: GameState, nodeId: ChainNodeId): string | null {
@@ -167,34 +169,33 @@ export function tendChain(state: GameState, earned: Decimal, now?: number): numb
   if (earned.gt(0)) state.stewardPurse = state.stewardPurse.add(earned.mul(state.stewardShare));
   const cap = productionPerSecond(state, now).mul(stewardPurseCapSeconds(state));
   if (state.stewardPurse.gt(cap)) state.stewardPurse = cap;
-  const budget = Decimal.min(state.stewardPurse, state.lumen);
-  const result = fillChain(state, state.stewardTarget, budget, now, false);
-  state.stewardPurse = Decimal.max(0, state.stewardPurse.sub(result.spent));
-  return result.levels + raiseBeam(state, cap, now);
-}
-
-/** Share of its purse cap the Steward keeps back for feeding, when it raises the Beam. */
-export const STEWARD_BEAM_RESERVE = 0.5;
-
-/**
- * The Steward's second job: once the beam is at its target, it spends what
- * its purse holds beyond half its cap on the cheapest Beam level (+5%
- * production each). The half it keeps is for feeding the next time demand
- * climbs. Returns the Beam levels bought.
- */
-function raiseBeam(state: GameState, cap: Decimal, now?: number): number {
-  if (!state.stewardBeam) return 0;
-  if (chainStatus(state, now).efficiency < state.stewardTarget - 1e-9) return 0;
-  const reserve = cap.mul(STEWARD_BEAM_RESERVE);
   let levels = 0;
-  for (let guard = 0; guard < 200; guard++) {
-    const board = cheapestBoardFor(state, "beam");
-    if (!board) break;
-    const cost = nodeCost(board, "beam", state.chainBoards[board].beam, state);
-    if (state.stewardPurse.sub(cost).lt(reserve) || state.lumen.lt(cost)) break;
-    if (!buyNodeUpgrade(state, board, "beam", false)) break;
-    state.stewardPurse = state.stewardPurse.sub(cost);
+  for (let guard = 0; guard < 2000; guard++) {
+    const step = stewardStep(state, now);
+    if (!step) break;
+    if (state.stewardPurse.lt(step.cost) || state.lumen.lt(step.cost)) break;
+    if (!buyNodeUpgrade(state, step.board, step.nodeId, false)) break;
+    state.stewardPurse = state.stewardPurse.sub(step.cost);
     levels++;
   }
   return levels;
+}
+
+/**
+ * The Steward's next purchase. The Beam is its fourth node, kept in step
+ * with the supplies: while the chain is short of the target, it buys the
+ * cheaper of the bottleneck's next level and the next Beam level (+5%
+ * production each); once the chain is at the target, it raises the Beam
+ * alone. With "Then raise the Beam" off, it only feeds.
+ */
+function stewardStep(state: GameState, now?: number): { board: string; nodeId: ChainNodeId; cost: Decimal } | null {
+  const st = chainStatus(state, now);
+  if (!st.unlocked) return null;
+  const level = (board: string, nodeId: ChainNodeId) => ({ board, nodeId, cost: nodeCost(board, nodeId, state.chainBoards[board][nodeId], state) });
+  const feedBoard = st.efficiency < state.stewardTarget - 1e-9 && st.bottleneck ? cheapestBoardFor(state, st.bottleneck) : null;
+  const feed = feedBoard && st.bottleneck ? level(feedBoard, st.bottleneck) : null;
+  const beamBoard = state.stewardBeam ? cheapestBoardFor(state, "beam") : null;
+  const beam = beamBoard ? level(beamBoard, "beam") : null;
+  if (feed && beam) return beam.cost.lt(feed.cost) ? beam : feed;
+  return feed ?? beam;
 }
