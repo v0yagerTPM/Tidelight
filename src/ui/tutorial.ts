@@ -2,6 +2,7 @@ import {
   BEAM_BONUS_PER_LEVEL,
   CHAIN_LIGHTHOUSES,
   CHAIN_UNLOCK_GENERATORS,
+  EMBER_CURVE,
   EMBER_PRODUCTION_BONUS,
   MILESTONE_THRESHOLDS,
   OFFLINE_CAP_SECONDS,
@@ -81,9 +82,9 @@ export function tutorialPages(): SplashPage[] {
       html: `
         <p>When growth slows, <strong>Rekindle</strong>: your run's Lumen, helpers, most upgrades and chain levels reset, and you bank <strong>Embers</strong>: √(this run's lifetime Lumen ÷ 5,000).</p>
         <ul>
-          <li>Every Ember you hold adds <strong>+${pct(EMBER_PRODUCTION_BONUS)}</strong> to all production, so the next run is much faster.</li>
+          <li>Every Ember you hold adds <strong>+${pct(EMBER_PRODUCTION_BONUS)}</strong> to all production, so the next run is much faster. Past ${EMBER_CURVE.knee} Embers each adds a little less, so spending some in the shop starts to pay.</li>
           <li>About ${PRESTIGE_RECOMMENDED_EMBERS} Embers makes a good first Rekindle. The tab shows what you keep, what you lose, and how long recovering will take.</li>
-          <li>Spend Embers in the <strong>Ember Shop</strong> on permanent perks, and try <strong>Challenges</strong> for lasting rewards.</li>
+          <li>Spend Embers in the <strong>Ember Shop</strong>: one-time perks (some do chores for you), and <strong>Kindlings</strong> you can raise again and again. Try <strong>Challenges</strong> for lasting rewards too.</li>
         </ul>`,
     },
     {

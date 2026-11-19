@@ -2,7 +2,8 @@
 // overrides in TUNE (JSON from the environment) to the config tables,
 // runs the sim, and prints a one-line summary.
 //   TUNE='{"s":[1.085,1.095,1.105],"gates":[0.5,0.6,0.6,0.7,0.75,0.8]}' npx vite-node scripts/tune.ts
-import { CHAIN_LIGHTHOUSES, CHAIN_NODES } from "../src/game/config";
+import { CHAIN_LIGHTHOUSES, CHAIN_NODES, EMBER_CURVE } from "../src/game/config";
+import { EMBER_PERKS, KINDLINGS } from "../src/game/emberShop";
 import { UPGRADES } from "../src/game/upgrades";
 import { runSim } from "./simCore";
 
@@ -15,6 +16,14 @@ interface Tune {
   /** Relight costs for lighthouses 2–7. */
   relight?: number[];
   rk?: number;
+  /** Kindling overrides by id: [factor, baseCost, growth, maxLevel (0 = none)]. */
+  kin?: Record<string, [number, number, number, number]>;
+  /** Ember perk price overrides by id. */
+  perk?: Record<string, number>;
+  /** Ember perks the bot may not buy (left out of the shop). */
+  noPerk?: string[];
+  /** Held-Ember curve power past the knee (1 = linear). */
+  pow?: number;
 }
 const tune: Tune = JSON.parse(process.env.TUNE ?? "{}");
 const nodes = [CHAIN_NODES.wick, CHAIN_NODES.oil, CHAIN_NODES.lens];
@@ -35,7 +44,16 @@ if (tune.gates) {
   CHAIN_LIGHTHOUSES.slice(1).forEach((l, i) => ((l as { efficiencyRequirement: number }).efficiencyRequirement = tune.gates![i]));
 }
 
-const r = runSim({ verbose: process.env.VERBOSE === "1", rekindleGrowth: tune.rk });
+for (const [id, [factor, baseCost, growth, max]] of Object.entries(tune.kin ?? {})) {
+  const k = KINDLINGS.find((x) => x.id === id) as { factor: number; baseCost: number; growth: number; maxLevel?: number };
+  Object.assign(k, { factor, baseCost, growth, maxLevel: max > 0 ? max : undefined });
+}
+for (const [id, cost] of Object.entries(tune.perk ?? {})) (EMBER_PERKS.find((p) => p.id === id) as { costEmbers: number }).costEmbers = cost;
+for (const id of tune.noPerk ?? []) (EMBER_PERKS.find((p) => p.id === id) as { costEmbers: number }).costEmbers = Infinity;
+
+if (tune.pow !== undefined) EMBER_CURVE.power = tune.pow;
+
+const r = runSim({ verbose: process.env.VERBOSE === "1", rekindleGrowth: tune.rk, shop: process.env.SHOP === "1" });
 const lit = CHAIN_LIGHTHOUSES.slice(1)
   .map((l) => (r.litAtHours[l.id] !== undefined ? r.litAtHours[l.id].toFixed(1) : "—"))
   .join("/");

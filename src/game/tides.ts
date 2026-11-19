@@ -45,6 +45,8 @@ export const STORM_PRODUCTION_MULTIPLIER = 1.3;
 /** Storm production multiplier for keepers who own the Storm in a Bottle. */
 export const STORM_RELIG_PRODUCTION_MULTIPLIER = 1.45;
 export const STORM_SUPPORT_MULTIPLIER = 0.8;
+/** A Stormfront's support with the Storm Charts perk (emberShop.ts). */
+export const STORM_CHARTS_SUPPORT_MULTIPLIER = 0.9;
 
 export const TIDES: readonly TideDef[] = [
   { id: "low",   name: "Low Tide",   icon: "🌊", effectText: "Chain support ×1.2 — supplies flow easily over the exposed glass.", weight: 30 },
@@ -105,11 +107,13 @@ export function tideProductionMultiplier(state: GameState, now?: number): number
 }
 
 /** Chain-support multiplier from the tide at `now`. */
-export function tideSupportMultiplier(now?: number): number {
+export function tideSupportMultiplier(now?: number, state?: GameState): number {
   if (now === undefined) return 1;
   const id = tideAt(now).def.id;
   if (id === "low") return LOW_TIDE_SUPPORT_MULTIPLIER;
-  if (id === "storm") return STORM_SUPPORT_MULTIPLIER;
+  // Storm Charts (Ember perk) halve a Stormfront's drain: ×0.8 → ×0.9.
+  // (The perk id is read directly: this module stays a leaf.)
+  if (id === "storm") return state?.emberPerks.includes("storm-charts") ? STORM_CHARTS_SUPPORT_MULTIPLIER : STORM_SUPPORT_MULTIPLIER;
   return 1;
 }
 

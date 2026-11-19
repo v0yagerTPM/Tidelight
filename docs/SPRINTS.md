@@ -853,3 +853,56 @@ to learn. Plan and analysis: the "Upgrades & Embers: the numbers" doc.
       `scripts/tune.ts` scales lesson prices with any relight override.
 - [x] Tests: `tests/lateUpgrades.test.ts` (11) for tiers, synergies,
       lessons and Flash Echo.
+
+## ✅ Post-launch — An Ember shop that grows with you
+
+Before this, the eight perks cost 150 Embers in all and were affordable by
+hour 4.5 of a 62-hour game. Plan: the "Upgrades & Embers: the numbers" doc.
+
+- [x] **Three shelves** in the Ember Shop (`src/game/emberShop.ts`):
+      - **Keeper's perks:** the original eight, unchanged.
+      - **Kindlings,** repeatable, each level ×10 the last:
+        - Ember Glow: +5% production a level, 10 levels.
+        - Long Watch: +1h offline cap, 8 levels.
+        - Quick Lures, Spinning Silk and Tailwind: lures, cocoons and bottles
+          5% sooner a level, 20 levels each.
+      - **Late perks,** 500 to 5 billion Embers, ×10 apart: Quartermaster,
+        Lamp Crew, Warm Hearth, The Steward's Ledger, Storm Charts, Moth
+        Lantern, Ember Memory, Glass Charts.
+- [x] **Automation** (`src/game/automation.ts`), live game loop only, once
+      a second, each with an on/off switch on its card:
+      - The Quartermaster learns any upgrade costing up to a quarter of the
+        Lumen in hand, cheapest first, with one log line per round.
+      - The Lamp Crew hires the best-value helper with up to a tenth of the
+        Lumen in hand, never dropping the beam below 90% (or below where it
+        already is).
+- [x] **Why a comfort shop:** every production boost compounds (more
+      production, bigger Rekindles, more Embers, more production). In the sim:
+      - Strong perks and uncapped Kindlings (Ember Glow ×1.5 a level, Deep
+        Draw for Ember gain, Long Wick for support) ended the game at 16h.
+      - Toned down, the same shop still ended it at 23h.
+      - Keeping a tenth of the chain's levels through a Rekindle alone cut
+        13 hours.
+      - A softer held-Ember curve didn't fix it: the mid-game jump stayed,
+        and a 30-hour plateau followed.
+
+      The shop now buys automation, time away and a faster Shore, plus one
+      small capped production Kindling. `EMBER_CURVE` (config.ts) stays a
+      straight line but can be tuned.
+- [x] **Feeding takes the cheapest level** (`supply.ts cheapestBoardFor`).
+      This covers Feed, Fill the chain and the Chain Steward. Cheapest-first
+      costs only 1–4% more Lumen than best-value to fill a starved chain.
+- [x] **Sim:** `botShop` (bot.ts) buys perks after each Rekindle. A
+      production buy has to beat the held bonus it gives up; anything else
+      may cost up to a tenth of held Embers. `npm run sim` keeps its 62.0h
+      gate without the shop, then reports a keeper who buys everything:
+      lit at 3.4 / 7.0 / 12.1 / 20.3 / 31.8 / 45.6h. That matches about 45h
+      with the original perks only.
+      `scripts/tune.ts` gains `kin`, `perk`, `noPerk` and `pow` overrides,
+      and `SHOP=1`.
+- [x] **Save v12:** `kindlings` (known ids only, levels within each cap),
+      plus `autoLearn` and `autoHire` (on unless switched off). The Moth
+      Lantern raises the lure-bank clamp to 5. A challenge's rules are now
+      set before its reset, so Warm Hearth obeys them.
+- [x] Tests: `tests/emberShelves.test.ts` (21), plus updated supply and
+      version tests.

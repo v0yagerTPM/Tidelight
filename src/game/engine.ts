@@ -3,6 +3,7 @@ import {
   CLICK_LUMEN,
   GENERATORS,
   MILESTONE_THRESHOLDS,
+  effectiveEmbers,
   generatorById,
   milestoneMultiplier,
   type GeneratorDef,
@@ -70,9 +71,12 @@ export function maxAffordable(def: GeneratorDef, owned: number, budget: Decimal)
 
 // ── Production ───────────────────────────────────────────────────────────────
 
-/** Global multiplier from held Embers: +2% each (+3% with Ember Resonance). */
+/**
+ * Global multiplier from held Embers: +2% each (+3% with Ember Resonance,
+ * +1% more with Ember Heart), counted along EMBER_CURVE.
+ */
 export function emberMultiplier(state: GameState): Decimal {
-  return new Decimal(1 + state.embers * emberBonusPerEmber(state));
+  return new Decimal(1 + effectiveEmbers(state.embers) * emberBonusPerEmber(state));
 }
 
 /**

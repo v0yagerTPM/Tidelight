@@ -132,7 +132,7 @@ export function startingCushion(state: GameState, nodeId: SupplyNodeId): Decimal
 
 /** Every support multiplier at once (perks, relics, lighthouses, tide). */
 export function supportMultiplier(state: GameState, now?: number): number {
-  return chainSupportMultiplier(state) * relicSupportMultiplier(state) * lighthouseSupportMultiplier(state) * tideSupportMultiplier(now);
+  return chainSupportMultiplier(state) * relicSupportMultiplier(state) * lighthouseSupportMultiplier(state) * tideSupportMultiplier(now, state);
 }
 
 /**
@@ -165,7 +165,7 @@ export function totalSupport(state: GameState, nodeId: SupplyNodeId, now?: numbe
     .mul(chainSupportMultiplier(state))
     .mul(relicSupportMultiplier(state))
     .mul(lighthouseSupportMultiplier(state))
-    .mul(tideSupportMultiplier(now))
+    .mul(tideSupportMultiplier(now, state))
     .mul(upgradeSupportMultiplier(state, nodeId));
 }
 

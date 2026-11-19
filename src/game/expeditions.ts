@@ -6,7 +6,8 @@ import Decimal from "break_infinity.js";
 // Nothing here runs at load time.
 import { creditLumen, productionPerSecond } from "./engine";
 import { recordAlmanac } from "./almanac";
-import { formatNumber } from "./format";
+import { voyageMultiplier } from "./emberShop";
+import { formatDuration, formatNumber } from "./format";
 import { CROSSING_TRAIT_CHANCE, MOTH_TRAITS, mothRelicChanceBonus, riderOf, riderRelicBonus } from "./mothTraits";
 import type { Moth } from "./types";
 import { addLog } from "./state";
@@ -158,6 +159,11 @@ export const STORY_FRAGMENTS: readonly string[] = [
  * no charge) while one is already out, the route is unknown, or the
  * keeper can't pay.
  */
+/** How long a voyage on `route` takes for this keeper (Glass Charts, Tailwind). */
+export function voyageMs(state: GameState, route: ExpeditionRouteDef): number {
+  return Math.round(route.durationMinutes * 60_000 * voyageMultiplier(state));
+}
+
 export function sendExpedition(state: GameState, routeId: string, now: number = Date.now(), riderId?: string): boolean {
   if (state.expedition !== null) return false;
   const route = routeById(routeId);
@@ -170,7 +176,7 @@ export function sendExpedition(state: GameState, routeId: string, now: number = 
   state.expedition = {
     routeId,
     startedAt: now,
-    returnsAt: now + route.durationMinutes * 60_000,
+    returnsAt: now + voyageMs(state, route),
     ...(rider ? { riderId: rider.id } : {}),
   };
   if (rider) {
@@ -178,7 +184,7 @@ export function sendExpedition(state: GameState, routeId: string, now: number = 
     state.mothDuty = state.mothDuty.filter((id) => id !== rider.id);
     for (const [lighthouseId, id] of Object.entries(state.mothPosts)) if (id === rider.id) delete state.mothPosts[lighthouseId];
   }
-  addLog(state, `A bottle goes out on ${route.name} — a message, a hope, and a little lamplight for the journey${rider ? `, with ${rider.name} riding on the cork` : ""}. Back in ${route.durationMinutes >= 60 ? `${route.durationMinutes / 60}h` : `${route.durationMinutes}m`}.`, now);
+  addLog(state, `A bottle goes out on ${route.name} — a message, a hope, and a little lamplight for the journey${rider ? `, with ${rider.name} riding on the cork` : ""}. Back in ${formatDuration(voyageMs(state, route) / 1000)}.`, now);
   return true;
 }
 

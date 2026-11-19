@@ -1169,3 +1169,11 @@ input, textarea, select, [contenteditable="true"] { caret-color: auto; -webkit-u
 /* A section title with an action beside it (Upgrades: Learn all affordable). */
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 24px 0 10px; }
 .section-head .section-title { margin: 0; }
+
+/* ── Ember shop shelves ────────────────────────────── */
+.shelf-title { margin: 18px 0 8px; font-family: var(--display); font-weight: 400; font-size: 1.1rem; color: var(--text); }
+.ember-shop > .shelf-title:first-child { margin-top: 4px; }
+.kindling-level { font-family: var(--mono); font-size: 0.78rem; color: #ffb37a; margin-left: 6px; white-space: nowrap; }
+.kindling-total { margin: 6px 0 0; font-size: 0.82rem; color: var(--seafoam); }
+.perk .perk-warning:empty { display: none; }
+.perk-switch { min-width: 56px; }

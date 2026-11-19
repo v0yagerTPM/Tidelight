@@ -114,6 +114,11 @@ export interface GameState {
   stewardShare: number;
   stewardTarget: number;
   stewardPurse: Decimal;
+  /** Kindling levels by id (Ember shop, v12). */
+  kindlings: Record<string, number>;
+  /** Quartermaster and Lamp Crew switches (Ember shop, v12). */
+  autoLearn: boolean;
+  autoHire: boolean;
   /** The bottle expedition currently out, or null. */
   expedition: ExpeditionState | null;
   /** Relic ids claimed from expeditions (unique, permanent). */
@@ -171,6 +176,9 @@ export interface SavedState {
   stewardShare: number;
   stewardTarget: number;
   stewardPurse: string;
+  kindlings?: Record<string, number>;
+  autoLearn?: boolean;
+  autoHire?: boolean;
   expedition: ExpeditionState | null;
   relics: string[];
   storyFragmentIndex: number;

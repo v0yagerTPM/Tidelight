@@ -1,11 +1,12 @@
 import Decimal from "break_infinity.js";
-import { CHAIN_NODE_IDS, PRESTIGE_DIVISOR, litEmberGainMultiplier } from "./config";
-import { headStartLumen, perkById } from "./emberShop";
+import { CHAIN_NODE_IDS, GENERATORS, PRESTIGE_DIVISOR, litEmberGainMultiplier } from "./config";
+import { canBuyGenerator } from "./challenges";
+import { WARM_HEARTH_HELPERS, WARM_HEARTH_TIERS, hasPerk, headStartLumen, perkById } from "./emberShop";
 import { relicEmberGainMultiplier } from "./expeditions";
 import { formatNumber } from "./format";
 import { addLog, startBoard } from "./state";
 import type { GameState } from "./types";
-import { isPermanentUpgrade, upgradeById, upgradeEmberGainMultiplier } from "./upgrades";
+import { generatorUpgradeTier, isPermanentUpgrade, upgradeById, upgradeEmberGainMultiplier } from "./upgrades";
 
 /**
  * Embers a run is worth: floor(sqrt(lifetimeLumen / 5000)).
@@ -25,7 +26,10 @@ export function embersForLifetime(lifetime: Decimal | number | string): number {
  * at the end.
  */
 export function rekindleGain(state: GameState): number {
-  const mult = relicEmberGainMultiplier(state) * litEmberGainMultiplier(state.litLighthouses) * upgradeEmberGainMultiplier(state);
+  const mult =
+    relicEmberGainMultiplier(state) *
+    litEmberGainMultiplier(state.litLighthouses) *
+    upgradeEmberGainMultiplier(state);
   return Math.floor(embersForLifetime(state.lifetimeLumen) * mult);
 }
 
@@ -43,11 +47,24 @@ export function canRekindle(state: GameState): boolean {
  * Embers, Ember perks, challenge records, and every lifetime stat are
  * kept — this function never touches them.
  */
+/** Upgrades a Rekindle keeps: keeper knowledge, and with Ember Memory every helper's first upgrade. */
+export function keptThroughRekindle(state: GameState, id: string): boolean {
+  if (isPermanentUpgrade(id)) return true;
+  if (!hasPerk(state, "ember-memory")) return false;
+  const def = upgradeById(id);
+  return def.kind === "generator" && generatorUpgradeTier(def) === 1;
+}
+
 export function resetRun(state: GameState): void {
   const purse = headStartLumen(state);
   state.lumen = new Decimal(purse);
   state.lifetimeLumen = new Decimal(0);
   state.generators = {};
+  // Warm Hearth (Ember perk): the new run starts with a crew of the first
+  // three helpers (a challenge's rules are set before this runs).
+  if (hasPerk(state, "warm-hearth")) {
+    for (const def of GENERATORS.slice(0, WARM_HEARTH_TIERS)) if (canBuyGenerator(state, def.id)) state.generators[def.id] = WARM_HEARTH_HELPERS;
+  }
   // Chain boards reset to their starting levels; lit lighthouses stay lit.
   let boardsHadProgress = false;
   for (const id of state.litLighthouses) {
@@ -61,7 +78,7 @@ export function resetRun(state: GameState): void {
   if (boardsHadProgress) {
     addLog(state, "The supply chains gutter with the flame — every board is stripped back to its starting levels, though every lit lighthouse stays lit.");
   }
-  state.upgrades = state.upgrades.filter((id) => isPermanentUpgrade(id));
+  state.upgrades = state.upgrades.filter((id) => keptThroughRekindle(state, id));
   if (purse > 0) {
     addLog(state, `A keeper's purse of ${purse} Lumen waits by the lamp (Head Start).`);
   }
@@ -77,7 +94,7 @@ export function rekindle(state: GameState): number {
   if (state.activeChallenge !== null) return 0;
   const gain = rekindleGain(state);
   if (gain < 1) return 0;
-  const kept = state.upgrades.filter((id) => isPermanentUpgrade(id));
+  const kept = state.upgrades.filter((id) => keptThroughRekindle(state, id));
   const lost = state.upgrades.length - kept.length;
   state.embers += gain;
   state.embersTotalEarned += gain;

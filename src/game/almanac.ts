@@ -78,12 +78,18 @@ export function hasAlmanacReward(state: GameState, id: AlmanacRewardId): boolean
 
 /** Lures the bank can hold: 3, or 4 with A Deeper Bank. */
 export function lureBankSize(state: GameState): number {
-  return hasAlmanacReward(state, "deep-bank") ? 4 : 3;
+  // +1 with the Moth Lantern Ember perk (read directly: this module stays a leaf).
+  return (hasAlmanacReward(state, "deep-bank") ? 4 : 3) + (state.emberPerks.includes("moth-lantern") ? 1 : 0);
 }
 
-/** How long a lure takes to regrow: 20 minutes, or 15 with Sweet Oil. */
+/** How long a lure takes to regrow: 20 minutes, or 15 with Sweet Oil; Quick Lures take 5% off a level. */
+/** Each level of the Shore Kindlings (Ember shop) takes 5% off a wait. */
+export const SHORE_KINDLING_FACTOR = 0.95;
+
 export function lureRegrowMs(state: GameState): number {
-  return (hasAlmanacReward(state, "swift-lures") ? 15 : 20) * 60 * 1000;
+  // Quick Lures (Ember shop Kindling), read directly: this module stays a leaf.
+  const quick = SHORE_KINDLING_FACTOR ** (state.kindlings?.["quick-lures"] ?? 0);
+  return Math.round((hasAlmanacReward(state, "swift-lures") ? 15 : 20) * 60 * 1000 * quick);
 }
 
 /** Moths that can stand duty at once: 3, 4 with A Fourth Wing, 5 with The Hollow Pages. */

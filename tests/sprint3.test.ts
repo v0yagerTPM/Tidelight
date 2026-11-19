@@ -42,7 +42,7 @@ function emberState(embers: number): GameState {
 
 describe("ember economy", () => {
   it("the shop has the eight specced perks at the specced prices", () => {
-    expect(EMBER_PERKS.map((p) => [p.id, p.costEmbers])).toEqual([
+    expect(EMBER_PERKS.filter((p) => p.shelf === "keeper").map((p) => [p.id, p.costEmbers])).toEqual([
       ["head-start", 5],
       ["warm-lamp", 8],
       ["gull-friend", 10],
@@ -386,7 +386,7 @@ describe("save migration (v3 → v4)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v3Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(11);
+    expect(restored?.version).toBe(12);
     expect(restored?.embers).toBe(12);
     expect(restored?.embersTotalEarned).toBe(12); // := embers, per the migration spec
     expect(restored?.emberPerks).toEqual([]);
@@ -400,7 +400,7 @@ describe("save migration (v3 → v4)", () => {
     state.emberPerks = ["head-start", "deep-wicks"];
     state.completedChallenges = ["fogbound"];
     const saved = serializeState(state);
-    expect(saved.version).toBe(11);
+    expect(saved.version).toBe(12);
     expect(saved.embersTotalEarned).toBe(33);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.emberPerks).toEqual(["head-start", "deep-wicks"]);
