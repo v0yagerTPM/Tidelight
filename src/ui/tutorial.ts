@@ -63,7 +63,7 @@ export function tutorialPages(): SplashPage[] {
         <p>Once you own ${CHAIN_UNLOCK_GENERATORS} helpers, the lamp needs supplies: <strong>Wick → Oil → Lens</strong> must each carry your production.</p>
         <ul>
           <li><strong>Efficiency</strong> is set by the weakest node. The beam runs at 25% + 75% × efficiency, so a starved chain throttles everything.</li>
-          <li>The <strong>supply strip</strong> under the scene shows all three. The weakest one glows: press its <strong>Feed</strong>, or <strong>Fill the chain</strong> to feed it until the beam is full.</li>
+          <li>The <strong>supply strip</strong> under the scene shows all three. The weakest one glows: press its <strong>Feed</strong>, or <strong>Fill the chain</strong> to feed it until the beam is full and raise the Beam along the way.</li>
           <li><strong>Beam</strong> levels add +${pct(BEAM_BONUS_PER_LEVEL)} production each. Relight Widow's Walk and a <strong>Chain Steward</strong> feeds the chain for you.</li>
         </ul>`,
     },

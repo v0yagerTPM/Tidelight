@@ -937,3 +937,16 @@ hour 4.5 of a 62-hour game. Plan: the "Upgrades & Embers: the numbers" doc.
       hiring with half their Lumen), Beam on gave 230 Beam levels and
       5.0e10/s at 5 minutes; Beam off gave 4.1e8/s and a 3% beam. The panel
       row reads "Raise the Beam too".
+
+## ✅ Post-launch — Fill the chain raises the Beam too
+
+- [x] `fillChain` takes `{ beamShare }`. While the chain is short it buys the
+      cheaper of the bottleneck's next level and the next Beam level. Once the
+      chain is full it keeps raising the Beam with levels costing up to a
+      tenth of the Lumen in hand (`FILL_BEAM_SHARE`), so one tap never empties
+      the purse. The Light view's Fill button uses it, and is enabled while
+      a cheap Beam level waits even with the chain full; its tip says which.
+      One log line counts both: "33 levels of supplies and 9 Beam levels, the
+      beam at 100%" (an early save with 2M Lumen, which kept 1.34M).
+- [x] This keeps the Beam in step before Widow's Walk brings the Chain
+      Steward. Tests: two in `tests/supply.test.ts`.

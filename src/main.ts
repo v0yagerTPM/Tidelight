@@ -88,7 +88,7 @@ import {
 import { Splash, type SplashPage } from "./ui/splash";
 import { tutorialPages } from "./ui/tutorial";
 import { infoTip, initTips, setTip, tipAttr } from "./ui/tips";
-import { bottleneckAtDemand, efficiencyAtDemand, feedNode, feedQuote, fillChain, stewardActive, stewardPurseCapSeconds, stewardUnlocked, tendChain } from "./game/supply";
+import { FILL_BEAM_SHARE, bottleneckAtDemand, efficiencyAtDemand, feedNode, feedQuote, fillChain, stewardActive, stewardPurseCapSeconds, stewardUnlocked, tendChain } from "./game/supply";
 import { formatDuration, formatNumber } from "./game/format";
 import {
   attractMoth,
@@ -2496,7 +2496,7 @@ const stewardBtn = document.querySelector<HTMLButtonElement>("#steward-btn");
 const stewardPanel = document.querySelector<HTMLElement>("#steward-panel");
 const stewardStatus = document.querySelector<HTMLElement>("#steward-status");
 supplyFill?.addEventListener("click", () => {
-  const filled = fillChain(state, 1, state.lumen, Date.now());
+  const filled = fillChain(state, 1, state.lumen, Date.now(), true, { beamShare: FILL_BEAM_SHARE });
   if (filled.levels > 0) {
     sound.buy();
     saveState(state);
@@ -2596,10 +2596,19 @@ function updateSupplyStrip(now: number): void {
   }
   if (supplyFill) {
     const bottleneckQuote = chain.bottleneck ? feedQuote(state, chain.bottleneck, now) : null;
-    const can = chain.efficiency < 1 && bottleneckQuote !== null && bottleneckQuote.affordable;
+    const beamQuote = feedQuote(state, "beam", now);
+    const beamCheap = beamQuote.cost !== null && beamQuote.cost.lte(state.lumen.mul(FILL_BEAM_SHARE));
+    const can = chain.unlocked && ((chain.efficiency < 1 && bottleneckQuote !== null && bottleneckQuote.affordable) || beamCheap);
     supplyFill.disabled = !can;
     supplyFill.classList.toggle("affordable", can);
-    setTip(supplyFill, chain.efficiency >= 1 ? "The beam is fully fed." : "Feed the weakest supply again and again until the beam is fully fed or your Lumen runs out.");
+    setTip(
+      supplyFill,
+      chain.efficiency >= 1
+        ? beamCheap
+          ? "The beam is fully fed. Fill raises the Beam (+5% production a level) with levels costing up to a tenth of your Lumen."
+          : "The beam is fully fed, and the next Beam level costs more than a tenth of your Lumen."
+        : "Feeds the weakest supply until the beam is full, raising the Beam along the way whenever its next level is cheaper; then keeps raising the Beam with levels costing up to a tenth of your Lumen.",
+    );
   }
   // The Chain Steward.
   const unlocked = stewardUnlocked(state);
