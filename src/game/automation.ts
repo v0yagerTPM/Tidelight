@@ -66,6 +66,32 @@ export function autoLearn(state: GameState): string[] {
   return learned;
 }
 
+/**
+ * Why a switched-on Lamp Crew isn't hiring, for the note beside its switch:
+ *   "chain"  — something fits its tenth of your Lumen, but every hire would
+ *              drop the beam below its floor (90%, or where it already is);
+ *   "budget" — nothing costs a tenth of your Lumen or less yet;
+ *   null     — it is working (or it is off, or not yet with you).
+ * The same test autoHire uses, without buying anything.
+ */
+export function lampCrewIdleReason(state: GameState, now?: number): "chain" | "budget" | null {
+  if (!lampCrewActive(state)) return null;
+  const budget = state.lumen.mul(LAMP_CREW_SHARE);
+  const chainOn = chainUnlocked(state);
+  const floor = chainOn ? Math.min(LAMP_CREW_MIN_EFFICIENCY, chainStatus(state, now).efficiency) : 0;
+  let affordable = false;
+  for (const def of GENERATORS) {
+    if (!canBuyGenerator(state, def.id)) continue;
+    const owned = state.generators[def.id] ?? 0;
+    if (budget.lt(costFor(def, owned))) continue;
+    affordable = true;
+    const gain = productionForOwned(state, def, owned + 1).sub(productionForOwned(state, def, owned));
+    if (gain.lte(0)) continue;
+    if (!chainOn || efficiencyAtDemand(state, gain.mul(lighthouseMultiplier(state)), now) >= floor - 1e-9) return null;
+  }
+  return affordable ? "chain" : "budget";
+}
+
 /** The Lamp Crew's round: how many helpers it hired. */
 export function autoHire(state: GameState, now?: number): number {
   if (!lampCrewActive(state)) return 0;

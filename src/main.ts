@@ -54,14 +54,17 @@ import {
 import {
   EMBER_PERKS,
   KINDLINGS,
+  KINDLE_ALL_SHARE,
   buyKindling,
   buyPerk,
+  kindleAll,
+  kindleAllPreview,
   kindlingCost,
   kindlingLevel,
   type EmberPerkDef,
   type KindlingDef,
 } from "./game/emberShop";
-import { LAMP_CREW_LIGHTHOUSE, QUARTERMASTER_LIGHTHOUSE, autoHire, autoLearn, lampCrewUnlocked, quartermasterUnlocked } from "./game/automation";
+import { LAMP_CREW_LIGHTHOUSE, QUARTERMASTER_LIGHTHOUSE, autoHire, autoLearn, lampCrewIdleReason, lampCrewUnlocked, quartermasterUnlocked } from "./game/automation";
 import {
   advanceToNow,
   LIVE_GAP_LIMIT_SECONDS,
@@ -339,6 +342,7 @@ ${[
             <button class="buy supply-fill" id="supply-fill">Fill the chain</button>
             <button class="toggle-btn supply-steward" id="steward-btn" aria-expanded="false">Steward</button>
             <button class="toggle-btn" id="supply-boards">Boards</button>
+            <button class="toggle-btn supply-more" id="supply-more" aria-expanded="true">Hide</button>
           </span>
         </div>
         <div class="supply-nodes">
@@ -381,6 +385,7 @@ ${[
         <span class="auto-switch hidden" id="crew-switch">
           <span class="buy-toggle-label">Lamp Crew</span>
           <button class="toggle-btn" data-auto="autoHire" aria-pressed="true">On</button>
+          <span class="crew-note" id="crew-note"></span>
         </span>
       </div>
       <div id="generators" class="gen-list"></div>
@@ -472,10 +477,14 @@ ${[
           <div><h3>Lost</h3><ul id="rk-lost"></ul></div>
         </div>
         <button id="rk-button" class="danger">Rekindle the Light</button>
+        <p class="muted rk-flare" id="rk-flare" aria-live="polite"></p>
       </div>
 
       <h3 class="section-title">Ember Shop ${infoTip("Spend held Embers on permanent perks. Every Ember spent lowers your held-Ember production bonus: that's the trade.", "About the Ember Shop")}</h3>
-      <p class="muted"><span id="shop-held"></span></p>
+      <div class="shop-head">
+        <p class="muted"><span id="shop-held"></span></p>
+        <button class="buy" id="kindle-all" disabled>Kindle all under 1%</button>
+      </div>
       <div id="ember-shop" class="ember-shop"></div>
 
       <h3 class="section-title">Challenges ${infoTip("Opt-in rule-changing runs. Starting one resets your run like a Rekindle, but grants no Embers, and your held Embers rest (no production bonus) until it ends. Reach the goal to bank a permanent reward; the run then continues. Abandoning resets the run with no reward.", "About challenges")}</h3>
@@ -2472,6 +2481,10 @@ showSoundState();
 
 // ── Rekindle (two-step confirm so nobody resets by accident) ────────────────
 const rkButton = document.querySelector<HTMLButtonElement>("#rk-button");
+const rkHearth = document.querySelector<HTMLElement>("#rk-hearth");
+const rkFlare = document.querySelector<HTMLElement>("#rk-flare");
+/** The full Rekindle moment plays on the first Rekindle and every this-many after. */
+const REKINDLE_MOMENT_EVERY = 10;
 if (rkButton) {
   armTwoStep(rkButton, () => `Are you sure? Click again to Rekindle for +${fmt(rekindleGain(state))} Embers`, () => {
     if (!canRekindle(state)) return;
@@ -2479,14 +2492,36 @@ if (rkButton) {
     saveState(state);
     renderDynamic();
     sound.rekindle();
-    playMoment(
-      "rekindle",
-      "Rekindle",
-      "The light catches again",
-      `+${fmt(gained)} Embers banked. You hold ${fmt(state.embers)}, and every flame burns +${fmt(state.embers * Math.round(emberBonusPerEmber(state) * 100))}% brighter.`,
-    );
+    const n = state.totalRekindles;
+    const bonus = bonusText(effectiveEmbers(state.embers) * Math.round(emberBonusPerEmber(state) * 100));
+    // A keeper Rekindles some fifty times on the way to the ending. The full
+    // moment plays for the first and every tenth; the rest flare the hearth
+    // in place and leave a line under the button (design review).
+    if (n === 1 || n % REKINDLE_MOMENT_EVERY === 0) {
+      playMoment(
+        "rekindle",
+        n === 1 ? "Rekindle" : `Rekindle ${n}`,
+        "The light catches again",
+        `+${fmt(gained)} Embers banked. You hold ${fmt(state.embers)}: your production bonus is now ${bonus}.`,
+      );
+    } else {
+      rkHearth?.classList.remove("rekindled");
+      void rkHearth?.offsetWidth; // restart the flare animation
+      rkHearth?.classList.add("rekindled");
+    }
+    if (rkFlare) rkFlare.textContent = `Rekindle ${n}: +${fmt(gained)} Embers banked; your production bonus is now ${bonus}.`;
   });
 }
+
+// ── Kindle everything small (Ember shop) ────────────────────────────────────
+const kindleAllBtn = document.querySelector<HTMLButtonElement>("#kindle-all");
+kindleAllBtn?.addEventListener("click", () => {
+  if (kindleAll(state).length > 0) {
+    sound.chime();
+    saveState(state);
+    renderDynamic();
+  }
+});
 
 // ── Rendering ────────────────────────────────────────────────────────────────
 const hud = {
@@ -2541,6 +2576,18 @@ const supplyNodes = (["wick", "oil", "lens", "beam"] as const).map((nodeId) => {
   };
 });
 const supplyFill = document.querySelector<HTMLButtonElement>("#supply-fill");
+const supplyMore = document.querySelector<HTMLButtonElement>("#supply-more");
+/** Phones fold the supply strip at this beam efficiency, and open it below the other. */
+const SUPPLY_FOLD_AT = 0.9;
+const SUPPLY_OPEN_BELOW = 0.8;
+const phoneQuery = typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 560px)") : null;
+let supplyCompact = false;
+/** "auto" follows the beam; Show / Hide sets "open" or "closed" until the chain next dips below 80%. */
+let supplyPref: "auto" | "open" | "closed" = "auto";
+supplyMore?.addEventListener("click", () => {
+  supplyPref = supplyCompact ? "open" : "closed";
+  renderDynamic();
+});
 const supplyEff = document.querySelector<HTMLElement>("#supply-eff");
 const supplySay = document.querySelector<HTMLElement>("#supply-say");
 const stewardBtn = document.querySelector<HTMLButtonElement>("#steward-btn");
@@ -2605,6 +2652,23 @@ function updateSupplyStrip(now: number): void {
   if (!supplyStrip) return;
   const chain = chainStatus(state, now);
   supplyStrip.classList.toggle("hidden", !chain.unlocked);
+  // Phones: the strip folds to one line (title, efficiency, Fill, Show)
+  // while the beam is well fed, so the helpers sit nearer the fold. It
+  // opens by itself below 80% (and folds again at 90%, so it doesn't
+  // flicker at one line); Show / Hide overrides until the chain next dips.
+  if (chain.efficiency < SUPPLY_OPEN_BELOW) supplyPref = "auto";
+  const phone = phoneQuery?.matches ?? false;
+  const compact =
+    phone &&
+    chain.efficiency >= SUPPLY_OPEN_BELOW &&
+    (supplyPref === "auto" ? chain.efficiency >= SUPPLY_FOLD_AT || supplyCompact : supplyPref === "closed");
+  supplyCompact = compact;
+  supplyStrip.classList.toggle("compact", compact);
+  if (supplyMore) {
+    const label = compact ? "Show" : "Hide";
+    if (supplyMore.textContent !== label) supplyMore.textContent = label;
+    supplyMore.setAttribute("aria-expanded", String(!compact));
+  }
   // On phones the scene gives up some height once the chain wakes, so the
   // helpers start nearer the fold (style.css, .chain-awake).
   document.querySelector("#view-light")?.classList.toggle("chain-awake", chain.unlocked);
@@ -2877,6 +2941,20 @@ function renderDynamic(): void {
     btn.setAttribute("aria-pressed", String(on));
     setTip(btn, `${label} ${on ? "Tap to switch it off." : "Off: tap to switch it back on."}`);
   }
+  // A switched-on Lamp Crew that can't hire says why (automation.lampCrewIdleReason).
+  if (crewNote) {
+    const reason = lampCrewIdleReason(state, nowMs);
+    const text = reason === "chain" ? "waiting on the chain" : reason === "budget" ? "saving up" : "";
+    if (crewNote.textContent !== text) crewNote.textContent = text;
+    setTip(
+      crewNote,
+      reason === "chain"
+        ? "Every helper it could afford would drop the beam below 90% (or below where it is now). Feed the chain, or let the Steward, and the crew gets back to hiring."
+        : reason === "budget"
+          ? "It hires with a tenth of your Lumen, and nothing costs that little yet."
+          : "",
+    );
+  }
   if (learnAllBtn) {
     // How many fit, cheapest first (the rows are already sorted by cost).
     let budget = state.lumen;
@@ -3010,6 +3088,19 @@ function renderDynamic(): void {
     shopStructureKey = shopKey;
     rebuildEmberShop();
   }
+  if (kindleAllBtn) {
+    const { count, cost } = kindleAllPreview(state);
+    const label = count > 0 ? `Kindle all under 1% (${count})` : "Kindle all under 1%";
+    if (kindleAllBtn.textContent !== label) kindleAllBtn.textContent = label;
+    kindleAllBtn.disabled = count === 0;
+    kindleAllBtn.classList.toggle("affordable", count > 0);
+    setTip(
+      kindleAllBtn,
+      count > 0
+        ? `Buys ${count} perk${count === 1 ? "" : "s"} and Kindling level${count === 1 ? "" : "s"} for ${fmt(cost)} Embers in all, cheapest first, each costing no more than ${Math.round(KINDLE_ALL_SHARE * 100)}% of the Embers you hold when it's bought.`
+        : `Nothing in the shop costs ${Math.round(KINDLE_ALL_SHARE * 100)}% of your Embers or less right now.`,
+    );
+  }
   if (hud.shopHeld) {
     hud.shopHeld.textContent = `You hold ${fmt(state.embers)} Embers (${fmt(state.embersTotalEarned)} earned all-time).`;
   }
@@ -3098,6 +3189,7 @@ function renderDynamic(): void {
 
 // ── Learn all affordable: cheapest first, until the Lumen runs out ─────────
 const learnAllBtn = document.querySelector<HTMLButtonElement>("#learn-all");
+const crewNote = document.querySelector<HTMLElement>("#crew-note");
 learnAllBtn?.addEventListener("click", () => {
   const ready = UPGRADES.filter((u) => !state.upgrades.includes(u.id) && isUnlocked(state, u)).sort((a, b) => a.cost - b.cost);
   const learned: string[] = [];
