@@ -15,6 +15,7 @@ import {
   CHAIN_UNLOCK_GENERATORS,
   EMBER_CURVE,
   FIRST_LIGHT_ID,
+  FIRST_LIGHT_WARMTH,
   GENERATORS,
   HOLLOW_LIGHT_ID,
   MILESTONE_THRESHOLDS,
@@ -43,6 +44,7 @@ import {
   isLit,
   lighthouseMultiplier,
   lighthouseStatus,
+  startingWarmth,
   nextLighthouseId,
   nextLevelSupportGain,
   nextNodeCost,
@@ -199,6 +201,13 @@ window.addEventListener("keydown", () => sound.unlock(), { capture: true });
 function bonusText(percent: number): string {
   if (percent < 1000) return `+${fmt(percent)}%`;
   return `×${fmt(1 + percent / 100)}`;
+}
+
+/** The beat title from a 📖 log line: "📖 Title — …" (old saves) or "📖 Title — a new page…". */
+function storyLogTitle(message: string): string {
+  const rest = message.slice("📖".length).trim();
+  const dash = rest.indexOf(" — ");
+  return dash >= 0 ? rest.slice(0, dash) : rest;
 }
 
 /** "More than a day away…" from "more than a day away…". */
@@ -1970,10 +1979,19 @@ function rebuildLighthouses(): void {
   chainSummary = summary;
 }
 
-function statusWord(efficiency: number): { word: string; cls: string } {
+/** A helper row warns only when buying would drop the beam this much or more (10 points). */
+const ROW_WARN_DROP = 0.1;
+
+/**
+ * A supply node's badge on the boards. Only the bottleneck gets a word (in
+ * amber when strained, coral when starved); the rest say FLOWING, or the
+ * share they carry. All three used to read STARVED or STRAINED at once,
+ * which never said which one mattered (design review).
+ */
+function statusWord(efficiency: number, isBottleneck: boolean): { word: string; cls: string } {
   if (efficiency >= 1) return { word: "● FLOWING", cls: "status-flowing" };
-  if (efficiency >= 0.7) return { word: "● STRAINED", cls: "status-strained" };
-  return { word: "● STARVED", cls: "status-starved" };
+  if (!isBottleneck) return { word: `● ${pct(efficiency)}`, cls: "status-carrying" };
+  return { word: "● BOTTLENECK", cls: efficiency >= 0.7 ? "status-strained" : "status-starved" };
 }
 
 /** In-place refresh of everything in the Lighthouses view that moves. */
@@ -2048,15 +2066,13 @@ function updateChainView(): void {
     } else {
       const nodeStatus = status.nodes.find((n) => n.nodeId === nodeId);
       if (!nodeStatus) continue;
-      const { word, cls } = statusWord(nodeStatus.efficiency);
+      const isBottleneck = status.bottleneck === nodeId;
+      const { word, cls } = statusWord(nodeStatus.efficiency, isBottleneck);
       refs.status.textContent = word;
       refs.status.className = `node-status ${cls}`;
       refs.detail.textContent = `Supports ${fmt(totalSupport(state, nodeId, Date.now()))}/s of ${fmt(status.demand)}/s produced · ${pct(nodeStatus.efficiency)}`;
-      const isBottleneck = status.bottleneck === nodeId;
       refs.box.classList.toggle("bottleneck", isBottleneck);
-      refs.flag.textContent = isBottleneck
-        ? `⚠\uFE0E BOTTLENECK — short by ${fmt(status.shortfall)}/s`
-        : "";
+      refs.flag.textContent = isBottleneck ? `⚠\uFE0E Short by ${fmt(status.shortfall)}/s: feed it first` : "";
     }
   }
 
@@ -2067,11 +2083,9 @@ function updateChainView(): void {
       `${boardDef.name} board · Beam efficiency ${pct(status.efficiency)} ` +
       `(chain factor ×${status.chainFactor.toFixed(2)}${beamPct > 0 ? `, Beam +${beamPct}%` : ""}). ` +
       `Support sums across every lit lighthouse. This board works at ×${boardDef.boardScale} scale: its levels cost and support ×${boardDef.boardScale}.`;
-    const warm = lastingProductionMultiplier(state).toNumber();
-    if (warm > 1.005) {
-      chainSummary.textContent +=
-        ` First Light's starting Wick, Oil and Lens are warmed ×${fmt(warm)} by your lasting bonuses (Embers, perks, moths, relics, lighthouses), so every run starts fed.`;
-    }
+    const warm = startingWarmth(state).toNumber();
+    chainSummary.textContent +=
+      ` First Light's starting Wick, Oil and Lens are warmed ×${fmt(warm)}: your lasting bonuses (Embers, perks, lit lighthouses) plus a new keeper's grace of +${FIRST_LIGHT_WARMTH.factor - 1}, so every run starts fed.`;
   }
 }
 
@@ -2814,7 +2828,10 @@ function renderDynamic(): void {
     if (chainNow.unlocked && !waitingOn && quote.affordable && quote.productionGain.gt(0)) {
       const extra = quote.productionGain.mul(lighthouseMultiplier(state));
       const after = efficiencyAtDemand(state, extra, nowMs);
-      if (pct(after) !== pct(chainNow.efficiency) && after < chainNow.efficiency) {
+      // Only a real drop earns the row's warning line: the supply strip's
+      // status line already says where the chain stands, and a warning on
+      // every row ("63% → 62%") read as noise (design review).
+      if (chainNow.efficiency - after >= ROW_WARN_DROP) {
         const node = bottleneckAtDemand(state, extra, nowMs);
         warn = `⚠\uFE0E beam ${pct(chainNow.efficiency)} → ${pct(after)}${node ? ` · feed ${CHAIN_NODES[node].name}` : ""}`;
         warnTip =
@@ -2933,11 +2950,11 @@ function renderDynamic(): void {
     const kept: string[] = ["All Embers (old + new)", "Stats & log", "All-time Lumen"];
     // The next run's warm start: lasting bonuses with the new Embers counted in.
     const perEmber = emberBonusPerEmber(state);
-    const warmAfter = lastingProductionMultiplier(state)
-      .toNumber() * ((1 + (state.embers + gain) * perEmber) / (1 + state.embers * perEmber));
-    if (warmAfter > 1.005) {
-      kept.push(`A warm start: First Light's starting chain supports ×${fmt(warmAfter)}, so the new run begins fed`);
-    }
+    // The next run's warm start (chain.startingWarmth) with the new Embers counted in.
+    const warmAfter =
+      lastingProductionMultiplier(state).toNumber() * ((1 + (state.embers + gain) * perEmber) / (1 + state.embers * perEmber)) +
+      (FIRST_LIGHT_WARMTH.factor - 1);
+    kept.push(`A warm start: First Light's starting chain supports ×${fmt(warmAfter)}, so the new run begins fed`);
     const lost: string[] = ["Current Lumen", "All generators", "This run's lifetime"];
     const keptUps = state.upgrades.filter((id) => isPermanentUpgrade(id)).map((id) => upgradeById(id).name);
     const lostUps = state.upgrades.filter((id) => !isPermanentUpgrade(id)).map((id) => upgradeById(id).name);
@@ -3069,8 +3086,10 @@ function renderDynamic(): void {
         (e) =>
           // Story beats are saved with a 📖 mark (state.ts keeps old logs as
           // they were); it is drawn as the book glyph.
+          // Older saves logged the whole beat; the Story section above holds
+          // the text, so the Log keeps to the title either way.
           e.message.startsWith("📖")
-            ? `<li class="story-entry"><span class="log-time">${new Date(e.at).toLocaleTimeString()}</span> ${GLYPHS.book}${e.message.slice("📖".length)}</li>`
+            ? `<li class="story-entry"><span class="log-time">${new Date(e.at).toLocaleTimeString()}</span> ${GLYPHS.book} ${storyLogTitle(e.message)} — a new page in The Story So Far</li>`
             : `<li><span class="log-time">${new Date(e.at).toLocaleTimeString()}</span> ${e.message}</li>`,
       )
       .join("");

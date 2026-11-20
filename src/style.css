@@ -380,6 +380,7 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 .status-flowing { color: var(--seafoam); }
 .status-strained { color: var(--lamp); }
 .status-starved { color: var(--coral); }
+.status-carrying { color: var(--muted); }
 .node-level { font-family: var(--mono); color: var(--lamp); font-variant-numeric: tabular-nums; }
 .node-detail { font-size: 0.82rem; }
 .node-flag { color: var(--coral); font-size: 0.82rem; font-weight: 600; min-height: 1.1em; }

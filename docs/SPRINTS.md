@@ -1276,3 +1276,35 @@ run of the same tide said nothing about the weather.
       carries nothing and adds light, so its button reads
       "Raise · 87.97M".
 - [x] Tests: the formatter's scientific switch at 1e15.
+
+## ✅ Post-launch — Second design review: four small fixes
+
+From the second Design Council pass (live play, plus the bot's saves from
+2.6h to the ending, toured at 1280px and on a phone).
+
+- [x] **Row warnings only for real drops.** A helper row warns ("⚠ beam
+      63% → 32% · feed Lens") only when buying would drop the beam by 10
+      points or more (`ROW_WARN_DROP`). Three or four rows used to warn at
+      almost every save, even at 99% efficiency; the supply strip's status
+      line already says where the chain stands.
+      - Before → after: 4 → 0 warnings at 2.6h, 3 → 1 at 37.5h, 0 at the
+        ending.
+- [x] **One badge that matters.** Only the bottleneck reads "● BOTTLENECK"
+      (amber when strained, coral below 70%). The other nodes read "●
+      FLOWING" or their own share ("● 66%"). The flag below gives the
+      shortfall: "⚠ Short by 2.55e15/s: feed it first". All three nodes
+      used to read STARVED or STRAINED at once.
+- [x] **Fix: stale warm-start copy.** Two lines were wrong since earlier
+      changes: the Lighthouses board summary and the Rekindle tab's Kept
+      list.
+      - They credited "moths, relics", which left the warm start when they
+        moved to the lamp.
+      - They left out the new keeper's +5 grace.
+      - Both now read `chain.startingWarmth`: "your lasting bonuses
+        (Embers, perks, lit lighthouses) plus a new keeper's grace of +5".
+- [x] **Story pages are one line in the Keeper's Log.** "📖 The Sea
+      Remembers — a new page in The Story So Far". The Story section at
+      the top of the Log holds the text. Old saves' full-paragraph entries
+      are drawn the same way.
+- [x] Tests: `tests/storyLog.test.ts`. The row and badge rules live in the
+      UI and were checked in the browser on the bot's saves.
