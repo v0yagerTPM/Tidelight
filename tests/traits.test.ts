@@ -22,6 +22,10 @@ import { createInitialState, deserializeState, serializeState } from "../src/gam
 import { TIDE_BUCKET_MS, tideAt } from "../src/game/tides";
 import type { GameState, Moth } from "../src/game/types";
 import { offlineRateFor } from "../src/game/upgrades";
+import { atBaseWarmth } from "./baseWarmth";
+
+// Chain math here is checked at First Light's plain starting support.
+atBaseWarmth();
 
 function stubRng(values: number[]): () => number {
   let i = 0;

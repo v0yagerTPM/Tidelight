@@ -20,9 +20,9 @@ import type { GameState } from "./types";
 //   full-lamp     → upgrades.offlineRateFor +10 points (hard cap 90%)
 //   ember-heart   → upgrades.emberBonusPerEmber +1%/Ember
 //   second-wind   → engine production ×1.5
-// Late perks (post-launch, priced ×10 apart to meet Embers as they grow):
-//   quartermaster → automation.autoLearn buys upgrades for you (toggle)
-//   lamp-crew     → automation.autoHire hires helpers for you (toggle)
+// Late perks (post-launch, priced ×10 apart to meet Embers as they grow;
+// the Quartermaster and Lamp Crew that once opened this shelf now come
+// with Gull Rock and Cormorant Roost, automation.ts):
 //   warm-hearth   → prestige.resetRun starts runs with 10 of the first three helpers
 //   steward-ledger → supply.tendChain: the Steward's purse holds 30 min, not 10
 //   storm-charts  → tides: a Stormfront's support ×0.8 becomes ×0.9
@@ -85,14 +85,23 @@ export const MOTH_LANTERN_COCOON_MULTIPLIER = 0.75;
 export const GLASS_CHARTS_VOYAGE_MULTIPLIER = 0.75;
 
 const LATE_PERKS: readonly Omit<EmberPerkDef, "shelf">[] = [
-  { id: "quartermaster", name: "Quartermaster",       effect: "Learns upgrades for you as soon as they cost no more than a quarter of your Lumen. Switch it off any time.", costEmbers: 500 },
-  { id: "lamp-crew",     name: "Lamp Crew",           effect: "Hires helpers for you, best value first, with up to a tenth of your Lumen, and never starves the beam. Switch it off any time.", costEmbers: 5_000 },
   { id: "warm-hearth",   name: "Warm Hearth",         effect: "Every new run starts with 10 Candle Crabs, 10 Lantern Moths and 10 Tide Bells.",           costEmbers: 50_000 },
   { id: "steward-ledger", name: "The Steward's Ledger", effect: "Your Chain Steward's purse holds 30 minutes of production instead of 10.", costEmbers: 500_000 },
   { id: "storm-charts",  name: "Storm Charts",        effect: "A Stormfront drains the chain half as hard (support ×0.9, not ×0.8).",    costEmbers: 5_000_000 },
   { id: "moth-lantern",  name: "Moth Lantern",        effect: "One more lure in the bank, and cocoons spin 25% faster.",                 costEmbers: 50_000_000 },
   { id: "ember-memory",  name: "Ember Memory",        effect: "Every helper's first upgrade is kept through a Rekindle.",                costEmbers: 500_000_000 },
   { id: "glass-charts",  name: "Glass Charts",        effect: "Bottles come home 25% sooner on every route.",                            costEmbers: 5_000_000_000 },
+];
+
+/**
+ * Perks no longer sold, with what they cost: a save that owns one gets the
+ * Embers back when it loads (state.ts), and keeps the effect wherever it
+ * now comes from (the Quartermaster with Gull Rock, the Lamp Crew with
+ * Cormorant Roost: automation.ts).
+ */
+export const RETIRED_PERKS: readonly { id: string; name: string; costEmbers: number }[] = [
+  { id: "quartermaster", name: "Quartermaster", costEmbers: 500 },
+  { id: "lamp-crew", name: "Lamp Crew", costEmbers: 5_000 },
 ];
 
 export const EMBER_PERKS: readonly EmberPerkDef[] = [

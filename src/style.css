@@ -1117,6 +1117,9 @@ html, body { overflow-x: clip; }
 .supply-node.bottleneck .sn-gauge > span { background: linear-gradient(90deg, #b5452f, var(--coral)); }
 .supply-node[data-node="beam"] .sn-gauge { visibility: hidden; }
 .supply-node button.sn-feed { min-height: 34px; padding: 4px 8px; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* One line, always present (two on phones), so the helpers below never move. */
+.supply-say { margin: 0; min-height: calc(2 * 1.35em); line-height: 1.35; font-size: 0.84rem; color: var(--muted); }
+.supply-say.starving { color: #ffc2b4; }
 .steward-panel { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--edge-soft); }
 .steward-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 0.88rem; }
 .steward-toggle { margin: 0; }
@@ -1124,6 +1127,7 @@ html, body { overflow-x: clip; }
 .steward-status { margin: 0; font-size: 0.8rem; }
 @media (max-width: 560px) {
   .supply-nodes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .supply-say { min-height: calc(3 * 1.35em); }
 }
 @media (prefers-reduced-motion: reduce) { .supply-node.bottleneck, .supply-strip.tended { animation: none; } }
 

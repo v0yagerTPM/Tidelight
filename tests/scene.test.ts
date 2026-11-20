@@ -11,6 +11,10 @@ import {
   reachFor,
   visibleCount,
 } from "../src/scene/model";
+import { atBaseWarmth } from "./baseWarmth";
+
+// Chain math here is checked at First Light's plain starting support.
+atBaseWarmth();
 
 // The scene model maps game state to what the Light-view scene draws. The
 // renderer itself is canvas drawing; these tests pin the mapping.

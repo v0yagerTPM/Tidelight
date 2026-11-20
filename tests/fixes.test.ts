@@ -5,6 +5,10 @@ import { lighthouseStatus, relightLighthouse } from "../src/game/chain";
 import { LIVE_GAP_LIMIT_SECONDS, advanceToNow, productionPerSecond } from "../src/game/engine";
 import { createInitialState, deserializeState, serializeState } from "../src/game/state";
 import { TIDE_BUCKET_MS, tideAt, type TideId } from "../src/game/tides";
+import { atBaseWarmth } from "./baseWarmth";
+
+// Chain math here is checked at First Light's plain starting support.
+atBaseWarmth();
 
 // Regression tests for the bugs found in the post-Sprint-5 playtest.
 

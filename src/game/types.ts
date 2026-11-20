@@ -118,7 +118,7 @@ export interface GameState {
   stewardBeam: boolean;
   /** Kindling levels by id (Ember shop, v12). */
   kindlings: Record<string, number>;
-  /** Quartermaster and Lamp Crew switches (Ember shop, v12). */
+  /** Quartermaster and Lamp Crew switches (they come with Gull Rock and Cormorant Roost; saved since v12). */
   autoLearn: boolean;
   autoHire: boolean;
   /** The bottle expedition currently out, or null. */

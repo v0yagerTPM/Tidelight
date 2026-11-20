@@ -2,10 +2,10 @@ import Decimal from "break_infinity.js";
 import { describe, expect, it } from "vitest";
 import { lureBankSize, lureRegrowMs } from "../src/game/almanac";
 import { EXPEDITION_ROUTES, voyageMs } from "../src/game/expeditions";
-import { autoHire, autoLearn, lampCrewActive, quartermasterActive } from "../src/game/automation";
+import { autoHire, autoLearn, lampCrewActive, lampCrewUnlocked, quartermasterActive, quartermasterUnlocked } from "../src/game/automation";
 import { chainStatus } from "../src/game/chain";
 import { startChallenge } from "../src/game/challenges";
-import { EMBER_CURVE, GULL_ROCK_ID, effectiveEmbers } from "../src/game/config";
+import { CORMORANT_ROOST_ID, EMBER_CURVE, GULL_ROCK_ID, effectiveEmbers } from "../src/game/config";
 import { botShop } from "../src/game/bot";
 import {
   EMBER_PERKS,
@@ -37,10 +37,11 @@ function withPerk(id: string, embers = 1e12): GameState {
 }
 
 describe("the shop's shelves", () => {
-  it("keeps the eight keeper perks and adds eight late perks, ×10 apart from 500", () => {
+  it("keeps the eight keeper perks and six late perks, ×10 apart from 50,000", () => {
     expect(EMBER_PERKS.filter((p) => p.shelf === "keeper")).toHaveLength(8);
     const late = EMBER_PERKS.filter((p) => p.shelf === "late");
-    expect(late.map((p) => p.costEmbers)).toEqual([500, 5e3, 5e4, 5e5, 5e6, 5e7, 5e8, 5e9]);
+    expect(late.map((p) => p.costEmbers)).toEqual([5e4, 5e5, 5e6, 5e7, 5e8, 5e9]);
+    expect(EMBER_PERKS.some((p) => p.id === "quartermaster" || p.id === "lamp-crew")).toBe(false);
   });
 });
 
@@ -170,9 +171,31 @@ describe("late perks", () => {
   });
 });
 
+/** A keeper with these lighthouses lit (their boards at the starting levels). */
+function withLit(...ids: string[]): GameState {
+  const state = keeper();
+  for (const id of ids) {
+    state.litLighthouses.push(id);
+    state.chainBoards[id] = startBoard(id);
+  }
+  return state;
+}
+
 describe("automation", () => {
+  it("the Quartermaster comes with Gull Rock, the Lamp Crew with Cormorant Roost", () => {
+    const dark = keeper();
+    expect(quartermasterUnlocked(dark)).toBe(false);
+    expect(lampCrewUnlocked(dark)).toBe(false);
+    const gull = withLit(GULL_ROCK_ID);
+    expect(quartermasterUnlocked(gull)).toBe(true);
+    expect(lampCrewUnlocked(gull)).toBe(false);
+    const roost = withLit(GULL_ROCK_ID, CORMORANT_ROOST_ID);
+    expect(quartermasterUnlocked(roost)).toBe(true);
+    expect(lampCrewUnlocked(roost)).toBe(true);
+  });
+
   it("the Quartermaster learns upgrades costing up to a quarter of your Lumen, cheapest first", () => {
-    const state = withPerk("quartermaster");
+    const state = withLit(GULL_ROCK_ID);
     state.generators["candle-crab"] = 30;
     state.lumen = new Decimal(3000); // crab I costs 600, crab II 3,600
     expect(quartermasterActive(state)).toBe(true);
@@ -184,7 +207,7 @@ describe("automation", () => {
   });
 
   it("the Lamp Crew hires best value with a tenth of your Lumen", () => {
-    const state = withPerk("lamp-crew");
+    const state = withLit(GULL_ROCK_ID, CORMORANT_ROOST_ID);
     state.lumen = new Decimal(1000);
     expect(lampCrewActive(state)).toBe(true);
     const hired = autoHire(state);
@@ -193,19 +216,32 @@ describe("automation", () => {
   });
 
   it("the Lamp Crew never starves the beam", () => {
-    const state = withPerk("lamp-crew");
-    state.generators["candle-crab"] = 200; // far more than the starting chain carries
+    const state = withLit(GULL_ROCK_ID, CORMORANT_ROOST_ID);
+    state.embers = 0; // no lasting bonuses warming the chain
+    state.generators["candle-crab"] = 400; // far more than the starting chain carries
     state.lumen = new Decimal("1e12");
     const eff = chainStatus(state).efficiency;
     expect(eff).toBeLessThan(0.9);
     expect(autoHire(state)).toBe(0);
   });
 
-  it("does nothing without the perk", () => {
+  it("does nothing before its lighthouse is lit", () => {
     const state = keeper();
     state.lumen = new Decimal(1e9);
     expect(autoHire(state)).toBe(0);
     expect(autoLearn(state)).toEqual([]);
+  });
+
+  it("a save that bought the retired perks gets the Embers back, once", () => {
+    const state = keeper(1_000);
+    const raw = serializeState(state) as unknown as { emberPerks: string[] };
+    raw.emberPerks = ["warm-lamp", "quartermaster", "lamp-crew"];
+    const loaded = deserializeState(raw)!;
+    expect(loaded.embers).toBe(1_000 + 500 + 5_000);
+    expect(loaded.emberPerks).toEqual(["warm-lamp"]);
+    expect(loaded.log[loaded.log.length - 1]?.message).toMatch(/Quartermaster and Lamp Crew now come with the lighthouses/);
+    const again = deserializeState(serializeState(loaded))!;
+    expect(again.embers).toBe(6_500);
   });
 });
 

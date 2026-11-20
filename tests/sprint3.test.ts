@@ -29,6 +29,10 @@ import { createInitialState, deserializeState, serializeState } from "../src/gam
 import type { GameState } from "../src/game/types";
 import { buyUpgrade, emberBonusPerEmber, offlineRateFor } from "../src/game/upgrades";
 import { generatorById } from "../src/game/config";
+import { atBaseWarmth } from "./baseWarmth";
+
+// Chain math here is checked at First Light's plain starting support.
+atBaseWarmth();
 
 const crab = generatorById("candle-crab");
 const keeper = generatorById("oil-keeper");

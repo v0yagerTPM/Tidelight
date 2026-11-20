@@ -7,6 +7,10 @@ import { CHAIN_LIGHTHOUSES, FIRST_LIGHT_ID, GENERATORS, HOLLOW_LIGHT_ID, chainLi
 import { baseProductionPerSecond, buyGenerator } from "../src/game/engine";
 import { createInitialState, startBoard } from "../src/game/state";
 import type { GameState } from "../src/game/types";
+import { atBaseWarmth } from "./baseWarmth";
+
+// Chain math here is checked at First Light's plain starting support.
+atBaseWarmth();
 
 // The post-launch rebalance's guarantees (see config.ts and docs/SPRINTS.md).
 

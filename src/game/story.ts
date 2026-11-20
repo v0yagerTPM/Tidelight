@@ -178,14 +178,6 @@ export const STORY_BEATS: readonly StoryBeat[] = [
   },
   // ── Act III — The Relighting ───────────────────────────────────────────
   {
-    id: "seventh-helper",
-    act: 3,
-    title: "You Become the Wick",
-    hint: "Hire The Seventh Light.",
-    trigger: ownsGenerator("seventh-light"),
-    text: "There is a helper on the roster you did not write there. The wage is your shadow; the hours are the hours the light keeps, which is all of them. Old keepers called it 'taking the seventh post' and spoke of it the way sailors speak of the horizon — as a place you can walk toward forever. You sign the roster anyway. Your handwriting looks, for the first time, like the handwriting in the letter of appointment.",
-  },
-  {
     id: "bellwether",
     act: 3,
     title: "The Bell That Leads",
@@ -200,6 +192,14 @@ export const STORY_BEATS: readonly StoryBeat[] = [
     hint: "Relight Siren's Rest.",
     trigger: (s) => isLit(s, SIRENS_REST_ID),
     text: "The sirens are not what the stories said. They are tired old singers who lured ships because ships were the only audience the sea ever sent them, and when the sea stilled they sang to the dark until their voices gave out, and then they slept. Your light wakes them gently, the way dawn wakes a harbour. They do not sing for ships anymore. Some nights, if the tide is right, they harmonize with the lamp's hum — for the keeper, who stayed.",
+  },
+  {
+    id: "seventh-helper",
+    act: 3,
+    title: "You Become the Wick",
+    hint: "Hire The Seventh Light.",
+    trigger: ownsGenerator("seventh-light"),
+    text: "There is a helper on the roster you did not write there. The wage is your shadow; the hours are the hours the light keeps, which is all of them. Old keepers called it 'taking the seventh post' and spoke of it the way sailors speak of the horizon — as a place you can walk toward forever. You sign the roster anyway. Your handwriting looks, for the first time, like the handwriting in the letter of appointment.",
   },
   {
     id: "prismatic",

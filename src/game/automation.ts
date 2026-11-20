@@ -1,6 +1,5 @@
-import { GENERATORS } from "./config";
+import { CORMORANT_ROOST_ID, GENERATORS, GULL_ROCK_ID } from "./config";
 import { canBuyGenerator } from "./challenges";
-import { hasPerk } from "./emberShop";
 import { buyGenerator, costFor, productionForOwned } from "./engine";
 import { chainStatus, chainUnlocked, lighthouseMultiplier } from "./chain";
 import { efficiencyAtDemand } from "./supply";
@@ -8,7 +7,14 @@ import { addLog } from "./state";
 import type { GameState } from "./types";
 import { UPGRADES, buyUpgrade, isUnlocked } from "./upgrades";
 
-// ── Automation: the Quartermaster and the Lamp Crew (Ember perks) ────────────
+// ── Automation: the Quartermaster and the Lamp Crew ──────────────────────────
+// They come with the lighthouses, the way the Chain Steward comes with
+// Widow's Walk: relight Gull Rock and a Quartermaster takes up the lesson
+// book; relight Cormorant Roost and a Lamp Crew starts hiring. (They used
+// to be Ember perks at 500 and 5,000 Embers, which a keeper reached around
+// hour nine, so the first ten or so Rekindles each meant relearning the
+// same lessons by hand. Keepers who bought them get the Embers back:
+// state.ts, RETIRED_PERKS.)
 // Both run in the live game loop (not while you're away), both can be
 // switched off, and both spend only a slice of the Lumen in hand, so a
 // keeper saving for a lighthouse is never emptied out:
@@ -25,12 +31,26 @@ export const LAMP_CREW_MIN_EFFICIENCY = 0.9;
 /** Most helpers the Lamp Crew hires in one go (it runs again a second later). */
 const LAMP_CREW_BATCH = 25;
 
+/** The lighthouse whose relight brings each crew. */
+export const QUARTERMASTER_LIGHTHOUSE = GULL_ROCK_ID;
+export const LAMP_CREW_LIGHTHOUSE = CORMORANT_ROOST_ID;
+
+/** Gull Rock lit: a Quartermaster is at work (if the keeper leaves it on). */
+export function quartermasterUnlocked(state: GameState): boolean {
+  return state.litLighthouses.includes(QUARTERMASTER_LIGHTHOUSE);
+}
+
+/** Cormorant Roost lit: a Lamp Crew is at work (if the keeper leaves it on). */
+export function lampCrewUnlocked(state: GameState): boolean {
+  return state.litLighthouses.includes(LAMP_CREW_LIGHTHOUSE);
+}
+
 export function quartermasterActive(state: GameState): boolean {
-  return hasPerk(state, "quartermaster") && state.autoLearn;
+  return quartermasterUnlocked(state) && state.autoLearn;
 }
 
 export function lampCrewActive(state: GameState): boolean {
-  return hasPerk(state, "lamp-crew") && state.autoHire;
+  return lampCrewUnlocked(state) && state.autoHire;
 }
 
 /** The Quartermaster's round: the names of the upgrades it learned (one log line for all). */
