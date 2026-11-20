@@ -182,8 +182,11 @@ a hearth whose fire grows with the Embers you'd bank.
 - **Tide & weather** — the sea turns every 30 minutes, the same for
   every keeper: Low Tide eases the supply chain, High Tide lifts
   production, Glass Calm doubles your clicking, and Stormfront pays
-  +30% production while starving the chain. The Light view shows the
-  current tide and the forecast, so you can plan around the storm.
+  +30% production while starving the chain. The tides are dealt like
+  weather, never the same twice in a row: every 10 hours bring 6 Low
+  Tides, 6 High, 5 Glass Calms and 3 Stormfronts, in a shuffled order.
+  The Light view shows the current tide and the forecast, so you can
+  plan around the storm.
 - **Offline earnings** — 50% of your rate for up to 8 hours (75% once you
   learn Longer Wicks; up to 12 hours and 90% with the right Ember perks
   and relics; Siren's Rest adds +10 points and +4 hours more). After 5

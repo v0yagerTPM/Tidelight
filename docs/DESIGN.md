@@ -35,6 +35,9 @@ hit the wall → **Rekindle** → relight faster and further.
 2. **Tide & weather planning** — a deterministic 30-minute tide (Low /
    High / Glass Calm / Stormfront) bends production, clicking and chain
    support; the forecast is exact, so what you queue before bed matters.
+   Tides are dealt from a shuffled bag, never twice in a row: each
+   10-hour cycle holds exactly 6 Low, 6 High, 5 Glass Calm and 3
+   Stormfront (the same for every keeper, seeded by the cycle).
 3. **Lantern-moth breeding** — individual moths with inherited wing
    patterns; up to three on duty brighten the thrown beam (+glow × 0.1%
    each), after the chain, and a moth posted at a lighthouse strengthens

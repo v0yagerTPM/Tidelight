@@ -106,7 +106,7 @@ export function tutorialPages(): SplashPage[] {
       title: "The sea keeps time",
       html: `
         <ul>
-          <li>The <strong>tide</strong> turns every 30 minutes, and the strip on the Light tab forecasts it exactly: ${TIDES.map((t) => `${t.icon} ${t.name}`).join(", ")}.</li>
+          <li>The <strong>tide</strong> turns every 30 minutes, never to the same tide twice running, and the strip on the Light tab forecasts it exactly: ${TIDES.map((t) => `${t.icon} ${t.name}`).join(", ")}.</li>
           <li><strong>Away from the lamp</strong>, your keepers earn ${pct(OFFLINE_RATE)} of your production for up to ${hours} hours (upgrades, relics and lighthouses raise both). Cocoons, lures and bottles keep going too, and a card tells you what happened when you're back.</li>
           <li>The game <strong>saves itself</strong> in this browser. Export a copy from the Keeper's Desk in the Log tab.</li>
         </ul>
