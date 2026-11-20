@@ -6,7 +6,8 @@ import type { CoastModel } from "./model";
 // Light) to farthest (The Hollow Light, on the horizon). Lit towers burn and
 // sweep their beams; the next dark one waits behind a ring that fills as its
 // gates come within reach; the rest are cold silhouettes. A path of light runs
-// across the glass from each lit tower to the next.
+// across the glass from each lit tower to the next, and the three waymarks
+// of the Crossing stand on the last stretch of it.
 //
 // Positions are shared with main.ts, which lays clickable labels over the
 // towers (so the panorama is keyboard- and screen-reader-usable).
@@ -99,6 +100,56 @@ export class CoastRenderer extends AnimatedCanvas {
       ctx.quadraticCurveTo((a.x + b.x) / 2, Math.max(a.y, b.y) + H * 0.04, b.x, b.y);
       ctx.stroke();
       ctx.restore();
+    }
+
+    // The Crossing: three waymarks on the path from Siren's Rest out to The
+    // Hollow Light. Lit ones burn; the next one pulses inside a ring that
+    // fills as its gates come near; the rest are cold silhouettes.
+    if (m.waymarks.length > 0 && points.length >= 2) {
+      const a = points[points.length - 2];
+      const b = points[points.length - 1];
+      const cx = (a.x + b.x) / 2;
+      const cy = Math.max(a.y, b.y) + H * 0.04;
+      m.waymarks.forEach((wm, i) => {
+        // Along the same curve the path of light follows, clear of the
+        // Hollow Light's label at the far end.
+        const u = 0.14 + (0.4 * i) / Math.max(1, m.waymarks.length - 1);
+        const x = (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * cx + u * u * b.x;
+        const y = (1 - u) * (1 - u) * a.y + 2 * (1 - u) * u * cy + u * u * b.y;
+        const r = Math.max(2, H * 0.008);
+        // A post on the glass, and its lantern.
+        ctx.strokeStyle = wm.lit ? "rgba(255,206,120,0.6)" : "rgba(120,140,160,0.45)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y - r * 3);
+        ctx.stroke();
+        const ly = y - r * 3.6;
+        if (wm.lit) {
+          glow(ctx, x, ly, r * 7, "255,196,99", 0.55 + 0.1 * Math.sin(t * 1.7 + i));
+          ctx.fillStyle = "#ffe2a6";
+        } else if (wm.isNext) {
+          glow(ctx, x, ly, r * 6, "255,196,99", 0.08 + 0.12 * (0.5 + 0.5 * Math.sin(t * 2)) * wm.readiness);
+          ctx.fillStyle = "#3a4d63";
+        } else {
+          ctx.fillStyle = "#26364a";
+        }
+        ctx.beginPath();
+        ctx.arc(x, ly, r, 0, Math.PI * 2);
+        ctx.fill();
+        if (wm.isNext) {
+          const ringR = r * 3;
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = "rgba(35,69,96,0.9)";
+          ctx.beginPath();
+          ctx.arc(x, ly, ringR, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.strokeStyle = "rgba(255,196,99,0.95)";
+          ctx.beginPath();
+          ctx.arc(x, ly, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * wm.readiness);
+          ctx.stroke();
+        }
+      });
     }
 
     // Towers, farthest first so nearer ones overlap them.

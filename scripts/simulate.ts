@@ -7,7 +7,7 @@
 // same bot buy everything in the Ember shop, for the fast end of the range.
 //
 // Run with:  npm run sim
-import { CHAIN_LIGHTHOUSES, GENERATORS, PRESTIGE_RECOMMENDED_EMBERS } from "../src/game/config";
+import { CHAIN_LIGHTHOUSES, GENERATORS, HOLLOW_LIGHT_ID, PRESTIGE_RECOMMENDED_EMBERS, WAYMARKS } from "../src/game/config";
 import { ENDGAME_CAP_SECONDS, TARGET_LIFETIME, runSim } from "./simCore";
 
 const r = runSim({ verbose: true });
@@ -25,6 +25,12 @@ console.log(
 );
 console.log("\n── Endgame result ─────────────────────────────────");
 for (const def of CHAIN_LIGHTHOUSES.slice(1)) {
+  if (def.id === HOLLOW_LIGHT_ID) {
+    for (const w of WAYMARKS) {
+      const wat = r.waymarkAtHours[w.id];
+      console.log(`  ◆ ${w.name}: ${wat !== undefined ? `lit at ${wat.toFixed(1)}h` : "never lit"}`);
+    }
+  }
   const at = r.litAtHours[def.id];
   console.log(`  ${def.name}: ${at !== undefined ? `lit at ${at.toFixed(1)}h` : "never lit"}`);
 }

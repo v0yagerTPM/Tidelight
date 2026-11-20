@@ -73,7 +73,8 @@ export function tutorialPages(): SplashPage[] {
       title: "Relight the lighthouses",
       html: `
         <p>Lighthouses relight in order. Each costs Lumen and asks for a well-fed beam: chain efficiency of ${pct(gates[0])} for the first, rising to ${pct(gates[gates.length - 1])} for The Hollow Light.</p>
-        <p>A lit lighthouse <strong>stays lit forever</strong>, even through a Rekindle. Each brings a new supply board, a lasting bonus, and often a new kind of helper.</p>`,
+        <p>A lit lighthouse <strong>stays lit forever</strong>, even through a Rekindle. Each brings a new supply board, a lasting bonus, and often a new kind of helper.</p>
+        <p>The last light is the farthest out: reach it by <strong>the Crossing</strong>, three waymarks on the deep glass, each with a gift of its own.</p>`,
     },
     {
       art: TAB_ICONS.rekindle,

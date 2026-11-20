@@ -320,7 +320,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: HOLLOW_LIGHT_ID,
     name: "The Hollow Light",
     hint: "The last tower, at the heart of the Hollow Sea — the light the sea itself was named for. No keeper has relit it. No keeper has come back from trying. Yet. +150% production, and whatever waits beyond it.",
-    relightCost: 6.4e29, // 3.2e24 → 6.5e24 with Memory Ships → 1e31 with the late upgrades → 6.4e29 re-paced
+    relightCost: 4e30, // 3.2e24 → 6.5e24 with Memory Ships → 1e31 with the late upgrades → 6.4e29 re-paced → 4e30 after the Crossing
     efficiencyRequirement: 0.8,
     productionBonus: 1.5,
     ...NO_BONUS,
@@ -329,6 +329,62 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     boardScale: 750,
   },
 ];
+
+// ── The Crossing: three waymarks before The Hollow Light ────────────────────
+// Past Siren's Rest the last stretch to The Hollow Light used to be fifteen
+// hours with no new helper, light or story in it. Now it is a crossing of
+// the deep glass: three waymarks the old keepers left, lit IN ORDER (each
+// with the same gate as The Hollow Light: the light before it, the chain
+// awake, its beam efficiency and its cost), before the last tower itself.
+// Waymarks are permanent like the lighthouses (a Rekindle keeps them; a
+// Next Keeping darkens them) and have no chain board. Each grants
+// something different:
+//   The Drowned Bell  chain support ×1.25 (chain.lighthouseSupportMultiplier)
+//   The Glass Stair   the thrown beam ×1.25 (engine.lampMultiplier)
+//   The Last Lantern  one more moth on duty (almanac.dutySlots)
+// They are steps of The Hollow Light's relight (chain.relightLighthouse):
+// its Relight button lights the next waymark until all three burn.
+// PACING: costs from a sim search, so the bot lights them at about 35.8 /
+// 39.3 / 42.8 hours and The Hollow Light at ~47.5, as before the Crossing
+// (whose gifts let The Hollow Light itself cost more: 6.4e29 → 4e30).
+export interface WaymarkDef {
+  id: string;
+  name: string;
+  /** What the keeper sees on the card before lighting it. */
+  hint: string;
+  /** Lumen to light it. */
+  cost: number;
+  /** Plain-words reward, for cards, moments and the log. */
+  reward: string;
+}
+
+export const WAYMARKS: readonly WaymarkDef[] = [
+  {
+    id: "drowned-bell",
+    name: "The Drowned Bell",
+    hint: "A bell-buoy sunk to its shoulders in the glass, its clapper stopped mid-swing. Light the lantern on its crown and the supply boats can steer by it.",
+    cost: 5.3e26,
+    reward: "chain support +25%",
+  },
+  {
+    id: "glass-stair",
+    name: "The Glass Stair",
+    hint: "A stair of lanterns set out across the glass, a day's walk apart. Lit, the glass steps catch the beam and throw it on.",
+    cost: 5.8e28,
+    reward: "the thrown beam +25%",
+  },
+  {
+    id: "last-lantern",
+    name: "The Last Lantern",
+    hint: "The lantern nearest The Hollow Light, close enough to see its door. Something waits there that would keep watch with your moths.",
+    cost: 7.1e29,
+    reward: "one more moth can stand duty",
+  },
+];
+
+/** The Drowned Bell's chain support multiplier, and the Glass Stair's beam multiplier. */
+export const DROWNED_BELL_SUPPORT_MULTIPLIER = 1.25;
+export const GLASS_STAIR_BEAM_MULTIPLIER = 1.25;
 
 // Looked up on every support calculation (several hundred times a second
 // late in the game), so by map rather than a linear search.

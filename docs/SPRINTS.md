@@ -1147,3 +1147,61 @@ hours.
       and `during` (grant things on a schedule).
 - [x] Tests: `tests/lamp.test.ts` (new), plus moth, relic, challenge and
       trait tests moved to the new placement and rates.
+
+## ✅ Post-launch — The Crossing: three waymarks before The Hollow Light
+
+The re-pace left the final stretch (Siren's Rest → The Hollow Light) at
+15.5 of 47.5 bot hours with nothing new in it: no helper, no lighthouse,
+no story beat, just one long save. It is now a crossing of the deep
+glass.
+
+- [x] **Three waymarks** (`config.ts WAYMARKS`), lit in order before the
+      tower. They are steps of The Hollow Light's relight
+      (`chain.relightLighthouse`; `lighthouseStatus.waymark` names the
+      step). The bot, the Relight button, the gates (Siren's Rest lit,
+      chain awake, 80% beam efficiency, the cost) and the sim's saving
+      logic all carry over unchanged. Waymarks are permanent like
+      lighthouses and carry no chain board; a Next Keeping darkens them.
+
+      | Waymark | Gift | Where it acts |
+      |---|---|---|
+      | The Drowned Bell | chain support +25% | `chain.lighthouseSupportMultiplier` |
+      | The Glass Stair | the thrown beam +25% | `engine.lampMultiplier` |
+      | The Last Lantern | one more moth on duty | `almanac.dutySlots` |
+
+- [x] **Story:** three new Act III beats, one per waymark: "The Drowned
+      Bell", "The Glass Stair", "The Last Lantern". That makes 27 beats.
+- [x] **Coast panorama:** three lanterns on the path from Siren's Rest to
+      The Hollow Light. Lit ones burn; the next pulses inside a readiness
+      ring, and The Hollow Light's own ring waits until the Crossing is
+      done; the rest are silhouettes.
+- [x] **Moment:** a new `waymark` kind. The light path runs to a lantern on
+      a post, which catches and spreads rings across the glass. The
+      eyebrow reads "The Crossing · waymark n of 3".
+- [x] **The Hollow Light's card** lists the Crossing (◆ lit, ◇ dark, the
+      next in lamp colour, each with its gift and a tip). Its button
+      reads "Light The Drowned Bell — 530.00Sp Lumen" until the tower's
+      turn.
+- [x] **Tutorial** page 5 mentions the Crossing.
+- [x] **Pacing** (`npm run sim`). Costs come from a sim search in order,
+      each holding the earlier ones fixed:
+
+      | Step | Cost | Bot reaches it |
+      |---|---|---|
+      | The Drowned Bell | 5.3e26 | 35.8h |
+      | The Glass Stair | 5.8e28 | 39.3h |
+      | The Last Lantern | 7.1e29 | 42.8h |
+      | The Hollow Light | 6.4e29 → 4e30 | 47.2h (was 47.5h) |
+
+      - The final stretch is now steps of 3.8 / 3.5 / 3.5 / 4.4 hours.
+      - The Hollow Light costs more because the gifts speed the stretch up.
+        The price ceiling follows it to 4.00No.
+      - Engaged keeper (`scripts/worth.ts`): 24.4h. Keeper who buys
+        everything: 42.1h (was 40.8h).
+- [x] **Save v13:** `crossing` (0–3). Older saves load at 0, or at 3 if
+      they already lit The Hollow Light. Junk is clamped.
+- [x] **Sim:** a bot hook `onWaymarkLit`; `runSim` reports
+      `waymarkAtHours` and takes a `stopWhen`; `npm run sim` prints the
+      waymarks.
+- [x] Tests: `tests/crossing.test.ts` (new). The lighthouse, story-count
+      and save-version tests are updated.

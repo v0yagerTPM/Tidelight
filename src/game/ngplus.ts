@@ -64,6 +64,7 @@ export function startNgPlus(state: GameState): boolean {
   state.generators = {};
   state.upgrades = state.upgrades.filter((id) => isPermanentUpgrade(id));
   state.litLighthouses = [FIRST_LIGHT_ID];
+  state.crossing = 0; // the waymarks go dark with the lighthouses
   state.chainBoards = defaultChainBoards();
   vacateDarkPosts(state); // moths posted at the darkened lights come home
   state.activeChallenge = null;
