@@ -164,14 +164,72 @@ export function kindlingCost(state: GameState, id: string): number {
 }
 
 /** Buy the next level of a Kindling with held Embers. Returns true if it happened. */
-export function buyKindling(state: GameState, id: string): boolean {
+export function buyKindling(state: GameState, id: string, log = true): boolean {
   const def = kindlingById(id);
   const cost = kindlingCost(state, id);
   if (!Number.isFinite(cost) || state.embers < cost) return false;
   state.embers -= cost;
   state.kindlings[id] = kindlingLevel(state, id) + 1;
-  addLog(state, `Kindled: ${def.name}, level ${state.kindlings[id]} — ${def.perLevel} (−${cost.toLocaleString("en-US")} Embers held)`);
+  if (log) addLog(state, `Kindled: ${def.name}, level ${state.kindlings[id]} — ${def.perLevel} (−${cost.toLocaleString("en-US")} Embers held)`);
   return true;
+}
+
+// ── Kindle everything small ──────────────────────────────────────────────────
+// Held Embers grow by orders of magnitude, so by mid-game most of the shop
+// "spends <0.01% of your Embers": no longer a trade, just a list of clicks
+// (design review). One button buys every perk and Kindling level that
+// costs no more than a hundredth of the Embers held at the moment of
+// buying, cheapest first, until nothing that small is left.
+
+/** The share of held Embers below which a purchase counts as small. */
+export const KINDLE_ALL_SHARE = 0.01;
+
+export interface ShopOffer {
+  kind: "perk" | "kindling";
+  id: string;
+  name: string;
+  cost: number;
+}
+
+/** Every perk not yet owned, and every Kindling's next level, cheapest first. */
+export function shopOffers(state: GameState): ShopOffer[] {
+  const offers: ShopOffer[] = [];
+  for (const p of EMBER_PERKS) if (!hasPerk(state, p.id)) offers.push({ kind: "perk", id: p.id, name: p.name, cost: p.costEmbers });
+  for (const k of KINDLINGS) {
+    const cost = kindlingCost(state, k.id);
+    if (Number.isFinite(cost)) offers.push({ kind: "kindling", id: k.id, name: k.name, cost });
+  }
+  return offers.sort((a, b) => a.cost - b.cost);
+}
+
+/** How many purchases Kindle all would make now, and what they cost in all (a dry run). */
+export function kindleAllPreview(state: GameState, share = KINDLE_ALL_SHARE): { count: number; cost: number } {
+  const trial = { ...state, emberPerks: [...state.emberPerks], kindlings: { ...state.kindlings }, log: [] } as GameState;
+  const before = trial.embers;
+  const count = kindleAll(trial, share).length;
+  return { count, cost: before - trial.embers };
+}
+
+/**
+ * Buy every small purchase (≤ share × the Embers held at that moment),
+ * cheapest first. Returns what was bought ("Ember Glow 3", "Head Start"),
+ * with one log line for the lot.
+ */
+export function kindleAll(state: GameState, share = KINDLE_ALL_SHARE): string[] {
+  const bought: string[] = [];
+  let spent = 0;
+  for (let guard = 0; guard < 1_000; guard++) {
+    const next = shopOffers(state)[0];
+    if (!next || next.cost > state.embers * share) break;
+    const ok = next.kind === "perk" ? buyPerk(state, next.id, false) : buyKindling(state, next.id, false);
+    if (!ok) break;
+    spent += next.cost;
+    bought.push(next.kind === "kindling" ? `${next.name} ${kindlingLevel(state, next.id)}` : next.name);
+  }
+  if (bought.length > 0) {
+    addLog(state, `Kindled everything small: ${bought.join(", ")} (−${spent.toLocaleString("en-US")} Embers held).`);
+  }
+  return bought;
 }
 
 export function perkById(id: string): EmberPerkDef {
@@ -189,13 +247,13 @@ export function hasPerk(state: GameState, id: string): boolean {
  * Fails (false, no state change) when already owned or unaffordable.
  * Spending lowers the held-Ember production bonus — intended.
  */
-export function buyPerk(state: GameState, id: string): boolean {
+export function buyPerk(state: GameState, id: string, log = true): boolean {
   const def = perkById(id);
   if (hasPerk(state, id)) return false;
   if (state.embers < def.costEmbers) return false;
   state.embers -= def.costEmbers;
   state.emberPerks.push(id);
-  addLog(state, `Ember perk kindled: ${def.name} — ${def.effect} (−${def.costEmbers} Embers held)`);
+  if (log) addLog(state, `Ember perk kindled: ${def.name} — ${def.effect} (−${def.costEmbers} Embers held)`);
   return true;
 }
 

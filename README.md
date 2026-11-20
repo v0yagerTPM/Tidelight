@@ -113,9 +113,12 @@ a hearth whose fire grows with the Embers you'd bank.
   simulated by the same greedy bot the balance checks use), and kept/lost
   lists that name your upgrades, Ember perks, and challenge rewards. Two
   upgrades (Longer Wicks, Ember Resonance) are keeper knowledge and
-  survive the reset.
+  survive the reset. The first Rekindle, and every tenth, plays the full
+  moment; the rest flare the hearth and leave a line under the button.
 - **The Ember Shop** — three shelves, all bought with held Embers.
   Spending lowers your held-Ember bonus, and each card shows how much.
+  **Kindle all under 1%** buys every perk and Kindling level that costs
+  no more than a hundredth of the Embers you hold, cheapest first.
   - **Keeper's perks** (one-time): Head Start (runs open with 1,000 Lumen),
     Warm Lamp Oil (click ×2), Friend of Gulls (Gull Rock at half price),
     Deep Wicks (chain support +25%), The Long Night (12h offline cap), Full
@@ -241,7 +244,11 @@ npm run build      # typecheck + production build to dist/
   from a share of your income, raising the Beam alongside the supplies
   (the cheaper first, and only the Beam once the chain is at its target;
   a switch in its panel turns the Beam off). Helper rows warn when a purchase would
-  starve the beam. The Lighthouses tab keeps the board-by-board view.
+  drop the beam 10 points or more. The Lighthouses tab keeps the board-by-board view.
+  On phones the strip folds to one line (efficiency, Fill, Show) while
+  the beam is at 90% or more, and opens by itself below 80%. A Lamp Crew
+  that can't hire says why beside its switch ("waiting on the chain",
+  "saving up").
 - **Tips** — hover (or press and hold on a phone) anything with a dotted
   underline or an ⓘ for more about it.
 - **How to play** — new keepers start with an eight-page guide to the

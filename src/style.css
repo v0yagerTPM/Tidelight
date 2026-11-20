@@ -1260,3 +1260,25 @@ body { font-variant-numeric: tabular-nums; }
 @media (min-width: 1024px) and (max-width: 1279px) {
   #view-light .supply-nodes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ── Second review: lighter Rekindles, Kindle all, a folding strip, the crew's note ── */
+.rk-flare { min-height: 1.5em; margin: 8px 0 0; font-size: 0.86rem; text-align: center; }
+.hearth.rekindled { animation: hearth-flare 1.4s ease-out; }
+@keyframes hearth-flare {
+  0% { box-shadow: 0 0 0 0 rgba(255, 170, 80, 0.55), inset 0 0 60px rgba(255, 170, 80, 0.35); }
+  100% { box-shadow: 0 0 0 18px rgba(255, 170, 80, 0), inset 0 0 0 rgba(255, 170, 80, 0); }
+}
+.shop-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.shop-head p { margin: 0; }
+.supply-more { display: none; }
+@media (max-width: 560px) {
+  .supply-more { display: inline-flex; }
+  .supply-strip.compact .supply-nodes,
+  .supply-strip.compact .supply-say,
+  .supply-strip.compact .steward-panel,
+  .supply-strip.compact #steward-btn,
+  .supply-strip.compact #supply-boards { display: none; }
+}
+.crew-note { font-size: 0.78rem; color: var(--muted); }
+.crew-note:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { .hearth.rekindled { animation: none; } }

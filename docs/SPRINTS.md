@@ -1308,3 +1308,41 @@ From the second Design Council pass (live play, plus the bot's saves from
       are drawn the same way.
 - [x] Tests: `tests/storyLog.test.ts`. The row and badge rules live in the
       UI and were checked in the browser on the bot's saves.
+
+## ✅ Post-launch — Second design review: the late-game chores
+
+- [x] **Lighter Rekindles.** A keeper Rekindles some fifty times on the
+      way to the ending, and each one was two clicks plus a 7-second
+      full-screen moment.
+      - The full moment now plays for the first Rekindle and every tenth
+        (`REKINDLE_MOMENT_EVERY`); its eyebrow reads "Rekindle 10".
+      - The others flare the hearth in place (`.rekindled`, 1.4s; still
+        under reduced motion) and leave a line under the button: "Rekindle
+        5: +3.00K Embers banked; your production bonus is now ×3.06M".
+      - The moment's old "+X% brighter" line ran into hundreds of millions
+        of percent. It now uses the same ×/+ form as the hearth.
+      - The two-step confirm stays: a Rekindle still resets a run.
+- [x] **Kindle all under 1%** (`emberShop.kindleAll`). By hour 21 every
+      keeper perk "spends <0.01% of your Embers", so the shop was a list
+      of clicks, not a trade.
+      - One button buys every perk and Kindling level that costs no more
+        than 1% of the Embers held at that moment, cheapest first.
+      - It logs one line for the lot. Its label counts the purchases
+        (`kindleAllPreview`, a dry run) and its tip gives the total.
+      - On the 21h save: 36 purchases for about 3% of 101.9M Embers.
+- [x] **The phone supply strip folds.** At ≤560px the strip shrinks to
+      one line (title, efficiency, Fill, Show) while the beam is at 90% or
+      more.
+      - It opens by itself below 80%; the gap between the two keeps it
+        from flickering at one threshold.
+      - Show / Hide overrides until the chain next dips below 80%.
+      - On a fed 6h save the first helper moved up to y=513 on an iPhone
+        13 (the screen is 844 tall).
+- [x] **The Lamp Crew says why it's idle**
+      (`automation.lampCrewIdleReason`). A switched-on crew that can't
+      hire reads "waiting on the chain" when every affordable hire would
+      drop the beam below its floor, or "saving up" when nothing costs a
+      tenth of the Lumen yet. A tip explains each.
+- [x] `buyPerk` / `buyKindling` take a `log` flag, so Kindle all logs once.
+- [x] Tests: `tests/shopAndCrew.test.ts` (6). Rekindle moments and the
+      phone strip were checked in the browser.
