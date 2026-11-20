@@ -194,7 +194,7 @@ describe("lantern moths — attracting with lures", () => {
 });
 
 describe("lantern moths — duty", () => {
-  it("duty moths grant +(glow × 0.2)% production through the engine", () => {
+  it("duty moths add +(glow × 0.1)% to the thrown beam, not to the helpers", () => {
     const state = createInitialState();
     state.moths = [moth("a", "plain", 50), moth("b", "spotted", 30), moth("c", "striped", 90)];
     state.generators[crab.id] = 5; // 2.5/s base, chain still locked
@@ -202,13 +202,14 @@ describe("lantern moths — duty", () => {
     expect(toggleDuty(state, "a")).toBe(true);
     expect(toggleDuty(state, "b")).toBe(true);
     expect(dutyGlowTotal(state)).toBe(80);
-    expect(mothProductionMultiplier(state)).toBeCloseTo(1.16, 9);
-    // 2.5 × (1 + 80 × 0.002) = 2.9
-    expect(generatorProduction(state, crab).toNumber()).toBeCloseTo(2.9, 9);
-    expect(productionPerSecond(state).toNumber()).toBeCloseTo(2.9, 9);
+    expect(mothProductionMultiplier(state)).toBeCloseTo(1.08, 9);
+    // The helpers (and so the chain's demand) are untouched; the beam is
+    // 2.5 × (1 + 80 × 0.001) = 2.7.
+    expect(generatorProduction(state, crab).toNumber()).toBeCloseTo(2.5, 9);
+    expect(productionPerSecond(state).toNumber()).toBeCloseTo(2.7, 9);
     // Standing down removes the bonus:
     expect(toggleDuty(state, "a")).toBe(true);
-    expect(mothProductionMultiplier(state)).toBeCloseTo(1.06, 9);
+    expect(mothProductionMultiplier(state)).toBeCloseTo(1.03, 9);
   });
 
   it("at most 3 moths on duty", () => {
@@ -447,11 +448,12 @@ describe("bottle expeditions", () => {
 });
 
 describe("relic effects", () => {
-  it("Brass Compass +10% production, Salt Lens click ×1.5, Tide Chart support +15%", () => {
+  it("Brass Compass +5% to the beam, Salt Lens click ×1.5, Tide Chart support +15%", () => {
     const state = createInitialState();
     state.generators[crab.id] = 5; // 2.5/s
     state.relics = ["brass-compass"];
-    expect(generatorProduction(state, crab).toNumber()).toBeCloseTo(2.75, 9);
+    expect(generatorProduction(state, crab).toNumber()).toBeCloseTo(2.5, 9); // no extra demand
+    expect(productionPerSecond(state).toNumber()).toBeCloseTo(2.625, 9);
     state.relics = ["salt-lens"];
     expect(clickValue(state).toNumber()).toBe(1.5);
     state.generators[crab.id] = 10; // chain unlocked, First Light board 1/1/1

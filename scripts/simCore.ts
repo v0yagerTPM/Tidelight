@@ -97,6 +97,14 @@ export interface SimOptions {
    * on for the "keeper who buys everything" line of the report.
    */
   shop?: boolean;
+  /**
+   * Tuning shortcut: change the fresh state before the first second (give
+   * the bot moths on duty, relics or finished challenges, to measure what
+   * those systems are worth in hours).
+   */
+  setup?: (state: GameState) => void;
+  /** Tuning shortcut: called before every tick with the hours played, to grant things on a schedule. */
+  during?: (state: GameState, hours: number) => void;
 }
 
 export function runSim(opts: SimOptions = {}): SimResult {
@@ -108,6 +116,7 @@ export function runSim(opts: SimOptions = {}): SimResult {
   };
   const state: GameState = createInitialState(0);
   state.lastSeen = 0;
+  opts.setup?.(state);
   let runT = 0;
   let totalT = 0;
   let firstRekindleAt: number | null = null;
@@ -155,6 +164,7 @@ export function runSim(opts: SimOptions = {}): SimResult {
   while (secondRekindleAt === null && totalT < EARLY_CAP_SECONDS) {
     botBuyPhase(state, runT, hooks);
     if (runT < BOT_CLICK_WINDOW_SECONDS && runT % 2 === 0) clickBeam(state);
+    opts.during?.(state, totalT / 3600);
     tick(state, 1);
     runT++;
     totalT++;
@@ -227,6 +237,7 @@ export function runSim(opts: SimOptions = {}): SimResult {
       effWeighted += st.efficiency * dt;
       if (st.efficiency < 0.25) starvedTime += dt;
     }
+    opts.during?.(state, totalT / 3600);
     tick(state, dt);
     runT += dt;
     totalT += dt;

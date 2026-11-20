@@ -30,6 +30,7 @@ import {
   activeChallenge,
   canBuyGenerator,
   challengeById,
+  challengeGoal,
   challengeProgress,
   generatorLockedBy,
   startChallenge,
@@ -119,7 +120,7 @@ import {
   postMoth,
   recallMoth,
 } from "./game/moths";
-import { MOTH_TRAITS, dutyBonusOf, isAtSea, postBonusOf, postOf, postedMoth, riderOf, traitsOf } from "./game/mothTraits";
+import { DUTY_GLOW_BONUS, MOTH_TRAITS, dutyBonusOf, isAtSea, postBonusOf, postOf, postedMoth, riderOf, traitsOf } from "./game/mothTraits";
 import { ALMANAC_PATTERNS, ALMANAC_REWARDS, ALMANAC_SIZE, almanacHas, dutySlots, lureBankSize } from "./game/almanac";
 import { legacyMultiplier, startNgPlus } from "./game/ngplus";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
@@ -460,7 +461,7 @@ ${[
       <p class="muted"><span id="shop-held"></span></p>
       <div id="ember-shop" class="ember-shop"></div>
 
-      <h3 class="section-title">Challenges ${infoTip("Opt-in rule-changing runs. Starting one resets your run like a Rekindle, but grants no Embers. Reach the goal to bank a permanent reward; the run then continues. Abandoning resets the run with no reward.", "About challenges")}</h3>
+      <h3 class="section-title">Challenges ${infoTip("Opt-in rule-changing runs. Starting one resets your run like a Rekindle, but grants no Embers, and your held Embers rest (no production bonus) until it ends. Reach the goal to bank a permanent reward; the run then continues. Abandoning resets the run with no reward.", "About challenges")}</h3>
       <div id="challenges" class="trial-list"></div>
     </section>
 
@@ -939,7 +940,7 @@ function rebuildChallenges(): void {
         </div>
         <p class="trial-rule">${def.ruleText}</p>
         <dl class="trial-terms">
-          <div><dt>Goal</dt><dd>${fmt(def.goalLifetime)} lifetime Lumen in one run</dd></div>
+          <div><dt>Goal</dt><dd><span class="trial-goal" data-challenge="${def.id}">${fmt(challengeGoal(state, def))}</span> lifetime Lumen in one run${infoTip(`${fmt(def.goalLifetime)} for a new keeper, times your lasting bonuses other than Embers (perks, lit lighthouses), so it stays a real climb however strong you grow. Your Embers rest through a challenge run.`, "About the goal")}</dd></div>
           <div><dt>Reward</dt><dd><strong>${def.rewardName}</strong> — ${def.rewardText}</dd></div>
         </dl>`;
 
@@ -967,7 +968,7 @@ function rebuildChallenges(): void {
         });
       }
     } else {
-      html += `<button class="buy challenge-start" ${active ? "disabled" : ""}>Start challenge — resets your run, no Embers</button>
+      html += `<button class="buy challenge-start" ${active ? "disabled" : ""}>Start challenge — resets your run; your Embers rest</button>
         ${active ? `<div class="gen-note muted">Finish or abandon ${active.name} first.</div>` : ""}</div>`;
       card.innerHTML = html;
       const start = card.querySelector<HTMLButtonElement>(".challenge-start");
@@ -1303,7 +1304,7 @@ function mothDetail(onDuty: Set<string>): HTMLElement {
   const atSea = isAtSea(state, moth.id);
   const inCocoon = isCocoonParent(state, moth.id);
   const where = isDuty
-    ? `on duty: +${(dutyBonusOf(moth) * 100).toFixed(1)}% production`
+    ? `on duty: +${(dutyBonusOf(moth) * 100).toFixed(1)}% to the beam`
     : post
       ? `keeping watch at ${chainLighthouseById(post).name}: +${(postBonusOf(moth) * 100).toFixed(1)}% support there`
       : atSea
@@ -1504,7 +1505,7 @@ function updateShoreView(now: number): void {
   const roostLine = roostBar?.querySelector<HTMLElement>(".moth-roost-line");
   if (roostLine) {
     const duty = dutyMoths(state);
-    roostLine.textContent = `${state.moths.length}/${mothCapacity(state)} moths · ${duty.length}/${dutySlots(state)} on duty (+${(dutyGlowTotal(state) * 0.2).toFixed(1)}%) · ${state.wingScales} scale${state.wingScales === 1 ? "" : "s"}`;
+    roostLine.textContent = `${state.moths.length}/${mothCapacity(state)} moths · ${duty.length}/${dutySlots(state)} on duty (+${(dutyGlowTotal(state) * DUTY_GLOW_BONUS * 100).toFixed(1)}% to the beam) · ${state.wingScales} scale${state.wingScales === 1 ? "" : "s"}`;
   }
   // Dots on the Shore's pane buttons: something is waiting there.
   document.querySelector("#garden-dot")?.classList.toggle("hidden", !(state.cocoon && cocoonReady(state, now)));
@@ -2690,7 +2691,7 @@ function renderDynamic(): void {
   if (challengeBanner) {
     const progress = challengeProgress(state);
     if (progress) {
-      challengeBanner.textContent = `⚔ Challenge: ${progress.def.name} — ${fmt(progress.current)} / ${fmt(progress.goal)} lifetime Lumen. Tap for details.`;
+      challengeBanner.textContent = `⚔ Challenge: ${progress.def.name} — ${fmt(progress.current)} / ${fmt(progress.goal)} lifetime Lumen. Your Embers rest until it ends. Tap for details.`;
       challengeBanner.classList.remove("hidden");
     } else {
       challengeBanner.classList.add("hidden");
@@ -2851,7 +2852,7 @@ function renderDynamic(): void {
         : `Embers held (each: +${perEmberPct}% production)`;
   }
   if (hud.rkTotal) hud.rkTotal.textContent = fmt(state.embersTotalEarned);
-  if (hud.rkBonus) hud.rkBonus.textContent = bonusText(effectiveEmbers(state.embers) * perEmberPct);
+  if (hud.rkBonus) hud.rkBonus.textContent = state.activeChallenge !== null ? "resting" : bonusText(effectiveEmbers(state.embers) * perEmberPct);
   if (hud.rkAfter) {
     hud.rkAfter.textContent = state.activeChallenge !== null || gain < 1 ? "—" : bonusText(effectiveEmbers(state.embers + gain) * perEmberPct);
   }
@@ -2975,6 +2976,12 @@ function renderDynamic(): void {
   if (chKey !== challengeStructureKey) {
     challengeStructureKey = chKey;
     rebuildChallenges();
+  }
+  // Goals follow the keeper's lasting bonuses, so they refresh in place.
+  for (const el of challengeContainer?.querySelectorAll<HTMLElement>(".trial-goal") ?? []) {
+    const def = CHALLENGES.find((c) => c.id === el.dataset.challenge);
+    const text = def ? fmt(challengeGoal(state, def)) : "";
+    if (def && el.textContent !== text) el.textContent = text;
   }
   if (activeChallengeRefs) {
     const progress = challengeProgress(state);

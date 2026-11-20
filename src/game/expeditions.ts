@@ -23,7 +23,7 @@ import type { GameState } from "./types";
 // Rekindle and challenge resets.
 //
 // Relic effect wiring (helpers below, called from the system each modifies):
-//   brass-compass     → engine production ×1.1
+//   brass-compass     → engine.lampMultiplier: the thrown beam ×1.05
 //   tide-chart        → chain support ×1.15
 //   salt-lens         → engine click value ×1.5
 //   keepers-coat      → offline rate +5 points (upgrades.offlineRateFor, 90% cap)
@@ -73,7 +73,7 @@ export interface RelicDef {
   effect: string;
 }
 
-export const BRASS_COMPASS_PRODUCTION_MULTIPLIER = 1.1;
+export const BRASS_COMPASS_PRODUCTION_MULTIPLIER = 1.05;
 export const TIDE_CHART_SUPPORT_MULTIPLIER = 1.15;
 export const SALT_LENS_CLICK_MULTIPLIER = 1.5;
 export const KEEPERS_COAT_OFFLINE_RATE_BONUS = 0.05;
@@ -82,7 +82,7 @@ export const AMBER_HEART_GAIN_MULTIPLIER = 1.1;
 export const DRIFTWOOD_CRADLE_GLOW_BONUS = 5;
 
 export const RELICS: readonly RelicDef[] = [
-  { id: "brass-compass",     name: "Brass Compass",     effect: "All production +10%. It points at whatever light needs making." },
+  { id: "brass-compass",     name: "Brass Compass",     effect: "The thrown beam +5%. It points at whatever light needs making." },
   { id: "tide-chart",        name: "Tide Chart",       effect: "Chain support +15%. Every shoal and current, charted in a keeper's hand." },
   { id: "salt-lens",         name: "Salt Lens",        effect: "Flash the Beam click value ×1.5. Ground from the glass sea itself." },
   { id: "keepers-coat",      name: "Keeper's Coat",    effect: "Offline earnings rate +5 percentage points (hard cap 90%). It still smells of lamp oil and rain." },

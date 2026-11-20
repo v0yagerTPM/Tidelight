@@ -94,7 +94,7 @@ export function tutorialPages(): SplashPage[] {
       html: `
         <ul>
           <li>Hire a Lantern Moth helper to open the <strong>Moth Garden</strong>. Wild moths come on lures: you hold ${LURE_BANK}, and one regrows every ${LURE_REGROW_MS / 60_000} minutes.</li>
-          <li>Up to ${MAX_DUTY_MOTHS} moths on <strong>duty</strong> each add glow × ${(DUTY_GLOW_BONUS * 100).toFixed(1)}% to production. <strong>Breed</strong> two for brighter, rarer wings; post one at a lighthouse to strengthen its chain; fill the <strong>Wing Almanac</strong> for rewards.</li>
+          <li>Up to ${MAX_DUTY_MOTHS} moths on <strong>duty</strong> each add glow × ${(DUTY_GLOW_BONUS * 100).toFixed(1)}% to the beam, after the supply chain, so they never strain it. <strong>Breed</strong> two for brighter, rarer wings; post one at a lighthouse to strengthen its chain; fill the <strong>Wing Almanac</strong> for rewards.</li>
           <li>Send <strong>bottles</strong> out on the glass for Lumen, permanent <strong>relics</strong> and pieces of the story. A moth can ride along.</li>
           <li>Moths, relics and the story are yours for good: a Rekindle never touches them.</li>
         </ul>`,

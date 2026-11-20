@@ -36,7 +36,9 @@ hit the wall → **Rekindle** → relight faster and further.
    High / Glass Calm / Stormfront) bends production, clicking and chain
    support; the forecast is exact, so what you queue before bed matters.
 3. **Lantern-moth breeding** — individual moths with inherited wing
-   patterns; up to three on duty feed a global production bonus.
+   patterns; up to three on duty brighten the thrown beam (+glow × 0.1%
+   each), after the chain, and a moth posted at a lighthouse strengthens
+   its supply board.
 4. **Bottle expeditions** — bottles sent out return with Lumen caches,
    story fragments, and eight permanent relics — never just a timer and
    a chest.
@@ -62,8 +64,16 @@ hit the wall → **Rekindle** → relight faster and further.
   at 40 Embers**, so nobody falls for the genre's classic early-reset trap.
 - Embers are spendable in the Ember Shop (eight permanent perks) — the
   production bonus applies to **held** Embers only, so spending is a
-  real trade. Three opt-in challenges change the rules (half production,
-  no clicking, tiers 1–3 only) for permanent rewards.
+  real trade. Three opt-in challenges change the rules (half the thrown
+  beam, no clicking, tiers 1–3 only) for permanent rewards; held Embers
+  rest through a challenge run, so each stays a real climb.
+- **What the lamp's companions light.** Helpers make Lumen and the chain
+  must carry it. Beam levels, the tide, moths on duty, the Brass Compass
+  and the challenge lamps brighten the thrown beam after the chain and
+  never add to its load. (On the helpers, the chain took most of a
+  production bonus back: three perfect moths saved 2.5 of 47.5 bot
+  hours. On the beam, at half the rate, an engaged keeper's moths, relics
+  and challenges bring the ending from ~34 to ~24 hours.)
 - The deeper prestige layer is the **Next Keeping** (NG+), unlocked by
   the ending: a legacy bonus of ×(1 + 0.25 × Keepings) on production and
   +5 inherited Embers per Keeping (held only, never counted as earned).

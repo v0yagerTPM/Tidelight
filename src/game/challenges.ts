@@ -1,5 +1,7 @@
 import Decimal from "break_infinity.js";
 import { GENERATORS } from "./config";
+import { lastingMultiplierBesideEmbers } from "./engine";
+import { formatNumber } from "./format";
 import { resetRun } from "./prestige";
 import { addLog } from "./state";
 import type { GameState } from "./types";
@@ -15,9 +17,19 @@ import type { GameState } from "./types";
 // A completed challenge can never be run again for a second reward.
 //
 // Rules and rewards flow through the engine via the modifier helpers here:
-//   fogbound        rule ×0.5 all production      → reward "Fog Lamps": ×1.25 all production
-//   still-hands     rule clicking yields 0        → reward "Patient Keeper": ×1.2 all production
+//   fogbound        rule ×0.5 the thrown beam     → reward "Fog Lamps": ×1.125 the thrown beam
+//   still-hands     rule clicking yields 0        → reward "Patient Keeper": ×1.1 the thrown beam
 //   first-light-only rule only generator tiers 1–3 → reward "Humble Mastery": tiers 1–3 ×2
+// The fog and the two lamps act on the thrown beam, after the chain
+// (engine.lampMultiplier), so they never change what the chain must carry.
+//
+// EMBERS REST through a challenge run (engine.emberMultiplier), and each
+// goal grows with the rest of the keeper's lasting bonuses (Ember perks,
+// lit lighthouses, the legacy: challengeGoal). A keeper holding a million
+// Embers used to clear a 1,000,000-Lumen goal in its first second; now
+// each challenge is about the same climb at any point in the game (the
+// bot, from saves at 2.6h to 40h: Fogbound 52–87 minutes, Still Hands
+// 18–29, First Light Only 13–21).
 
 export interface ChallengeDef {
   id: string;
@@ -32,8 +44,8 @@ export interface ChallengeDef {
 }
 
 export const FOGBOUND_PRODUCTION_MULTIPLIER = 0.5;
-export const FOG_LAMPS_MULTIPLIER = 1.25;
-export const PATIENT_KEEPER_MULTIPLIER = 1.2;
+export const FOG_LAMPS_MULTIPLIER = 1.125;
+export const PATIENT_KEEPER_MULTIPLIER = 1.1;
 export const HUMBLE_MASTERY_MULTIPLIER = 2;
 /** Generators with a tier index below this are "the first three tiers". */
 export const EARLY_TIER_COUNT = 3;
@@ -42,9 +54,9 @@ export const CHALLENGES: readonly ChallengeDef[] = [
   {
     id: "fogbound",
     name: "Fogbound",
-    ruleText: "A sea-fog swallows half of everything: all production ×0.5 for the whole run.",
+    ruleText: "A sea-fog swallows half the light: the thrown beam ×0.5 for the whole run.",
     rewardName: "Fog Lamps",
-    rewardText: "All production +25%, permanently.",
+    rewardText: "The thrown beam +12.5%, permanently.",
     goalLifetime: 1_000_000,
   },
   {
@@ -52,7 +64,7 @@ export const CHALLENGES: readonly ChallengeDef[] = [
     name: "Still Hands",
     ruleText: "The keeper's hands must rest: Flash the Beam yields 0 Lumen for the whole run.",
     rewardName: "Patient Keeper",
-    rewardText: "All production +20%, permanently.",
+    rewardText: "The thrown beam +10%, permanently.",
     goalLifetime: 250_000,
   },
   {
@@ -82,8 +94,9 @@ export function isChallengeCompleted(state: GameState, id: string): boolean {
 // ── Modifiers (read by the engine on every calculation) ─────────────────────
 
 /**
- * Global production multiplier from challenges: the active rule (Fogbound
- * ×0.5) times every banked reward (Fog Lamps ×1.25, Patient Keeper ×1.2).
+ * The challenges' share of the lamp (engine.lampMultiplier, on the thrown
+ * beam after the chain): the active rule (Fogbound ×0.5) times every
+ * banked reward (Fog Lamps ×1.125, Patient Keeper ×1.1).
  */
 export function challengeProductionMultiplier(state: GameState): number {
   let mult = 1;
@@ -132,19 +145,32 @@ export interface ChallengeProgress {
   def: ChallengeDef;
   /** This run's lifetime Lumen so far. */
   current: Decimal;
-  goal: number;
+  goal: Decimal;
   /** 0–1, for the progress bar. */
   fraction: number;
+}
+
+/**
+ * The lifetime Lumen a challenge asks of this keeper: its base goal × the
+ * keeper's lasting bonuses other than Embers (which rest through the run):
+ * Ember perks, lit lighthouses, the legacy. Those are how much faster this
+ * keeper's first helpers produce than a new keeper's, so the climb stays
+ * about the same at any point in the game. Live: relighting a lighthouse
+ * mid-run raises the goal as much as it raises production.
+ */
+export function challengeGoal(state: GameState, def: ChallengeDef): Decimal {
+  return new Decimal(def.goalLifetime).mul(lastingMultiplierBesideEmbers(state)).ceil();
 }
 
 export function challengeProgress(state: GameState): ChallengeProgress | null {
   const def = activeChallenge(state);
   if (!def) return null;
+  const goal = challengeGoal(state, def);
   return {
     def,
     current: state.lifetimeLumen,
-    goal: def.goalLifetime,
-    fraction: Math.min(1, state.lifetimeLumen.div(def.goalLifetime).toNumber()),
+    goal,
+    fraction: Math.min(1, state.lifetimeLumen.div(goal).toNumber()),
   };
 }
 
@@ -162,7 +188,7 @@ export function startChallenge(state: GameState, id: string): boolean {
   resetRun(state);
   addLog(
     state,
-    `Challenge begun — ${def.name}: ${def.ruleText} Reach ${def.goalLifetime.toLocaleString("en-US")} lifetime Lumen to earn ${def.rewardName}.`,
+    `Challenge begun — ${def.name}: ${def.ruleText} Reach ${formatNumber(challengeGoal(state, def))} lifetime Lumen to earn ${def.rewardName}.`,
   );
   return true;
 }
@@ -189,7 +215,7 @@ export function abandonChallenge(state: GameState): boolean {
 export function checkChallengeCompletion(state: GameState): boolean {
   const def = activeChallenge(state);
   if (!def) return false;
-  if (state.lifetimeLumen.lt(def.goalLifetime)) return false;
+  if (state.lifetimeLumen.lt(challengeGoal(state, def))) return false;
   state.activeChallenge = null;
   state.completedChallenges.push(def.id);
   addLog(
