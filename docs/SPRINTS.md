@@ -1205,3 +1205,34 @@ glass.
       waymarks.
 - [x] Tests: `tests/crossing.test.ts` (new). The lighthouse, story-count
       and save-version tests are updated.
+
+## ✅ Post-launch — Tides dealt like weather
+
+From the design review. Each 30-minute tide was an independent weighted
+draw, so 26% of turns repeated the tide before them. The strip read
+"Glass Calm · next: Glass Calm" often enough to look like a bug, and a
+run of the same tide said nothing about the weather.
+
+- [x] **A shuffled bag** (`tides.ts tideCycle`). Every 20 buckets (10
+      hours) hold exactly each tide's weighted share: 6 Low, 6 High, 5
+      Glass Calm, 3 Stormfront (`tideCycleCounts`, from the existing
+      weights). The order is laid out from a seed of the cycle index, so
+      it is the same sea for every keeper and the forecast stays exact.
+- [x] **Never twice in a row.** Inside a cycle, each tide is drawn by
+      remaining count among those that differ from the one before (a
+      small backtracking search). At the seams, every cycle opens on Low
+      or High Tide and closes on Glass Calm or a Stormfront. That rule
+      keeps any cycle from needing the one before it, so any time can be
+      computed directly.
+- [x] **Cheap:** laying out a cycle takes ~5 µs, and a cached `tideAt`
+      ~31 ns. The last 8 cycles are kept.
+- [x] **Copy:** README, DESIGN and the tutorial's tide line.
+- [x] **No balance change:** the sim and offline earnings are
+      tide-neutral, and the long-run shares are the same as before.
+- [x] Tests: three in `tests/sprint4.test.ts`:
+      - no repeats across 5,000 buckets, seams included;
+      - exact counts, openers and closers over 50 cycles;
+      - cycles independent of the cache.
+
+      The chain-flow scene test now picks a time whose tide leaves support
+      alone, instead of assuming one.

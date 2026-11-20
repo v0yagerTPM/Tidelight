@@ -45,7 +45,10 @@ import { mulberry32 } from "../src/game/rng";
 import { createInitialState, deserializeState, serializeState } from "../src/game/state";
 import {
   TIDE_BUCKET_MS,
+  TIDE_CYCLE_LENGTH,
   tideAt,
+  tideCycle,
+  tideCycleCounts,
   tideForecast,
   type TideId,
 } from "../src/game/tides";
@@ -667,5 +670,41 @@ describe("permanence & save migration (v4 → v5)", () => {
     const cleaned = deserializeState(junk);
     expect(cleaned?.mothDuty).toEqual(["m1"]);
     expect(cleaned?.cocoon).toBeNull();
+  });
+});
+
+describe("the tide sequence: a shuffled bag", () => {
+  const start = Math.floor(1_700_000_000_000 / TIDE_BUCKET_MS); // an arbitrary bucket
+
+  it("never deals the same tide twice in a row, across cycle seams too", () => {
+    let repeats = 0;
+    for (let b = start; b < start + 5_000; b++) {
+      if (tideAt(b * TIDE_BUCKET_MS).def.id === tideAt((b + 1) * TIDE_BUCKET_MS).def.id) repeats++;
+    }
+    expect(repeats).toBe(0);
+  });
+
+  it("every 10-hour cycle holds exactly each tide's share: 6 Low, 6 High, 5 Glass Calm, 3 Stormfront", () => {
+    expect(TIDE_CYCLE_LENGTH * (TIDE_BUCKET_MS / 3_600_000)).toBe(10);
+    expect(tideCycleCounts()).toEqual({ low: 6, high: 6, calm: 5, storm: 3 });
+    const first = Math.ceil(start / TIDE_CYCLE_LENGTH);
+    for (let c = first; c < first + 50; c++) {
+      const ids = tideCycle(c);
+      expect(ids).toHaveLength(TIDE_CYCLE_LENGTH);
+      const counts = { low: 0, high: 0, calm: 0, storm: 0 };
+      for (const id of ids) counts[id]++;
+      expect(counts).toEqual({ low: 6, high: 6, calm: 5, storm: 3 });
+      expect(["low", "high"]).toContain(ids[0]);
+      expect(["calm", "storm"]).toContain(ids[ids.length - 1]);
+      // tideAt reads the same cycle, bucket by bucket.
+      ids.forEach((id, i) => expect(tideAt((c * TIDE_CYCLE_LENGTH + i) * TIDE_BUCKET_MS).def.id).toBe(id));
+    }
+  });
+
+  it("is the same sea for every keeper: cycles don't depend on what was asked before", () => {
+    const c = Math.ceil(start / TIDE_CYCLE_LENGTH) + 7;
+    const a = [...tideCycle(c)];
+    for (let k = 0; k < 20; k++) tideCycle(c + 100 + k); // push it out of the cache
+    expect(tideCycle(c)).toEqual(a);
   });
 });

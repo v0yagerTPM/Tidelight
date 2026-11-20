@@ -2,6 +2,7 @@ import Decimal from "break_infinity.js";
 import { describe, expect, it } from "vitest";
 import { CHAIN_LIGHTHOUSES, HOLLOW_LIGHT_ID } from "../src/game/config";
 import { createInitialState, startBoard } from "../src/game/state";
+import { TIDE_BUCKET_MS, tideAt } from "../src/game/tides";
 import {
   MOTH_WING_COLORS,
   buildChainFlowModel,
@@ -110,7 +111,10 @@ describe("chain flow model", () => {
     const state = createInitialState();
     state.generators["candle-crab"] = 10;
     state.generators["tide-bell"] = 1; // 22/s: wick 20 (91%), oil 15 (68%), lens 10 (45%)
-    const m = buildChainFlowModel(state, NOW);
+    // A tide that leaves chain support alone (Low Tide ×1.2 and a Stormfront ×0.8 would move it).
+    let at = NOW;
+    while (["low", "storm"].includes(tideAt(at).def.id)) at += TIDE_BUCKET_MS;
+    const m = buildChainFlowModel(state, at);
     expect(m.unlocked).toBe(true);
     const [wick, oil, lens] = m.nodes;
     expect(wick.flow).toBeCloseTo(20 / 22, 6);
