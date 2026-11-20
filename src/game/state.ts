@@ -6,6 +6,7 @@ import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, GENERATORS, HOLLOW_L
 // addLog from here.
 import { CHALLENGES } from "./challenges";
 import { EMBER_PERKS, KINDLINGS, RETIRED_PERKS } from "./emberShop";
+import { GUIDE_PAGE_IDS } from "./guide";
 import { RELICS } from "./expeditions";
 import { STORY_BEATS } from "./story";
 import { UPGRADES } from "./upgrades";
@@ -22,9 +23,9 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 /** Older saves (Sprint 0 = v1 … Chain Steward = v11) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 /** supply.ts STEWARD_SHARES / STEWARD_TARGETS (literal: this module stays a leaf). */
 const STEWARD_SHARE_CHOICES: readonly number[] = [0.1, 0.25, 0.5];
 const STEWARD_TARGET_CHOICES: readonly number[] = [0.8, 0.9, 1];
@@ -257,6 +258,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     totalGeneratorsBought: 0,
     totalRekindles: 0,
     playTimeSeconds: 0,
+    guideSeen: [],
     lastSeen: now,
     log: [{ at: now, message: "You arrive at Candlewick Point. The lamp is cold. The sea is glass." }],
   };
@@ -320,6 +322,7 @@ export function serializeState(state: GameState): SavedState {
     totalGeneratorsBought: state.totalGeneratorsBought,
     totalRekindles: state.totalRekindles,
     playTimeSeconds: state.playTimeSeconds,
+    guideSeen: [...state.guideSeen],
     lastSeen: state.lastSeen,
     log: state.log.map((e) => ({ ...e })),
   };
@@ -445,6 +448,11 @@ export function deserializeState(raw: unknown): GameState | null {
       totalGeneratorsBought: sanitizeCount(s.totalGeneratorsBought),
       totalRekindles: sanitizeCount(s.totalRekindles),
       playTimeSeconds: typeof s.playTimeSeconds === "number" && Number.isFinite(s.playTimeSeconds) ? Math.max(0, s.playTimeSeconds) : 0,
+      // v14: the guide opens a page at a time. A save from before it read
+      // the whole guide up front, so it counts every page as read.
+      guideSeen: Array.isArray(s.guideSeen)
+        ? GUIDE_PAGE_IDS.filter((id) => (s.guideSeen as unknown[]).includes(id))
+        : [...GUIDE_PAGE_IDS],
       lastSeen: typeof s.lastSeen === "number" && Number.isFinite(s.lastSeen) ? s.lastSeen : Date.now(),
       log: sanitizeLog(s.log),
     };

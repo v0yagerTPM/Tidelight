@@ -145,6 +145,8 @@ export interface GameState {
   totalGeneratorsBought: number;
   totalRekindles: number;
   playTimeSeconds: number;
+  /** Guide pages read (game/guide.ts GUIDE_PAGE_IDS). Older saves count as having read them all. */
+  guideSeen: string[];
   /** Unix timestamp (ms) of the last save/tick — the offline-earnings anchor. */
   lastSeen: number;
   log: LogEntry[];
@@ -197,6 +199,8 @@ export interface SavedState {
   totalGeneratorsBought: number;
   totalRekindles: number;
   playTimeSeconds: number;
+  /** v14: guide pages read; absent in older saves (they read the whole guide up front). */
+  guideSeen?: string[];
   lastSeen: number;
   log: LogEntry[];
 }
