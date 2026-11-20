@@ -1,5 +1,5 @@
 import Decimal from "break_infinity.js";
-import { CHAIN_NODE_IDS, GENERATORS, type ChainNodeId } from "./config";
+import { CHAIN_NODE_IDS, GENERATORS, WAYMARKS, type ChainNodeId } from "./config";
 import {
   buyNodeUpgrade,
   chainStatus,
@@ -163,6 +163,8 @@ export interface BotHooks {
   onUpgradeBought?: (id: string) => void;
   /** Called with the lighthouse id whenever the bot relights one. */
   onLighthouseLit?: (id: string, tSeconds: number) => void;
+  /** Called with the waymark id whenever the bot lights one of the Crossing. */
+  onWaymarkLit?: (id: string, tSeconds: number) => void;
 }
 
 export interface BotBuyOptions {
@@ -224,8 +226,11 @@ export function botBuyPhase(
   const reserve = options.reserveLumen ?? new Decimal(0);
   for (let guard = 0; guard < 10_000; guard++) {
     const nextId = nextLighthouseId(state);
+    const crossing = state.crossing;
     if (nextId && relightLighthouse(state, nextId)) {
-      hooks.onLighthouseLit?.(nextId, tSeconds);
+      // The Hollow Light's relight lights the Crossing's waymarks first.
+      if (state.crossing > crossing) hooks.onWaymarkLit?.(WAYMARKS[crossing].id, tSeconds);
+      else hooks.onLighthouseLit?.(nextId, tSeconds);
       continue;
     }
     // Chain feeding: bottleneck first, cheapest board, up to the feed

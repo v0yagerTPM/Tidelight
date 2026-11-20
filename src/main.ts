@@ -19,6 +19,7 @@ import {
   HOLLOW_LIGHT_ID,
   MILESTONE_THRESHOLDS,
   PRESTIGE_RECOMMENDED_EMBERS,
+  WAYMARKS,
   chainLighthouseById,
   effectiveEmbers,
   milestoneMultiplier,
@@ -1776,7 +1777,27 @@ let nodeRows = new Map<ChainNodeId, NodeRowRefs>();
 // rebuild per level redrew the whole tab every few seconds.
 function lighthouseStructureKey(): string {
   const unlocked = totalGeneratorsOwned(state) >= CHAIN_UNLOCK_GENERATORS;
-  return `${state.litLighthouses.join(",")}|${selectedBoardId}|${unlocked}`;
+  return `${state.litLighthouses.join(",")}|${state.crossing}|${selectedBoardId}|${unlocked}`;
+}
+
+/**
+ * The Crossing, on The Hollow Light's card while it is the next light: the
+ * three waymarks in order, lit, next or dark, with what each grants.
+ */
+function crossingHtml(): string {
+  const rows = WAYMARKS.map((w, i) => {
+    const lit = i < state.crossing;
+    const next = i === state.crossing;
+    return `<li class="waymark${lit ? " lit" : next ? " next" : ""}"><span class="wm-mark" aria-hidden="true">${lit ? "◆" : "◇"}</span><span class="wm-name"${tipAttr(w.hint)}>${w.name}</span><span class="wm-reward">${lit ? `Lit ✓ — ${w.reward}` : w.reward}</span></li>`;
+  }).join("");
+  const left = WAYMARKS.length - state.crossing;
+  const lead =
+    left > 0
+      ? left === 1
+        ? "One waymark left on the deep glass, and then the tower itself."
+        : `The way out runs across the deep glass. Light ${left === WAYMARKS.length ? "its three waymarks" : `the ${left} waymarks left`}, in order, before the tower itself.`
+      : "Every waymark burns. The tower is all that's left.";
+  return `<div class="crossing"><p class="crossing-lead"><strong>The Crossing.</strong> ${lead}</p><ol class="waymarks">${rows}</ol></div>`;
 }
 
 function rebuildLighthouses(): void {
@@ -1804,6 +1825,7 @@ function rebuildLighthouses(): void {
       card.innerHTML = `
         <div class="gen-name"><span class="lh-num">${i + 1}</span> <span class="lh-name"${tipAttr(def.hint)}>${def.name}</span></div>
         ${isNextCard && bonus ? `<p class="lh-grants">Relighting it grants: ${bonus}</p>` : ""}
+        ${isNextCard && def.id === HOLLOW_LIGHT_ID ? crossingHtml() : ""}
         ${lit ? `<p class="learned">Lit ✓${bonus ? ` — ${bonus}` : ""}</p>` : ""}`;
       if (!lit && def.id === relightTargetId) {
         const buyWrap = document.createElement("div");
@@ -1812,10 +1834,19 @@ function rebuildLighthouses(): void {
         relightBtn = buyWrap.querySelector<HTMLButtonElement>(".buy");
         relightNote = buyWrap.querySelector<HTMLElement>(".gen-note");
         relightBtn?.addEventListener("click", () => {
+          const crossing = state.crossing;
           if (relightLighthouse(state, def.id, Date.now())) {
-            selectedBoardId = def.id;
             checkStory(state);
             saveState(state);
+            if (state.crossing > crossing) {
+              // A waymark of the Crossing, not the tower itself.
+              renderDynamic();
+              const w = WAYMARKS[crossing];
+              sound.bell();
+              playMoment("waymark", `The Crossing · waymark ${crossing + 1} of ${WAYMARKS.length}`, `${w.name} burns`, `Permanently: ${w.reward}.`);
+              return;
+            }
+            selectedBoardId = def.id;
             renderDynamic();
             if (def.triggersEnding) {
               sound.bell(true);
@@ -1840,7 +1871,8 @@ function rebuildLighthouses(): void {
           def.efficiencyRequirement > 0
             ? ` · needs beam efficiency ≥ ${def.efficiencyRequirement < 0.01 ? `${(def.efficiencyRequirement * 100).toFixed(1)}%` : `${Math.round(def.efficiencyRequirement * 100)}%`}`
             : "";
-        card.innerHTML += `<p class="muted">Dark — after ${prev?.name ?? "the previous light"} · ${fmt(def.relightCost)} Lumen${gate}${bonus ? ` · grants ${bonus}` : ""}</p>`;
+        const crossing = def.id === HOLLOW_LIGHT_ID ? ` · reached by the Crossing: ${WAYMARKS.length} waymarks on the deep glass first` : "";
+        card.innerHTML += `<p class="muted">Dark — after ${prev?.name ?? "the previous light"}${crossing} · ${fmt(def.relightCost)} Lumen${gate}${bonus ? ` · grants ${bonus}` : ""}</p>`;
       }
       lhList.appendChild(card);
     });
@@ -1952,7 +1984,8 @@ function updateChainView(): void {
     const def = chainLighthouseById(relightTargetId);
     relightBtn.disabled = !ls.canRelight;
     relightBtn.classList.toggle("affordable", ls.canRelight);
-    relightBtn.textContent = `Relight — ${fmt(ls.cost)} Lumen`;
+    const label = ls.waymark ? `Light ${ls.waymark.name} — ${fmt(ls.cost)} Lumen` : `Relight — ${fmt(ls.cost)} Lumen`;
+    if (relightBtn.textContent !== label) relightBtn.textContent = label;
     const reasons: string[] = [];
     if (!ls.previousLit && ls.previousId) {
       reasons.push(`relight ${chainLighthouseById(ls.previousId).name} first`);
@@ -1974,7 +2007,7 @@ function updateChainView(): void {
       );
     }
     relightNote.textContent = ls.canRelight
-      ? `${def.name} is within reach of your beam.`
+      ? `${ls.waymark?.name ?? def.name} is within reach of your beam.`
       : reasons.join(" · ");
   }
 
@@ -2264,7 +2297,7 @@ let momentTimer: number | undefined;
 let momentReturnFocus: Element | null = null;
 
 /** When each moment's words appear (s), after the picture has had its say. */
-const MOMENT_TEXT_DELAY: Record<MomentKind, number> = { rekindle: 2.2, relight: 1.2, ending: 4.6 };
+const MOMENT_TEXT_DELAY: Record<MomentKind, number> = { rekindle: 2.2, relight: 1.2, waymark: 1.2, ending: 4.6 };
 
 /**
  * Play a moment over the whole screen. It closes on Continue, a click, or

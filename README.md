@@ -19,7 +19,7 @@ use Export / Import in the Log tab to carry a save between devices.
 ## Status
 
 **Sprint 5 — complete. All five sprints shipped.** All seven
-lighthouses relightable in order, a 21-beat story in three acts, the
+lighthouses relightable in order, a 27-beat story in three acts, the
 ending, New Game+ ("the Next Keeping"), and the Keeper's Desk with
 save export/import. The full design lives in
 [docs/DESIGN.md](docs/DESIGN.md); the build roadmap is in
@@ -82,10 +82,16 @@ a hearth whose fire grows with the Embers you'd bank.
   Chain Steward), The Bellwether (Ember gain +25%), Siren's Rest (better offline
   earnings, +4h cap), and The Hollow Light (+150% — and the ending).
   The gates climb from 50% to 80% beam efficiency, so the far lights
-  need a well-fed chain. Every lit lighthouse adds its own chain board,
+  need a well-fed chain. The Hollow Light is reached by **the
+  Crossing**: three waymarks on the deep glass, lit in order through its
+  Relight button, each with its own story beat and gift: The Drowned
+  Bell (chain support +25%), The Glass Stair (the thrown beam +25%) and
+  The Last Lantern (one more moth can stand duty). They stand on the
+  coast panorama between Siren's Rest and The Hollow Light, stay lit
+  through Rekindle, and go dark with the lighthouses in a Next Keeping. Every lit lighthouse adds its own chain board,
   working at a bigger scale. Lighthouses stay lit through Rekindle;
   chain boards reset.
-- **The story** — 21 beats in three acts ("The Dark Shore", "The Hollow
+- **The story** — 27 beats in three acts ("The Dark Shore", "The Hollow
   Sea", "The Relighting") that arrive as you play: the first moth, the
   first relic, each lighthouse, the ending itself. Collected beats live
   at the top of the Log, readable in full; the ones you haven't reached
@@ -167,7 +173,7 @@ a hearth whose fire grows with the Embers you'd bank.
   ready; Scented lure shows your scales toward the 8 it needs.
 - **A price ceiling** — no single purchase (upgrade, relight, roost
   expansion or rush lure) costs more than The Hollow Light's relight,
-  640.00Oc: a keeper who has lit it can afford anything.
+  4.00No: a keeper who has lit it can afford anything.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache, a
   story fragment for the Log, and maybe one of eight permanent RELICS —
@@ -191,8 +197,9 @@ a hearth whose fire grows with the Embers you'd bank.
   reaches the first Rekindle in ~70 minutes and the second ~50 minutes
   later, then simply plays on — growing, keeping the chain fed, saving
   for each light as it comes within reach — and relights the coast at
-  2.9h, 6.7h, 12.7h, 20.3h and 32.0h, reaching the ending at ~48
-  simulated hours (each gap about 1.4× the last) with all nine generator tiers hired, without buying
+  2.9h, 6.7h, 12.7h, 20.3h and 32.0h, crosses the deep glass by the
+  three waymarks at 35.8h, 39.3h and 42.8h, and reaches the ending at
+  ~47 simulated hours (each gap between lights about 1.4× the last) with all nine generator tiers hired, without buying
   perks, running challenges, keeping moths, sending bottles or minding
   the tides. Real keepers will be faster; the bot is the pessimistic
   bound.

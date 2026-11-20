@@ -2,6 +2,7 @@ import Decimal from "break_infinity.js";
 import {
   CLICK_LUMEN,
   GENERATORS,
+  GLASS_STAIR_BEAM_MULTIPLIER,
   MILESTONE_THRESHOLDS,
   effectiveEmbers,
   generatorById,
@@ -109,9 +110,9 @@ export function lastingMultiplierBesideEmbers(state: GameState): Decimal {
 }
 
 /**
- * The lamp's companions: moths on duty, the Brass Compass relic, and the
+ * The lamp's companions: moths on duty, the Brass Compass relic, the
  * challenge lamps (Fog Lamps, Patient Keeper, and Fogbound's fog while it
- * lies). Like Beam levels and the tide they brighten the THROWN beam, after
+ * lies) and the Glass Stair (the Crossing's second waymark). Like Beam levels and the tide they brighten the THROWN beam, after
  * the chain, so they never add to what the chain must carry.
  *
  * Why (design review): applied to the helpers' output, every one of them
@@ -123,7 +124,8 @@ export function lastingMultiplierBesideEmbers(state: GameState): Decimal {
 export function lampMultiplier(state: GameState): Decimal {
   return new Decimal(mothProductionMultiplier(state))
     .mul(relicProductionMultiplier(state))
-    .mul(challengeProductionMultiplier(state));
+    .mul(challengeProductionMultiplier(state))
+    .mul(state.crossing >= 2 ? GLASS_STAIR_BEAM_MULTIPLIER : 1);
 }
 
 /**

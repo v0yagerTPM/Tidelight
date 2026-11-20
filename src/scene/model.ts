@@ -1,4 +1,4 @@
-import { CHAIN_LIGHTHOUSES, HOLLOW_LIGHT_ID, type SupplyNodeId } from "../game/config";
+import { CHAIN_LIGHTHOUSES, HOLLOW_LIGHT_ID, WAYMARKS, type SupplyNodeId } from "../game/config";
 import { hasAlmanacReward } from "../game/almanac";
 import { chainStatus, lighthouseStatus, nextLighthouseId } from "../game/chain";
 import { productionPerSecond } from "../game/engine";
@@ -129,8 +129,18 @@ export interface CoastTower {
   readiness: number;
 }
 
+/** A waymark of the Crossing, between Siren's Rest and The Hollow Light. */
+export interface CoastWaymark {
+  lit: boolean;
+  /** The next step toward The Hollow Light. */
+  isNext: boolean;
+  /** For the next waymark: 0–1, as for the next tower. */
+  readiness: number;
+}
+
 export interface CoastModel {
   towers: CoastTower[];
+  waymarks: CoastWaymark[];
   seaIsWater: boolean;
   tide: TideId;
 }
@@ -144,11 +154,20 @@ export function buildCoastModel(state: GameState, now: number): CoastModel {
     const effPart = !ls.chainUnlocked ? 0 : ls.efficiencyRequired <= 0 ? 1 : Math.min(1, ls.efficiency / ls.efficiencyRequired);
     nextReadiness = Math.max(0, Math.min(costPart, effPart));
   }
+  // While the Crossing is unfinished, the next step toward The Hollow Light
+  // is a waymark: it carries the readiness, and the tower waits.
+  const crossingNext = next === HOLLOW_LIGHT_ID && state.crossing < WAYMARKS.length;
   return {
     towers: CHAIN_LIGHTHOUSES.map((def) => {
       const lit = state.litLighthouses.includes(def.id);
       const isNext = def.id === next;
-      return { id: def.id, name: def.name, lit, isNext, readiness: lit ? 1 : isNext ? nextReadiness : 0 };
+      const readiness = lit ? 1 : isNext && !crossingNext ? nextReadiness : 0;
+      return { id: def.id, name: def.name, lit, isNext, readiness };
+    }),
+    waymarks: WAYMARKS.map((_, i) => {
+      const lit = i < state.crossing;
+      const isNext = crossingNext && i === state.crossing;
+      return { lit, isNext, readiness: lit ? 1 : isNext ? nextReadiness : 0 };
     }),
     seaIsWater: state.litLighthouses.includes(HOLLOW_LIGHT_ID),
     tide: tideAt(now).def.id,

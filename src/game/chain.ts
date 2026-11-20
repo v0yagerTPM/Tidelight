@@ -5,17 +5,20 @@ import {
   CHAIN_LIGHTHOUSES,
   CHAIN_NODES,
   CHAIN_UNLOCK_GENERATORS,
+  DROWNED_BELL_SUPPORT_MULTIPLIER,
   FIRST_LIGHT_ID,
   FIRST_LIGHT_WARMTH,
   GULL_ROCK_ID,
   HOLLOW_LIGHT_ID,
   SUPPLY_NODE_IDS,
+  WAYMARKS,
   chainLighthouseById,
   litProductionMultiplier,
   litSupportMultiplier,
   previousLighthouseId,
   type ChainNodeId,
   type SupplyNodeId,
+  type WaymarkDef,
 } from "./config";
 // NOTE: engine ↔ chain is a deliberate, call-time-only cycle. Engine's
 // productionPerSecond applies this module's chain factor and beam bonus;
@@ -184,9 +187,9 @@ export function totalSupport(state: GameState, nodeId: SupplyNodeId, now?: numbe
     .mul(upgradeSupportMultiplier(state, nodeId));
 }
 
-/** Multiplicative support bonus from lit lighthouses (Widow's Walk ×1.5). */
+/** Multiplicative support bonus from lit lighthouses (Widow's Walk ×1.5) and the Drowned Bell (×1.25). */
 export function lighthouseSupportMultiplier(state: GameState): number {
-  return litSupportMultiplier(state.litLighthouses);
+  return litSupportMultiplier(state.litLighthouses) * (state.crossing >= 1 ? DROWNED_BELL_SUPPORT_MULTIPLIER : 1);
 }
 
 /**
@@ -341,6 +344,16 @@ export interface LighthouseStatus {
   efficiencyOk: boolean;
   affordable: boolean;
   canRelight: boolean;
+  /**
+   * For The Hollow Light while the Crossing is unfinished: the waymark its
+   * Relight lights next (cost and gates are that step's). Null otherwise.
+   */
+  waymark: WaymarkDef | null;
+}
+
+/** The waymark of the Crossing still to light, or null once all three burn. */
+export function nextWaymark(state: GameState): WaymarkDef | null {
+  return state.crossing < WAYMARKS.length ? WAYMARKS[state.crossing] : null;
 }
 
 /** The relight cost of a lighthouse for this keeper. */
@@ -348,6 +361,9 @@ export function relightCost(state: GameState, lighthouseId: string): Decimal {
   // Friend of Gulls (Ember perk, Sprint 3) halves Gull Rock's cost — and
   // only Gull Rock's; the gulls have no cousins further out.
   if (lighthouseId === GULL_ROCK_ID) return gullRockRelightCost(state);
+  // The Hollow Light is reached by the Crossing: its next step is a waymark.
+  const waymark = lighthouseId === HOLLOW_LIGHT_ID ? nextWaymark(state) : null;
+  if (waymark) return new Decimal(waymark.cost);
   return new Decimal(chainLighthouseById(lighthouseId).relightCost ?? 0);
 }
 
@@ -372,6 +388,7 @@ export function lighthouseStatus(state: GameState, lighthouseId: string, now?: n
     efficiencyOk,
     affordable,
     canRelight: !lit && previousLit && status.unlocked && efficiencyOk && affordable,
+    waymark: lighthouseId === HOLLOW_LIGHT_ID && !lit ? nextWaymark(state) : null,
   };
 }
 
@@ -383,6 +400,12 @@ export function nextLighthouseId(state: GameState): string | null {
   return null;
 }
 
+const WAYMARK_LOG_LINES: Record<string, string> = {
+  "drowned-bell": "The Drowned Bell rings across the deep glass, the first time in a hundred years, and the supply boats steer by it now. (chain support +25%)",
+  "glass-stair": "The Glass Stair is lit, lantern by lantern, and the glass steps throw your beam further than any tower could. (the thrown beam +25%)",
+  "last-lantern": "The Last Lantern burns within sight of The Hollow Light's door, and a moth settles on its handle to keep watch. (one more moth can stand duty)",
+};
+
 const RELIGHT_LOG_LINES: Record<string, string> = {
   [GULL_ROCK_ID]: "Gull Rock Light burns again — every flame you tend burns half again as bright. (+50% production)",
   "cormorant-roost": "Cormorant Roost burns again — the cormorants approve, in their hundreds, all facing the light. (+75% production)",
@@ -393,7 +416,9 @@ const RELIGHT_LOG_LINES: Record<string, string> = {
 };
 
 /**
- * Relight a lighthouse: permanent bonuses and a fresh chain board.
+ * Relight a lighthouse: permanent bonuses and a fresh chain board. For
+ * The Hollow Light, each relight first lights the next waymark of the
+ * Crossing (config.ts WAYMARKS); the tower itself comes after all three.
  * Enforces the full gate — order, chain awake, efficiency, cost — and
  * returns true on success. Lighting The Hollow Light also sets
  * state.endingSeen: the ending has been witnessed.
@@ -406,6 +431,13 @@ export function relightLighthouse(state: GameState, lighthouseId: string, now?: 
   const status = lighthouseStatus(state, lighthouseId, now);
   if (!status.canRelight) return false;
   state.lumen = state.lumen.sub(status.cost);
+  // The Crossing: until its three waymarks burn, The Hollow Light's relight
+  // lights the next one instead (permanent, no chain board).
+  if (status.waymark) {
+    state.crossing += 1;
+    addLog(state, WAYMARK_LOG_LINES[status.waymark.id] ?? `${status.waymark.name} burns on the deep glass. (${status.waymark.reward})`);
+    return true;
+  }
   state.litLighthouses.push(lighthouseId);
   state.chainBoards[lighthouseId] = startBoard(lighthouseId);
   const def = chainLighthouseById(lighthouseId);

@@ -52,7 +52,11 @@ hit the wall → **Rekindle** → relight faster and further.
    with Gull Rock, Storm Lanterns with Cormorant Roost, Beacon Whales
    with Widow's Walk, The Seventh Light with Siren's Rest — so the
    economy climbs a staircase with the story instead of leaping ahead
-   of it.
+   of it. The last light is reached by **the Crossing**: three waymarks
+   on the deep glass between Siren's Rest and The Hollow Light, lit in
+   order (with The Hollow Light's gates), each with a story beat and a
+   different gift (chain support, the thrown beam, a duty slot), so the
+   final stretch has steps in it rather than one long save.
 
 ## Prestige — Rekindle
 
@@ -101,16 +105,17 @@ returned bottle, when the Shore has news.
 - Full story: **35–50 hours** of engaged play to the ending, then the
   Next Keeping endless mode. The same no-everything bot relights the
   coast at 2.9 / 6.7 / 12.7 / 20.3 / 32.0 hours and reaches the ending
-  at ~48 — each gap about 1.4× the last, so the final stretch is a third
-  of the game rather than half (the gaps used to double, and the last
-  one, with no new helper, light or story beat in it, was 26 hours).
+  at ~47 — each gap about 1.4× the last (the gaps used to double, and
+  the last one, with no new helper, light or story beat in it, was 26
+  hours). The final stretch is broken by the Crossing's waymarks at
+  35.8 / 39.3 / 42.8 hours, so it is steps of 3.5–4.5 hours.
   It is the floor, not the expectation; perks, moths, relics, tides and
   a keeper's own clicking should bring a real playthrough in around
   half that, though no player has measured it yet.
 
 ## Story
 
-Three acts, 21 beats, delivered by unlock order — no cutscenes. Each
+Three acts, 27 beats, delivered by unlock order — no cutscenes. Each
 beat is a predicate over the player's own progress (first moth, first
 relic, each lighthouse, 100 Embers earned, a Prismatic in the roost…),
 fires once, and lands in the Log; the Log's Story section keeps every

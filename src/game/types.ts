@@ -85,6 +85,8 @@ export interface GameState {
   buyAmount: BuyAmount;
   /** Ids of lighthouses that have been lit. Permanent — survives Rekindle. */
   litLighthouses: string[];
+  /** Waymarks of the Crossing lit, 0–3 (config.ts WAYMARKS, in order). Permanent like the lighthouses. */
+  crossing: number;
   /** Lighthouse id → its supply-chain board. Boards reset on Rekindle. */
   chainBoards: Record<string, ChainBoard>;
   // Sprint 4 — the Shore. Moths, relics and expeditions are PERMANENT:
@@ -163,6 +165,8 @@ export interface SavedState {
   upgrades: string[];
   buyAmount: BuyAmount;
   litLighthouses: string[];
+  /** v13: waymarks of the Crossing lit (0–3). */
+  crossing?: number;
   chainBoards: Record<string, ChainBoard>;
   moths: Moth[];
   mothDuty: string[];

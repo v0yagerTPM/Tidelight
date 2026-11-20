@@ -7,13 +7,13 @@ import { createInitialState } from "../src/game/state";
 import { UPGRADES } from "../src/game/upgrades";
 
 // A keeper who has lit The Hollow Light can afford anything: no single
-// purchase costs more than its relight (640.00Oc).
+// purchase costs more than its relight (4.00No).
 describe("the price ceiling", () => {
   const ceiling = priceCeiling();
 
   it("is The Hollow Light's relight cost", () => {
     expect(ceiling).toBe(CHAIN_LIGHTHOUSES.find((l) => l.id === HOLLOW_LIGHT_ID)!.relightCost);
-    expect(ceiling).toBe(6.4e29);
+    expect(ceiling).toBe(4e30);
   });
 
   it("caps every upgrade and every relight", () => {
@@ -33,7 +33,7 @@ describe("the price ceiling", () => {
   });
 
   it("keeps every Ember Shop item within reach of a keeper at the ending", () => {
-    // The plain sim ends holding about 1.8e13 Embers; a keeper who shops holds less, but over a run earns far more.
+    // The plain sim ends holding about 7.4e13 Embers; a keeper who shops holds less, but over a run earns far more.
     for (const p of EMBER_PERKS) expect(p.costEmbers).toBeLessThanOrEqual(1e13);
     for (const k of KINDLINGS) {
       const top = k.baseCost * k.growth ** ((k.maxLevel ?? 1) - 1);

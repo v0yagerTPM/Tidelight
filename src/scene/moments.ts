@@ -6,12 +6,14 @@ import { AnimatedCanvas, drawSweepingBeam, drawTower, glow, seeded, sparkle } fr
 //              catches again, brighter (also used for the Next Keeping);
 //   relight  — a light path runs across the glass to a dark tower, and it
 //              catches and begins to sweep;
+//   waymark  — the same path, to a lantern on a post out on the deep glass
+//              (the Crossing): it catches, and a ring of light spreads;
 //   ending   — the Hollow Light: the glass cracks, shatters into water, and
 //              seven beams stand in a row across the sea.
 // Timing is driven by the rAF timestamp from when the moment began; under
 // prefers-reduced-motion each moment shows its final, still frame.
 
-export type MomentKind = "rekindle" | "relight" | "ending";
+export type MomentKind = "rekindle" | "relight" | "waymark" | "ending";
 
 const rand = seeded(5309);
 const STARS = Array.from({ length: 140 }, () => ({ x: rand(), y: rand() * 0.6, s: rand() * 1.3 + 0.3, p: rand() * 6.283 }));
@@ -67,6 +69,7 @@ export class MomentRenderer extends AnimatedCanvas {
 
     if (this.kind === "rekindle") this.rekindle(e, t, horizon);
     else if (this.kind === "relight") this.relight(e, t, horizon);
+    else if (this.kind === "waymark") this.waymark(e, t, horizon);
     else this.ending(e, t, horizon);
   }
 
@@ -158,6 +161,67 @@ export class MomentRenderer extends AnimatedCanvas {
       for (let i = 0; i < 6; i++) {
         const a = Math.sin(t * 2 + i * 1.3);
         if (a > 0.6) sparkle(ctx, lampX + Math.cos(i * 1.05) * height * 0.22, lampY + Math.sin(i * 1.05) * height * 0.12, 4, (a - 0.6) * 2.5);
+      }
+    }
+  }
+
+  private waymark(e: number, t: number, horizon: number): void {
+    const ctx = this.ctx;
+    const { w: W, h: H } = this;
+    const x = W / 2;
+    // A lantern on a post, standing in the glass just below the horizon.
+    const base = horizon + H * 0.03;
+    const post = Math.min(H * 0.16, W * 0.3);
+    const p = easeOut(e / 1);
+    ctx.strokeStyle = "rgba(255,206,120,0.4)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.98);
+    ctx.quadraticCurveTo(W * 0.25, base + H * 0.12, x * p, H * 0.98 + (base - H * 0.98) * p);
+    ctx.stroke();
+    // Its reflection-shadow on the glass, then the post.
+    ctx.fillStyle = "#0a111e";
+    ctx.beginPath();
+    ctx.ellipse(x, base + 2, post * 0.22, post * 0.04, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#3a4d63";
+    ctx.lineWidth = Math.max(2, post * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(x, base);
+    ctx.lineTo(x, base - post);
+    ctx.stroke();
+    // The lantern: a small glass box with a cap.
+    const lw = post * 0.14;
+    const lh = post * 0.2;
+    const ly = base - post - lh;
+    const lit = e > 1;
+    ctx.fillStyle = lit ? "#ffe2a6" : "#26364a";
+    ctx.fillRect(x - lw / 2, ly, lw, lh);
+    ctx.fillStyle = "#3a4d63";
+    ctx.beginPath();
+    ctx.moveTo(x - lw * 0.7, ly);
+    ctx.lineTo(x, ly - lh * 0.45);
+    ctx.lineTo(x + lw * 0.7, ly);
+    ctx.closePath();
+    ctx.fill();
+    if (lit) {
+      const k = e - 1;
+      const cy = ly + lh / 2;
+      glow(ctx, x, cy, post * (0.7 + 0.8 * Math.max(0, 1 - k)), "255,196,99", 0.75);
+      // A ring of light spreading across the glass, then a second.
+      for (const delay of [0, 0.7]) {
+        const kk = k - delay;
+        if (kk < 0 || kk > 1.8) continue;
+        const r = 12 + kk * W * 0.3;
+        ctx.strokeStyle = `rgba(255,214,140,${(0.7 * (1 - kk / 1.8)).toFixed(3)})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(x, base, r, r * 0.18, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      for (let i = 0; i < 5; i++) {
+        const a = Math.sin(t * 2 + i * 1.4);
+        if (a > 0.6) sparkle(ctx, x + Math.cos(i * 1.25) * post * 0.3, cy + Math.sin(i * 1.25) * post * 0.2, 4, (a - 0.6) * 2.5);
       }
     }
   }

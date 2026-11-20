@@ -1216,3 +1216,20 @@ body { font-variant-numeric: tabular-nums; }
 .roost-actions { flex-wrap: nowrap; }
 .roost-actions button.buy { min-width: 9.5rem; }
 @media (max-width: 760px) { .roost-bar { grid-template-columns: 1fr; } .roost-actions { flex-wrap: wrap; } }
+
+/* ── The Crossing (The Hollow Light's card) ────────── */
+.crossing { margin: 10px 0 0; padding: 10px 12px; border: 1px solid var(--edge-soft); border-radius: 10px; background: rgba(10, 20, 36, 0.45); }
+.crossing-lead { margin: 0 0 8px; font-size: 0.9rem; color: var(--muted); }
+.crossing-lead strong { font-family: var(--display); font-weight: 400; font-size: 1rem; color: var(--lamp-soft); }
+.waymarks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.waymark { display: grid; grid-template-columns: 1.2em minmax(0, auto) 1fr; align-items: baseline; gap: 8px; font-size: 0.9rem; color: var(--muted); }
+.waymark .wm-mark { color: var(--muted); }
+.waymark .wm-name { font-family: var(--display); font-size: 1rem; }
+.waymark .wm-reward { justify-self: end; text-align: right; font-size: 0.84rem; }
+.waymark.next .wm-mark, .waymark.next .wm-name { color: var(--lamp); }
+.waymark.lit .wm-mark, .waymark.lit .wm-name { color: var(--lamp-soft); }
+.waymark.lit .wm-reward { color: var(--seafoam); }
+@media (max-width: 560px) {
+  .waymark { grid-template-columns: 1.2em 1fr; }
+  .waymark .wm-reward { grid-column: 2; justify-self: start; text-align: left; }
+}

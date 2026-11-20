@@ -7,6 +7,7 @@ import {
   GULL_ROCK_ID,
   HOLLOW_LIGHT_ID,
   SIRENS_REST_ID,
+  WAYMARKS,
   WIDOWS_WALK_ID,
   generatorById,
 } from "../src/game/config";
@@ -69,8 +70,12 @@ function feedChain(state: GameState): void {
 
 function lightAll(state: GameState): void {
   for (const id of ALL_RELIGHTABLE) {
-    feedChain(state);
-    expect(relightLighthouse(state, id)).toBe(true);
+    // The Hollow Light's relight lights the Crossing's three waymarks first.
+    const steps = id === HOLLOW_LIGHT_ID ? 1 + WAYMARKS.length - state.crossing : 1;
+    for (let i = 0; i < steps; i++) {
+      feedChain(state);
+      expect(relightLighthouse(state, id)).toBe(true);
+    }
   }
 }
 
@@ -166,11 +171,11 @@ describe("lighthouse bonuses", () => {
 });
 
 describe("story beats", () => {
-  it("has 24 beats across three acts (6 / 10 / 8)", () => {
-    expect(STORY_BEATS).toHaveLength(24);
+  it("has 27 beats across three acts (6 / 10 / 11)", () => {
+    expect(STORY_BEATS).toHaveLength(27);
     expect(STORY_BEATS.filter((b) => b.act === 1)).toHaveLength(6);
     expect(STORY_BEATS.filter((b) => b.act === 2)).toHaveLength(10);
-    expect(STORY_BEATS.filter((b) => b.act === 3)).toHaveLength(8);
+    expect(STORY_BEATS.filter((b) => b.act === 3)).toHaveLength(11);
   });
 
   it("the moth beats: a first trait, a first post, a first Hollow moth", () => {
@@ -377,7 +382,7 @@ describe("save export/import and the v5 → v6 migration", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v5Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(12);
+    expect(restored?.version).toBe(13);
     expect(restored?.litLighthouses).toEqual([FIRST_LIGHT_ID, GULL_ROCK_ID]); // Gull Rock stays lit
     expect(restored?.chainBoards[GULL_ROCK_ID]).toEqual({ wick: 1, oil: 0, lens: 0, beam: 0 });
     expect(restored?.storySeen).toEqual([]);

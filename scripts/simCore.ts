@@ -29,7 +29,7 @@
 // challenges, no moths, no relics, no tides, no bottles.
 import Decimal from "break_infinity.js";
 import { BOT_CLICK_WINDOW_SECONDS, botBuyPhase, botShop } from "../src/game/bot";
-import { CHAIN_LIGHTHOUSES, GENERATORS, HOLLOW_LIGHT_ID, PRESTIGE_RECOMMENDED_EMBERS } from "../src/game/config";
+import { CHAIN_LIGHTHOUSES, GENERATORS, HOLLOW_LIGHT_ID, PRESTIGE_RECOMMENDED_EMBERS, WAYMARKS } from "../src/game/config";
 import { chainStatus, lighthouseStatus, nextLighthouseId } from "../src/game/chain";
 import { clickBeam, productionPerSecond, tick } from "../src/game/engine";
 import { rekindle, rekindleGain } from "../src/game/prestige";
@@ -49,6 +49,8 @@ export interface SimResult {
   secondRekindleMinutes: number | null;
   /** Hours from the start of the sim to each relight. */
   litAtHours: Record<string, number>;
+  /** When each waymark of the Crossing was lit (config.ts WAYMARKS). */
+  waymarkAtHours: Record<string, number>;
   endingHours: number | null;
   /** Highest generator tier (1–8) ever owned. */
   highestTierOwned: number;
@@ -89,6 +91,8 @@ export interface SimOptions {
   rekindleGrowth?: number;
   /** Tuning shortcut: stop as soon as this lighthouse is lit. */
   stopWhenLit?: string;
+  /** Tuning shortcut: stop as soon as this holds (checked each step of the long phase). */
+  stopWhen?: (state: GameState) => boolean;
   /** Tuning shortcut: stop at this many sim hours. */
   stopAfterHours?: number;
   /**
@@ -127,6 +131,9 @@ export function runSim(opts: SimOptions = {}): SimResult {
   let highestTier = 0;
   const earlyUpgrades: string[] = [];
   const litAt: Record<string, number> = {};
+  const waymarkAt: Record<string, number> = {};
+  // Set when a waymark is lit: the bot's save for The Hollow Light starts over.
+  let crossed = false;
   let inPhaseB = false;
 
   const noteTiers = () => {
@@ -149,6 +156,11 @@ export function runSim(opts: SimOptions = {}): SimResult {
     onUpgradeBought: (id: string) => {
       lastUpgradeRunT = runT;
       if (!inPhaseB) earlyUpgrades.push(`${(totalT / 60).toFixed(1)}m: ${upgradeById(id).name}`);
+    },
+    onWaymarkLit: (id: string) => {
+      if (waymarkAt[id] === undefined) waymarkAt[id] = totalT / 3600;
+      crossed = true;
+      say(`  ◆ ${WAYMARKS.find((w) => w.id === id)?.name} lit at ${(totalT / 3600).toFixed(1)}h (prod/s ${productionPerSecond(state).toExponential(2)}, embers ${state.embers})`);
     },
     onLighthouseLit: (id: string) => {
       if (litAt[id] === undefined) litAt[id] = totalT / 3600;
@@ -203,6 +215,11 @@ export function runSim(opts: SimOptions = {}): SimResult {
   const capSeconds = Math.min(ENDGAME_CAP_SECONDS, (opts.stopAfterHours ?? Infinity) * 3600);
   while (endingAt === null && totalT < capSeconds && secondRekindleAt !== null) {
     if (opts.stopWhenLit && state.litLighthouses.includes(opts.stopWhenLit)) break;
+    if (opts.stopWhen?.(state)) break;
+    if (crossed) {
+      crossed = false;
+      savingSince = null;
+    }
     const dt = totalT < 6 * 3600 ? 2 : totalT < 24 * 3600 ? 10 : 60;
     const nextId = nextLighthouseId(state);
     let saving = false;
@@ -279,6 +296,7 @@ export function runSim(opts: SimOptions = {}): SimResult {
     firstRekindleMinutes: firstRekindleAt === null ? null : firstRekindleAt / 60,
     secondRekindleMinutes: secondRekindleAt === null ? null : secondRekindleAt / 60,
     litAtHours: litAt,
+    waymarkAtHours: waymarkAt,
     endingHours: endingAt === null ? null : endingAt / 3600,
     highestTierOwned: highestTier,
     meanEfficiencyEndgame: awakeTime > 0 ? effWeighted / awakeTime : 0,

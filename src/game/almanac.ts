@@ -92,9 +92,18 @@ export function lureRegrowMs(state: GameState): number {
   return Math.round((hasAlmanacReward(state, "swift-lures") ? 15 : 20) * 60 * 1000 * quick);
 }
 
-/** Moths that can stand duty at once: 3, 4 with A Fourth Wing, 5 with The Hollow Pages. */
+/**
+ * Moths that can stand duty at once: 3, +1 with A Fourth Wing, +1 with The
+ * Hollow Pages, +1 once the Last Lantern burns (the Crossing's third
+ * waymark: state.crossing ≥ 3, read directly so this module stays a leaf).
+ */
 export function dutySlots(state: GameState): number {
-  return 3 + (hasAlmanacReward(state, "fourth-duty") ? 1 : 0) + (hasAlmanacReward(state, "hollow-pages") ? 1 : 0);
+  return (
+    3 +
+    (hasAlmanacReward(state, "fourth-duty") ? 1 : 0) +
+    (hasAlmanacReward(state, "hollow-pages") ? 1 : 0) +
+    ((state.crossing ?? 0) >= 3 ? 1 : 0)
+  );
 }
 
 /** Cocoon time multiplier from Warm Silk (×0.85). */
