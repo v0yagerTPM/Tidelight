@@ -251,9 +251,12 @@ npm run build      # typecheck + production build to dist/
   "saving up").
 - **Tips** — hover (or press and hold on a phone) anything with a dotted
   underline or an ⓘ for more about it.
-- **How to play** — new keepers start with an eight-page guide to the
-  game; reopen it any time with the **?** button at the top or from the
-  Keeper's Desk.
+- **How to play** — an eight-page guide, read a page at a time: a new
+  keeper reads the first two (the shore, and making light), and each of
+  the others opens by itself the first time its part of the game matters
+  (lessons, the supply chain, the lighthouses, Rekindle, the Shore, the
+  tides), at most one every 90 seconds. Reopen the whole guide any time
+  with the **?** button at the top or from the Keeper's Desk.
 - **Shore tab** — attract, roster and breed lantern moths; send and
   claim bottle expeditions; admire the relic shelf.
 - **Log tab** — the story so far, the Keeper's Log, and the Keeper's

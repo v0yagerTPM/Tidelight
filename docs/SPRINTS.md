@@ -1346,3 +1346,37 @@ From the second Design Council pass (live play, plus the bot's saves from
 - [x] `buyPerk` / `buyKindling` take a `log` flag, so Kindle all logs once.
 - [x] Tests: `tests/shopAndCrew.test.ts` (6). Rekindle moments and the
       phone strip were checked in the browser.
+
+## ✅ Post-launch — The guide, a page at a time
+
+Item 10 of the second design review. A new keeper read all eight pages
+of "How to keep the light" before the first click: the supply chain,
+Embers, moths and tides explained to someone who hadn't hired a crab.
+
+- [x] **A new keeper reads two pages**, the shore and making light
+      (`GUIDE_OPENING`). They come without "n of 8", and the second says
+      the rest will follow.
+- [x] **Each of the others opens by itself**, as a single "New in the
+      guide" page, the first time its part of the game matters
+      (`game/guide.ts dueGuidePage`):
+
+      | Page | Opens when |
+      |---|---|
+      | Upgrades | a lesson is first learnable (about ten Candle Crabs) |
+      | Supply chain | the chain wakes |
+      | Lighthouses | the keeper holds a tenth of Gull Rock's price, or has lit it |
+      | Rekindle | a Rekindle would bank 10 Embers |
+      | The Shore | the first Lantern Moth |
+      | Tides & time away | 30 minutes of play |
+
+      - Only one page opens at a time, never over another card or a
+        moment, and at most one every 90 seconds. Lessons and the chain
+        wake together, and their pages shouldn't arrive back to back.
+- [x] **The ? button and the Keeper's Desk** still open all eight pages,
+      and opening the whole guide counts every page as read.
+- [x] **Save v14:** `guideSeen`. Older saves count every page as read
+      (they read the whole guide up front); unknown ids are dropped.
+- [x] Checked in the browser: a fresh keeper sees two pages, then at ten
+      Candle Crabs "New in the guide · The Upgrades tab" opens on its own.
+- [x] Tests: `tests/guide.test.ts` (5); the save-version tests are
+      updated.

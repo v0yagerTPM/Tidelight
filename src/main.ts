@@ -93,7 +93,7 @@ import {
   type ExpeditionClaim,
 } from "./game/expeditions";
 import { Splash, type SplashPage } from "./ui/splash";
-import { tutorialPages } from "./ui/tutorial";
+import { guidePageAlone, guidePageUnnumbered, tutorialPages } from "./ui/tutorial";
 import { infoTip, initTips, setTip, tipAttr } from "./ui/tips";
 import { FILL_BEAM_SHARE, bottleneckAtDemand, efficiencyAtDemand, feedNode, feedQuote, fillChain, stewardActive, stewardPurseCapSeconds, stewardUnlocked, tendChain } from "./game/supply";
 import { affordableIn, formatDuration, formatNumber, withArticle } from "./game/format";
@@ -131,6 +131,7 @@ import { ALMANAC_PATTERNS, ALMANAC_REWARDS, ALMANAC_SIZE, almanacHas, dutySlots,
 import { legacyMultiplier, startNgPlus } from "./game/ngplus";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
 import { STORY_ACTS, STORY_BEATS, checkStory } from "./game/story";
+import { GUIDE_OPENING, GUIDE_PAGE_IDS, dueGuidePage, markGuideSeen } from "./game/guide";
 import { tideForecast } from "./game/tides";
 import {
   addLog,
@@ -2364,6 +2365,9 @@ window.addEventListener("keydown", (e) => {
 const splash = new Splash(app);
 
 function openTutorial(): void {
+  // The whole guide: every page counts as read.
+  markGuideSeen(state, GUIDE_PAGE_IDS);
+  saveState(state);
   splash.open(tutorialPages(), { kind: "tutorial", finishLabel: "Start keeping" });
 }
 document.querySelector("#help-toggle")?.addEventListener("click", openTutorial);
@@ -3210,6 +3214,10 @@ learnAllBtn?.addEventListener("click", () => {
 // closed. A render error is logged once and never stops the clock.
 let renderErrorLogged = false;
 let lastAutomationAt = 0;
+let lastGuideCheckAt = 0;
+let lastGuidePageAt = 0;
+/** The least time between two guide pages that open on their own. */
+const GUIDE_GAP_MS = 90_000;
 function gameTick(): void {
   const now = Date.now();
   // A long gap (a sleeping laptop) is time away: note the Shore before it's settled.
@@ -3230,6 +3238,20 @@ function gameTick(): void {
   if (result.mode === "offline") {
     welcomeBack(result.gain, result.creditedSeconds, result.elapsedSeconds);
     if (fed > 0) addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${fed} level${fed === 1 ? "" : "s"}.`);
+  }
+  // The guide's next page, when its part of the game first matters, if
+  // nothing else is on screen (once a second, while playing).
+  // At most one such page every GUIDE_GAP_MS, so two systems waking together
+  // (lessons and the chain, around ten helpers) don't arrive back to back.
+  if (result.mode === "live" && now - lastGuideCheckAt >= 1000 && now - lastGuidePageAt >= GUIDE_GAP_MS) {
+    lastGuideCheckAt = now;
+    const page = splash.isOpen || (momentEl && !momentEl.classList.contains("hidden")) ? null : dueGuidePage(state);
+    if (page) {
+      lastGuidePageAt = now;
+      markGuideSeen(state, [page]);
+      saveState(state);
+      splash.open([guidePageAlone(page)], { kind: "tutorial", finishLabel: "Got it" });
+    }
   }
   // Story beats fire the moment their moment arrives (cheap predicates).
   const beats = checkStory(state);
@@ -3271,5 +3293,9 @@ syncSceneRunning();
 
 // A brand-new keeper (no save in this browser) starts with the guide open;
 // a returning one sees what the time away brought.
-if (isNewKeeper) openTutorial();
-else if (bootAway) showAwayCard(bootAway);
+// A new keeper reads the opening pages; the rest arrive with their systems (game/guide.ts).
+if (isNewKeeper) {
+  markGuideSeen(state, GUIDE_OPENING);
+  saveState(state);
+  splash.open(GUIDE_OPENING.map(guidePageUnnumbered), { kind: "tutorial", finishLabel: "Start keeping" });
+} else if (bootAway) showAwayCard(bootAway);

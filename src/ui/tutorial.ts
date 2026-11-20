@@ -13,6 +13,7 @@ import { DUTY_GLOW_BONUS, LURE_BANK, LURE_REGROW_MS, MAX_DUTY_MOTHS } from "../g
 import { TIDES } from "../game/tides";
 import { BRAND_MARK, CLICK_ICON, TAB_ICONS, TIDE_GLYPHS } from "./icons";
 import type { SplashPage } from "./splash";
+import { GUIDE_PAGE_IDS, type GuidePageId } from "../game/guide";
 
 // ── How to keep the light ────────────────────────────────────────────────────
 // The tutorial splash: what a new keeper needs, one idea per page. It opens
@@ -45,7 +46,8 @@ export function tutorialPages(): SplashPage[] {
           <li><strong>Hire helpers</strong> below the scene, starting with Candle Crabs. Each produces Lumen every second, even while you watch; each copy costs a little more than the last.</li>
           <li>Owning ${MILESTONE_THRESHOLDS.join(", ")} of one helper <strong>doubles</strong> its output each time.</li>
           <li>Use <strong>×1 / ×10 / ×100 / Max</strong> to buy in bulk. Bigger helpers answer as lighthouses relight.</li>
-        </ul>`,
+        </ul>
+        <p class="splash-reopen">The rest of this guide opens a page at a time, as you reach each part of the shore. The <strong>?</strong> at the top has all of it.</p>`,
     },
     {
       art: TAB_ICONS.upgrades,
@@ -114,4 +116,21 @@ export function tutorialPages(): SplashPage[] {
         <p class="splash-reopen">Open this guide again any time with the <strong>?</strong> button at the top, or from the Keeper's Desk.</p>`,
     },
   ];
+}
+
+/** The guide's pages by id (game/guide.ts GUIDE_PAGE_IDS, the same order as tutorialPages). */
+export function guidePage(id: GuidePageId): SplashPage {
+  return tutorialPages()[GUIDE_PAGE_IDS.indexOf(id)];
+}
+
+/** A page shown outside the full guide: without its "· n of 8". */
+export function guidePageUnnumbered(id: GuidePageId): SplashPage {
+  const page = guidePage(id);
+  return { ...page, eyebrow: (page.eyebrow ?? "").replace(/ · \d+ of \d+$/, "") };
+}
+
+/** One page on its own, when its part of the game first matters. */
+export function guidePageAlone(id: GuidePageId): SplashPage {
+  const page = guidePageUnnumbered(id);
+  return { ...page, eyebrow: `New in the guide · ${page.eyebrow}` };
 }
