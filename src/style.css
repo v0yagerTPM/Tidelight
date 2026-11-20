@@ -784,6 +784,8 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
   .stat-label { font-size: 0.58rem; letter-spacing: 0.12em; }
   .stat strong { font-size: 0.98rem; }
   .scene { height: 360px; margin-left: -4px; margin-right: -4px; }
+  /* Once the supply strip joins it, the scene shortens so the helpers start nearer the fold. */
+  #view-light.chain-awake .scene { height: 270px; }
   .scene .tide-strip { font-size: 0.76rem; }
   .tide-detail { display: none; }
   .coast-pin-name { display: none; }
@@ -1232,4 +1234,28 @@ body { font-variant-numeric: tabular-nums; }
 @media (max-width: 560px) {
   .waymark { grid-template-columns: 1.2em 1fr; }
   .waymark .wm-reward { grid-column: 2; justify-self: start; text-align: left; }
+}
+
+/* ── Glyphs: inline icons in text (they replaced system emoji) ── */
+.glyph { display: inline-block; flex: none; width: 1.05em; height: 1.05em; vertical-align: -0.17em; }
+.wing-dot { display: inline-block; flex: none; width: 0.85em; height: 0.85em; border-radius: 50%; vertical-align: -0.08em; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28), 0 0 6px rgba(255, 196, 99, 0.25); }
+.almanac-has .wing-dot { width: 1em; height: 1em; }
+
+/* ── Wide screens: the Light view in two columns ───── */
+/* At 900px the helpers began below the fold on a laptop, under the scene and
+   the supply strip; the main thing a keeper does was out of sight. Wide
+   screens put the lamp (scene + supply chain) beside the helpers. The app
+   widens for every view, so the header and tabs never jump between tabs,
+   and the other views stay a centred 900px reading column. */
+@media (min-width: 1024px) {
+  #app { max-width: 1240px; }
+  .view:not(#view-light) { max-width: 900px; margin-inline: auto; }
+  #view-light.active { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); column-gap: 24px; align-items: start; }
+  #view-light > .challenge-banner { grid-column: 1 / -1; }
+  #view-light .supply-strip { margin-bottom: 0; }
+  .light-side > .buy-toggle { margin-top: 0; }
+}
+/* Below 1280 the lamp's column is too narrow for four Feed buttons with late-game prices. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  #view-light .supply-nodes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

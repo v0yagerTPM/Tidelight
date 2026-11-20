@@ -29,7 +29,6 @@ export type TideId = "low" | "high" | "calm" | "storm";
 export interface TideDef {
   id: TideId;
   name: string;
-  icon: string;
   /** Plain-words effect, shown in the tide strip and forecast. */
   effectText: string;
   /** Relative weight: its share of every shuffled cycle (sums to 100; see tideCycleCounts). */
@@ -49,10 +48,10 @@ export const STORM_SUPPORT_MULTIPLIER = 0.8;
 export const STORM_CHARTS_SUPPORT_MULTIPLIER = 0.9;
 
 export const TIDES: readonly TideDef[] = [
-  { id: "low",   name: "Low Tide",   icon: "🌊", effectText: "Chain support ×1.2 — supplies flow easily over the exposed glass.", weight: 30 },
-  { id: "high",  name: "High Tide",  icon: "🌕", effectText: "Production ×1.15 — the risen sea lifts every flame.",              weight: 30 },
-  { id: "calm",  name: "Glass Calm", icon: "🪞", effectText: "Click ×2 — a still sea doubles a steady hand.",                    weight: 25 },
-  { id: "storm", name: "Stormfront", icon: "⛈️", effectText: "Production ×1.30, but chain support ×0.8 — glorious, and hungry.", weight: 15 },
+  { id: "low",   name: "Low Tide",   effectText: "Chain support ×1.2 — supplies flow easily over the exposed glass.", weight: 30 },
+  { id: "high",  name: "High Tide",  effectText: "Production ×1.15 — the risen sea lifts every flame.",              weight: 30 },
+  { id: "calm",  name: "Glass Calm", effectText: "Click ×2 — a still sea doubles a steady hand.",                    weight: 25 },
+  { id: "storm", name: "Stormfront", effectText: "Production ×1.30, but chain support ×0.8 — glorious, and hungry.", weight: 15 },
 ];
 
 export function tideDefById(id: TideId): TideDef {

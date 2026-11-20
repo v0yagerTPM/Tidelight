@@ -7,7 +7,7 @@ import { createInitialState } from "../src/game/state";
 import { UPGRADES } from "../src/game/upgrades";
 
 // A keeper who has lit The Hollow Light can afford anything: no single
-// purchase costs more than its relight (4.00No).
+// purchase costs more than its relight (4.00e30).
 describe("the price ceiling", () => {
   const ceiling = priceCeiling();
 

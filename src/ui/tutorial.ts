@@ -11,7 +11,7 @@ import {
 } from "../game/config";
 import { DUTY_GLOW_BONUS, LURE_BANK, LURE_REGROW_MS, MAX_DUTY_MOTHS } from "../game/moths";
 import { TIDES } from "../game/tides";
-import { BRAND_MARK, CLICK_ICON, TAB_ICONS } from "./icons";
+import { BRAND_MARK, CLICK_ICON, TAB_ICONS, TIDE_GLYPHS } from "./icons";
 import type { SplashPage } from "./splash";
 
 // ── How to keep the light ────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ export function tutorialPages(): SplashPage[] {
       title: "Learn upgrades",
       html: `
         <p>Upgrades are one-time lessons that multiply a helper, your flashes, the supply chain or everything at once. New ones surface as you own more helpers and relight more lighthouses; <strong>Learn all affordable</strong> buys every one you can, cheapest first. Relight Gull Rock and a <strong>Quartermaster</strong> learns them for you.</p>
-        <p>Most are forgotten when you Rekindle; the ones marked <strong>♾</strong> are keeper knowledge and stay with you.</p>`,
+        <p>Most are forgotten when you Rekindle; the ones marked <strong>♾\uFE0E</strong> are keeper knowledge and stay with you.</p>`,
     },
     {
       art: TAB_ICONS.lighthouses,
@@ -106,7 +106,7 @@ export function tutorialPages(): SplashPage[] {
       title: "The sea keeps time",
       html: `
         <ul>
-          <li>The <strong>tide</strong> turns every 30 minutes, never to the same tide twice running, and the strip on the Light tab forecasts it exactly: ${TIDES.map((t) => `${t.icon} ${t.name}`).join(", ")}.</li>
+          <li>The <strong>tide</strong> turns every 30 minutes, never to the same tide twice running, and the strip on the Light tab forecasts it exactly: ${TIDES.map((t) => `${TIDE_GLYPHS[t.id]} ${t.name}`).join(", ")}.</li>
           <li><strong>Away from the lamp</strong>, your keepers earn ${pct(OFFLINE_RATE)} of your production for up to ${hours} hours (upgrades, relics and lighthouses raise both). Cocoons, lures and bottles keep going too, and a card tells you what happened when you're back.</li>
           <li>The game <strong>saves itself</strong> in this browser. Export a copy from the Keeper's Desk in the Log tab.</li>
         </ul>

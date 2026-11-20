@@ -155,7 +155,10 @@ that respect their time; this design takes that as a hard rule.
   and bells for what the keeper does. Muting is a per-device preference.
 - Type: IM Fell English (story, names, flavour), Figtree (interface),
   IBM Plex Mono (numbers) — bundled via @fontsource, so the Steam build
-  needs no network. Icons are inline SVG (`src/ui/icons.ts`).
+  needs no network. Icons are inline SVG (`src/ui/icons.ts`), including
+  the small glyphs inside text (tides, moths, bottles, the story book):
+  no system emoji, whose platform colours broke the palette. A moth's
+  pattern shows as a dot of its own wing swatch.
 
 ## UI rules
 
@@ -166,7 +169,7 @@ that respect their time; this design takes that as a hard rule.
   Rekindle / Log), never one long scrolling page.
 - Buy amounts ×1/×10/×100/Max, time-to-afford on every purchase,
   prestige preview with kept-vs-lost in two columns.
-- Number formatting: full digits < 1000, then K/M/B/T…, e-notation beyond
+- Number formatting: full digits < 1000, then K/M/B/T, e-notation from 1e15 (Qa, Qi, Sx… read as glyph soup)
   — or full scientific notation, switchable in the Keeper's Desk (Log
   view), where the save export/import and hard reset also live.
 - Shipping: the web build ships to Steam in a Tauri v2 wrapper — see
