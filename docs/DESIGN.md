@@ -90,8 +90,10 @@ returned bottle, when the Shore has news.
   keeper), so the first starving lands around minute ten.
 - Full story: **35–50 hours** of engaged play to the ending, then the
   Next Keeping endless mode. The same no-everything bot relights the
-  coast at 2.9 / 5.4 / 11.1 / 19.5 / 33.4 hours and reaches the ending
-  at ~60 — each light taking a little under twice as long as the last.
+  coast at 2.9 / 6.7 / 12.7 / 20.3 / 32.0 hours and reaches the ending
+  at ~48 — each gap about 1.4× the last, so the final stretch is a third
+  of the game rather than half (the gaps used to double, and the last
+  one, with no new helper, light or story beat in it, was 26 hours).
   It is the floor, not the expectation; perks, moths, relics, tides and
   a keeper's own clicking should bring a real playthrough in around
   half that, though no player has measured it yet.

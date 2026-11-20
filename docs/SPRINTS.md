@@ -1046,3 +1046,34 @@ From a Design Council playtest (a live session, the sim, and bot saves at
       shelf tests in `tests/emberShelves.test.ts`, and format helpers.
       Eight files that check chain math against the plain 20 / 15 / 10
       starting support pin the warmth at ×1 (`tests/baseWarmth.ts`).
+
+## ✅ Post-launch — Re-paced lighthouse gaps
+
+From the same design review. The gaps between relights roughly doubled
+each time, so the last one (Siren's Rest → The Hollow Light) took 26 of
+the bot's 60 hours: 45% of the game, with no new helper, lighthouse or
+story beat in it, just 17 Rekindles of about 84 minutes.
+
+- [x] **Gaps about 1.4× apart, ending at ~48h.** Gull Rock stays at 5M
+      (2.9h). The other relight costs come from a search that runs the sim
+      and moves each lighthouse's lessons (priced off its relight) with it.
+      Each lighthouse was searched in order, with three trials at a time.
+
+      | Lighthouse | Cost before → after | Bot lights it, before → after |
+      |---|---|---|
+      | Gull Rock | 5M (unchanged) | 2.9h → 2.9h |
+      | Cormorant Roost | 8.4e8 → 4.8e9 | 5.4h → 6.7h |
+      | Widow's Walk | 3.4e12 → 2.1e13 | 11.1h → 12.7h |
+      | The Bellwether | 7.6e18 → 8e18 | 19.5h → 20.3h |
+      | Siren's Rest | 5e25 → 4.2e24 | 33.4h → 32.0h |
+      | The Hollow Light | 1e31 → 6.4e29 | 59.8h → 47.5h |
+
+      - Gaps: 2.9 / 3.8 / 6.0 / 7.6 / 11.7 / 15.5h. The last is a third of
+        the game.
+      - The keeper who buys everything: 47.8h → 40.8h.
+      - 52 Rekindles (was 58). The bot ends holding 1.8e13 Embers (was
+        2.1e14), still above the dearest Ember Shop item.
+      - Mean endgame efficiency 86%, no stalled saves.
+- [x] The price ceiling (The Hollow Light's relight) is now 640.00Oc;
+      The Last Lesson and the capped helper upgrades follow it.
+- [x] Tests: the ceiling and Cormorant Roost cost assertions.
