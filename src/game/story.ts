@@ -274,7 +274,7 @@ export function storyBeatById(id: string): StoryBeat | undefined {
 /**
  * Fire every story beat whose trigger now holds and that hasn't been
  * seen, in beat order. Each fires exactly once, ever (ids live in
- * state.storySeen) and appends a 📖 entry to the Log. Returns the beats
+ * state.storySeen) and appends a one-line 📖 entry to the Log. Returns the beats
  * fired by this call. Called from the main loop and on load.
  */
 export function checkStory(state: GameState, now: number = Date.now()): StoryBeat[] {
@@ -283,7 +283,8 @@ export function checkStory(state: GameState, now: number = Date.now()): StoryBea
     if (state.storySeen.includes(beat.id)) continue;
     if (!beat.trigger(state)) continue;
     state.storySeen.push(beat.id);
-    addLog(state, `📖 ${beat.title} — ${beat.text}`, now);
+    // Title only: the Story section at the top of the Log holds the text.
+    addLog(state, `📖 ${beat.title} — a new page in The Story So Far`, now);
     fired.push(beat);
   }
   return fired;
