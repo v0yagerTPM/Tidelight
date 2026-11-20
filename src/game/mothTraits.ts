@@ -37,8 +37,13 @@ export function traitById(id: string | null | undefined): MothTraitDef | null {
 
 /** Duty slots without the Almanac's A Fourth Wing (dutySlots gives the live number). */
 export const MAX_DUTY_MOTHS = 3;
-/** Each duty moth grants +(glow × this)% production — glow 50 → +10%. */
-export const DUTY_GLOW_BONUS = 0.002;
+/**
+ * Each duty moth adds +(glow × this) to the thrown beam: glow 100 → +10%.
+ * (Was 0.002 on the helpers' output, where the chain took most of it back;
+ * on the beam after the chain, half the rate is worth about four times the
+ * hours: engine.lampMultiplier.)
+ */
+export const DUTY_GLOW_BONUS = 0.001;
 export const LAMP_LOYAL_GLOW_MULTIPLIER = 1.5;
 export const NIGHT_FLIER_OFFLINE_BONUS = 0.05;
 export const SEEKER_RELIC_BONUS = 0.05;
@@ -73,12 +78,12 @@ export function dutyGlowOf(moth: Moth): number {
   return moth.glow * (hasTrait(moth, "lamp-loyal") ? LAMP_LOYAL_GLOW_MULTIPLIER : 1);
 }
 
-/** The production bonus one duty moth grants, as a fraction (0.2 = +20%). */
+/** The beam bonus one duty moth grants, as a fraction (0.1 = +10%). */
 export function dutyBonusOf(moth: Moth): number {
   return dutyGlowOf(moth) * DUTY_GLOW_BONUS;
 }
 
-/** Production multiplier from the duty roster: 1 + Σ duty glow × 0.002. */
+/** Beam multiplier from the duty roster: 1 + Σ duty glow × 0.001. */
 export function dutyProductionMultiplier(state: GameState): number {
   return 1 + dutyMothsOf(state).reduce((sum, m) => sum + dutyBonusOf(m), 0);
 }

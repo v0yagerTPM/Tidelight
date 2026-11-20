@@ -87,9 +87,9 @@ describe("moth traits — what they do", () => {
     const state = garden();
     state.moths = [moth("a", "crescent", 50, "lamp-loyal"), moth("b", "crescent", 50)];
     toggleDuty(state, "a");
-    expect(mothProductionMultiplier(state)).toBeCloseTo(1.15, 9); // 75 × 0.2%
+    expect(mothProductionMultiplier(state)).toBeCloseTo(1.075, 9); // 75 × 0.1%
     toggleDuty(state, "b");
-    expect(mothProductionMultiplier(state)).toBeCloseTo(1.25, 9);
+    expect(mothProductionMultiplier(state)).toBeCloseTo(1.125, 9);
   });
 
   it("Night-flier: +5 offline points each on duty, under the 90% cap", () => {
@@ -127,13 +127,13 @@ describe("moth traits — what they do", () => {
     const quiet = findTide(["low", "calm"]);
     expect(tidewiseMultiplier(state)).toBe(1); // no time → neutral, like the tide
     expect(tidewiseMultiplier(state, quiet)).toBe(1);
-    expect(tidewiseMultiplier(state, rough)).toBeCloseTo(1.1, 9);
+    expect(tidewiseMultiplier(state, rough)).toBeCloseTo(1.05, 9);
     const plain = garden();
     plain.generators["candle-crab"] = 5;
     plain.moths = [moth("a", "starlit", 50)];
     toggleDuty(plain, "a");
     const ratio = productionPerSecond(state, rough).div(productionPerSecond(plain, rough)).toNumber();
-    expect(ratio).toBeCloseTo(1.1, 9);
+    expect(ratio).toBeCloseTo(1.05, 9);
   });
 });
 

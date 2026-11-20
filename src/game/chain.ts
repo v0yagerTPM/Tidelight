@@ -34,12 +34,14 @@ import { totalGeneratorsOwned, upgradeBeamMultiplier, upgradeSupportMultiplier }
 // ── The supply chain: wick → oil → lens → beam ───────────────────────────────
 // Production ordering (see engine.ts):
 //   generators (milestones, upgrades, challenge tier reward) × Keeper's
-//   Focus × Ember bonus × Second Wind × challenge rule/rewards
-//   × moth duty bonus × Brass Compass (Sprint 4) × legacy bonus (Sprint 5)
+//   Focus × Ember bonus (resting through a challenge) × Second Wind
+//   × legacy bonus (Sprint 5)
 //   × lighthouse production bonuses, multiplied together (Sprint 5)
 //   =  BASE production — this is the chain's "demand"
 //   × chain factor (0.25 + 0.75 × efficiency, or 1 while the chain is locked)
 //   × beam bonus (1 + 5% × total Beam levels)
+//   × the lamp's companions (moths on duty, Brass Compass, Fogbound's fog
+//     and the challenge lamps: engine.lampMultiplier)
 //   × tide production multiplier (Sprint 4; only when a time is passed)
 //   =  final production.
 //

@@ -308,9 +308,9 @@ describe("challenges", () => {
     // The run was NOT reset:
     expect(state.generators[crab.id]).toBe(10);
     expect(state.lifetimeLumen.toNumber()).toBe(300_000);
-    // Patient Keeper reward is live: 5 × 1.2 = 6/s (still fully supported):
-    expect(challengeProductionMultiplier(state)).toBeCloseTo(1.2, 9);
-    expect(productionPerSecond(state).toNumber()).toBeCloseTo(6, 9);
+    // Patient Keeper reward is live on the thrown beam: 5 × 1.1 = 5.5/s:
+    expect(challengeProductionMultiplier(state)).toBeCloseTo(1.1, 9);
+    expect(productionPerSecond(state).toNumber()).toBeCloseTo(5.5, 9);
     // Clicking works again:
     expect(clickValue(state).toNumber()).toBe(1);
   });
@@ -324,8 +324,10 @@ describe("challenges", () => {
     expect(rekindle(state)).toBe(40);
     expect(state.completedChallenges).toEqual(["still-hands"]);
     state.generators[crab.id] = 5; // 2.5/s base in the new run
-    // 2.5 × 1.2 (Patient Keeper) × 1.8 (40 Embers held) = 5.4
-    expect(generatorProduction(state, crab).toNumber()).toBeCloseTo(5.4, 9);
+    // The helpers: 2.5 × 1.8 (40 Embers held) = 4.5; the thrown beam
+    // (chain still asleep): × 1.1 (Patient Keeper, on the lamp) = 4.95.
+    expect(generatorProduction(state, crab).toNumber()).toBeCloseTo(4.5, 9);
+    expect(productionPerSecond(state).toNumber()).toBeCloseTo(4.95, 9);
   });
 
   it("Humble Mastery doubles tiers 1–3 only, once earned", () => {

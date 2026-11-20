@@ -28,8 +28,8 @@ import type { GameState, Moth } from "./types";
 // collection, duty roster, roost expansions and any cocoon are untouched
 // by Rekindle and challenge resets — the moths simply roost through the
 // dark. Up to 3 moths can be "on duty" by the lamp; each grants
-// +(glow × 0.2)% production, flowing through engine.productionForOwned as
-// the moth multiplier (1 + totalDutyGlow × 0.002).
+// +(glow × 0.1)% to the thrown beam, flowing through engine.lampMultiplier
+// (after the chain) as the moth multiplier (1 + totalDutyGlow × 0.001).
 //
 // The moth rebalance: wild moths come on LURES (a bank of 3, one regrowing
 // every 20 minutes, offline too) instead of Lumen, each pattern has a glow
@@ -285,7 +285,7 @@ export function dutyGlowTotal(state: GameState): number {
   return dutyMoths(state).reduce((sum, m) => sum + dutyGlowOf(m), 0);
 }
 
-/** Production multiplier from the duty roster: 1 + duty glow × 0.002. */
+/** The duty roster's share of the lamp (engine.lampMultiplier): 1 + duty glow × 0.001. */
 export function mothProductionMultiplier(state: GameState): number {
   return dutyProductionMultiplier(state);
 }

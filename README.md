@@ -133,15 +133,21 @@ a hearth whose fire grows with the Embers you'd bank.
   switch beside the controls it automates, and a save that bought them
   gets its 500 and 5,000 Embers back.)
 - **Challenges** — opt-in rule-changing runs for permanent rewards:
-  Fogbound (half production), Still Hands (no clicking), First Light
-  Only (tiers 1–3 only). Starting resets your run with no Embers;
-  finishing banks the reward and the run continues.
+  Fogbound (half the thrown beam), Still Hands (no clicking), First
+  Light Only (tiers 1–3 only). Starting resets your run with no Embers,
+  and your held Embers rest (no production bonus) until it ends, so each
+  is a real climb at any point in the game; goals grow with your lit
+  lighthouses and perks. Finishing banks the reward and the run
+  continues: Fog Lamps (+12.5% to the beam), Patient Keeper (+10%),
+  Humble Mastery (tiers 1–3 ×2).
 - **Lantern moths** — hire a Lantern Moth and the wild ones follow your
   light home (Shore tab). Each one costs a lure: you hold up to 3 and one
   regrows every 20 minutes, even offline (a rush lure costs Lumen when
   you can't wait). Six wing patterns from Plain to Prismatic, each with a
   glow ceiling (Plain 40 … Prismatic 100); put up to 3 on duty for
-  +(glow × 0.2)% production each. Breed two moths (30–75 minutes a
+  +(glow × 0.1)% to the thrown beam each (glow 100 → +10%). Like Beam
+  levels and the tide, the beam bonus comes after the supply chain, so
+  it never adds to what the chain must carry. Breed two moths (30–75 minutes a
   cocoon) and the child inherits their wings — usually the rarer
   parent's pattern, about the average of their glows, and a little
   chaos. Prismatic wings are unstable. A perfect roster is a long chase.
@@ -165,7 +171,7 @@ a hearth whose fire grows with the Embers you'd bank.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache, a
   story fragment for the Log, and maybe one of eight permanent RELICS —
-  a Brass Compass (+10% production), a Storm in a Bottle, a Gull
+  a Brass Compass (+5% to the beam), a Storm in a Bottle, a Gull
   Feather that trims chain costs, and five more.
 - **Tide & weather** — the sea turns every 30 minutes, the same for
   every keeper: Low Tide eases the supply chain, High Tide lifts

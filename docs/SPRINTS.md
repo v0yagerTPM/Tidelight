@@ -1077,3 +1077,73 @@ story beat in it, just 17 Rekindles of about 84 minutes.
 - [x] The price ceiling (The Hollow Light's relight) is now 640.00Oc;
       The Last Lesson and the capped helper upgrades follow it.
 - [x] Tests: the ceiling and Cormorant Roost cost assertions.
+
+## ✅ Post-launch — The lamp's companions light the beam
+
+Item 5 of the design review: make moths, relics, tides and challenges
+matter. The review guessed that held Embers drowned them. Measuring them
+in hours showed the supply chain was the problem. `scripts/worth.ts`
+(new) runs the plain bot with one thing granted and reports when each
+light comes on. Before this change:
+
+| Bot starts with… | Ending (plain 47.5h) |
+|---|---|
+| Brass Compass (+10% production) | 47.3h |
+| Amber Heart (+10% Ember gain) | 48.2h (no help) |
+| three glow-100 moths on duty (+60% production) | 45.0h |
+| all three challenge rewards | 45.3h |
+| Tide Chart (+15% chain support) | 41.8h |
+| all eight relics | 32.9h |
+
+A production bonus on the helpers raised the chain's demand as much as
+the Lumen it gave, so efficiency fell and the chain took most of it
+back. Bonuses on the chain itself (support, cheaper nodes) were worth
+hours.
+
+- [x] **The lamp's companions brighten the thrown beam, after the chain**
+      (`engine.lampMultiplier`). This is where Beam levels and the tide
+      already were. It covers moths on duty, the Brass Compass, and the
+      challenge lamps: Fog Lamps, Patient Keeper, and Fogbound's fog
+      while it lies. They no longer add to what the chain must carry, and
+      they leave `lastingProductionMultiplier` (the warm start).
+      - Saved hours now follow ~38 × ln(bonus). Three perfect moths from
+        the first second save 17.8h at the old +60%.
+      - At the old rates that was too much. An engaged keeper (scenario
+        `engaged`: moth glow climbing from 20 to 100 over 40 hours, a
+        relic every 2.5 hours, challenges at 3 / 8 / 14 hours) finished at
+        18.6h.
+      - Rates halved: duty **glow × 0.1%** (glow 100 → +10%), Compass +5%,
+        Fog Lamps +12.5%, Patient Keeper +10%. Variants tried: 0.1% /
+        0.15% duty, the others full or halved → 24.2 / 22.7 / 19.6h.
+- [x] **Results** (`npm run sim`, `scripts/worth.ts`):
+      - The plain bot is unchanged (47.5h). So is the keeper who buys
+        everything in the shop (40.8h).
+      - The engaged keeper went from 33.9h to **24.2h**, about half the
+        bot. That's what DESIGN.md expects of a real playthrough.
+      - Moths, relics and challenges together are now worth ~23 of 47.5
+        hours, up from ~14.
+- [x] **Embers rest through a challenge run** (`engine.emberMultiplier`).
+      Goals grow with the other lasting bonuses (Ember perks, lit
+      lighthouses, the legacy: `challenges.challengeGoal`), never with
+      Embers.
+      - Holding a million Embers, a keeper used to clear every challenge
+        in its first second.
+      - The bot now takes about the same at any point. From saves at 2.6
+        / 4 / 7 / 12.5 / 21 / 40 hours: Fogbound 87 → 52 minutes, Still
+        Hands 29 → 18, First Light Only 21 → 13.
+      - The cards show each keeper's goal, with a tip for how it grows.
+        The Rekindle tab's bonus reads "resting", and the banner and Start
+        button say the Embers rest.
+- [x] **Fix: Still Hands could never be finished** without Head Start or
+      Warm Hearth. The run opens with 0 Lumen and clicking yields nothing,
+      so the first Candle Crab was out of reach. A keeper with no purse and
+      no crew now starts it with one Candle Crab (`prestige.resetRun`).
+- [x] **Fix:** the roost line computed its duty bonus with a hard-coded
+      0.2 instead of `DUTY_GLOW_BONUS`.
+- [x] **Tides needed nothing.** Their production effects were already on
+      the thrown beam, and their chain-support effects already act on the
+      chain.
+- [x] **Sim tooling:** `runSim` takes `setup` (change the fresh state)
+      and `during` (grant things on a schedule).
+- [x] Tests: `tests/lamp.test.ts` (new), plus moth, relic, challenge and
+      trait tests moved to the new placement and rates.

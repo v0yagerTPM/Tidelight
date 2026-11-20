@@ -82,6 +82,13 @@ export function resetRun(state: GameState): void {
   if (purse > 0) {
     addLog(state, `A keeper's purse of ${purse} Lumen waits by the lamp (Head Start).`);
   }
+  // Still Hands forbids the beam, and a run opens with no Lumen: without a
+  // purse (Head Start) or a crew (Warm Hearth) the first Candle Crab was
+  // out of reach for good. One crab keeps the candle while the hands rest.
+  if (state.activeChallenge === "still-hands" && Object.keys(state.generators).length === 0 && state.lumen.lt(GENERATORS[0].baseCost)) {
+    state.generators[GENERATORS[0].id] = 1;
+    addLog(state, `Your hands rest. One ${GENERATORS[0].name} keeps the candle for you.`);
+  }
 }
 
 /**

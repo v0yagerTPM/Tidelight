@@ -76,26 +76,54 @@ export function maxAffordable(def: GeneratorDef, owned: number, budget: Decimal)
  * +1% more with Ember Heart), counted along EMBER_CURVE.
  */
 export function emberMultiplier(state: GameState): Decimal {
+  // Embers rest in the tin through a challenge run: it is a trial of the
+  // keeper, not of the Embers (design review — with a million Embers held,
+  // every challenge goal fell in its first second).
+  if (state.activeChallenge !== null) return new Decimal(1);
   return new Decimal(1 + effectiveEmbers(state.embers) * emberBonusPerEmber(state));
 }
 
 /**
- * The production bonuses that outlast a run: held Embers, Ember perks,
- * challenge rules and rewards, moths on duty, relics, the Next Keeping's
- * legacy and lit lighthouses — everything in production except the
- * generators themselves and their per-run upgrades. A Rekindle keeps all
+ * The production bonuses that outlast a run and weigh on the chain: held
+ * Embers, Ember perks, the Next Keeping's legacy and lit lighthouses —
+ * everything in base production except the generators themselves and
+ * their per-run upgrades (the lamp's companions light the thrown beam and
+ * never weigh on it: lampMultiplier). A Rekindle keeps all
  * of it, so it is exactly how much more a fresh run's first generators
  * demand of the chain than a new keeper's do. First Light's starting chain
  * is scaled by it (chain.ts, startingCushion).
  */
 export function lastingProductionMultiplier(state: GameState): Decimal {
-  return emberMultiplier(state)
-    .mul(emberShopProductionMultiplier(state))
-    .mul(challengeProductionMultiplier(state))
-    .mul(mothProductionMultiplier(state))
-    .mul(relicProductionMultiplier(state))
+  return emberMultiplier(state).mul(lastingMultiplierBesideEmbers(state));
+}
+
+/**
+ * The lasting bonuses other than held Embers: Ember perks, the Next
+ * Keeping's legacy and lit lighthouses. What a challenge run keeps while
+ * the Embers rest, and what its goal grows with (challenges.challengeGoal).
+ */
+export function lastingMultiplierBesideEmbers(state: GameState): Decimal {
+  return new Decimal(emberShopProductionMultiplier(state))
     .mul(legacyMultiplier(state))
     .mul(lighthouseMultiplier(state));
+}
+
+/**
+ * The lamp's companions: moths on duty, the Brass Compass relic, and the
+ * challenge lamps (Fog Lamps, Patient Keeper, and Fogbound's fog while it
+ * lies). Like Beam levels and the tide they brighten the THROWN beam, after
+ * the chain, so they never add to what the chain must carry.
+ *
+ * Why (design review): applied to the helpers' output, every one of them
+ * raised the chain's demand as much as the production it gave, so the
+ * chain took most of it back. In the sim, three glow-100 moths on duty from
+ * the first minute (+60%) saved 2.5 of 47.5 hours and the Compass 0.2,
+ * while the Tide Chart's +15% chain support saved 5.7.
+ */
+export function lampMultiplier(state: GameState): Decimal {
+  return new Decimal(mothProductionMultiplier(state))
+    .mul(relicProductionMultiplier(state))
+    .mul(challengeProductionMultiplier(state));
 }
 
 /**
@@ -103,9 +131,9 @@ export function lastingProductionMultiplier(state: GameState): Decimal {
  * Multiplier ordering (kept in one place — see also chain.ts):
  *   base × owned × milestones × its own upgrades × Humble Mastery (tiers 1–3)
  *   × Keeper's Focus × Ember bonus (held Embers) × Second Wind (Ember perk)
- *   × challenge multiplier (Fogbound rule ×0.5, banked challenge rewards)
- *   × moth duty bonus (Sprint 4) × Brass Compass relic (Sprint 4)
  *   × legacy bonus (Sprint 5: ×(1 + 0.25 × Keepings begun))
+ * (Moths on duty, the Brass Compass and the challenge lamps light the
+ * thrown beam instead: see lampMultiplier.)
  */
 export function productionForOwned(state: GameState, def: GeneratorDef, owned: number): Decimal {
   if (owned === 0) return new Decimal(0);
@@ -117,9 +145,6 @@ export function productionForOwned(state: GameState, def: GeneratorDef, owned: n
     .mul(globalProductionMultiplier(state))
     .mul(emberMultiplier(state))
     .mul(emberShopProductionMultiplier(state))
-    .mul(challengeProductionMultiplier(state))
-    .mul(mothProductionMultiplier(state))
-    .mul(relicProductionMultiplier(state))
     .mul(legacyMultiplier(state));
 }
 
@@ -132,8 +157,7 @@ export function generatorProduction(state: GameState, def: GeneratorDef): Decima
  * Base production: the rate BEFORE the supply chain and beam bonus.
  * Ordering (documented here and in chain.ts):
  *   per-generator (see productionForOwned: milestones, upgrades, Humble
- *   Mastery, Keeper's Focus, Ember bonus, Second Wind, challenges, moth
- *   duty, Brass Compass, legacy bonus)
+ *   Mastery, Keeper's Focus, Ember bonus, Second Wind, legacy bonus)
  *   × lighthouse production bonuses, multiplied together (Gull Rock ×1.5,
  *   Cormorant Roost ×1.75, The Hollow Light ×2.5 — ×6.5625 with all seven)
  * This base rate is the chain's "demand" — what wick/oil/lens must support.
@@ -147,8 +171,9 @@ export function baseProductionPerSecond(state: GameState): Decimal {
 }
 
 /**
- * Final Lumen/s: base production × chain factor × beam bonus × tide
- * (× Tidewise moths on duty in High Tide or a Stormfront, × Tidelit moths
+ * Final Lumen/s: base production × chain factor × beam bonus × the lamp's
+ * companions (lampMultiplier: moths on duty, Brass Compass, challenge
+ * lamps) × tide (× Tidewise moths on duty in High Tide or a Stormfront, × Tidelit moths
  * on duty in a Stormfront or Glass Calm).
  * The chain factor is 0.25 + 0.75 × efficiency once the chain is unlocked
  * (1 before that); the beam bonus is +5% per Beam level across all boards.
@@ -162,6 +187,7 @@ export function productionPerSecond(state: GameState, now?: number): Decimal {
   return baseProductionPerSecond(state)
     .mul(chainFactor(state, now))
     .mul(beamMultiplier(state))
+    .mul(lampMultiplier(state))
     .mul(tideProductionMultiplier(state, now))
     .mul(tidewiseMultiplier(state, now))
     .mul(tidelitMultiplier(state, now));

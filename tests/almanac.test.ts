@@ -169,14 +169,14 @@ describe("Tidelit moths", () => {
       toggleDuty(state, "b");
       return { state, rate: productionPerSecond(state, now).toNumber() };
     };
-    // duty: 1 + 0.1 (Tidelit) + 0.05 = 1.15
+    // duty: 1 + 0.05 (Tidelit) + 0.025 = 1.075
     const storm = findTide("storm");
     const calm = findTide("calm");
     expect(tidelitMultiplier(at("tidelit").state)).toBe(1);
-    expect(tidelitMultiplier(at("tidelit").state, storm)).toBeCloseTo(1.25 / 1.15, 9);
-    expect(tidelitMultiplier(at("tidelit").state, calm)).toBeCloseTo(1.1 / 1.15, 9);
+    expect(tidelitMultiplier(at("tidelit").state, storm)).toBeCloseTo(1.125 / 1.075, 9);
+    expect(tidelitMultiplier(at("tidelit").state, calm)).toBeCloseTo(1.05 / 1.075, 9);
     expect(tidelitMultiplier(at("tidelit").state, findTide("low"))).toBe(1);
-    expect(at("tidelit", calm).rate / at("prismatic", calm).rate).toBeCloseTo(1.1 / 1.15, 9);
+    expect(at("tidelit", calm).rate / at("prismatic", calm).rate).toBeCloseTo(1.05 / 1.075, 9);
   });
 });
 
@@ -286,7 +286,7 @@ describe("Hollow moths", () => {
     state.moths = [hollow];
     toggleDuty(state, "h");
     expect(relicChanceFor(state, routeById("drift")!)).toBeCloseTo(0.15, 9); // Seeker on duty
-    expect(mothProductionMultiplier(state)).toBeCloseTo(1 + 110 * 1.5 * 0.002, 9); // Lamp-loyal as its second trait
+    expect(mothProductionMultiplier(state)).toBeCloseTo(1 + 110 * 1.5 * 0.001, 9); // Lamp-loyal as its second trait
     expect(releaseScales(hollow)).toBe(9); // tier 6 + 1, + 2 traits
     const fresh = garden();
     fresh.moths = [hollow];
