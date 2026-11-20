@@ -17,6 +17,10 @@ import { productionPerSecond } from "../src/game/engine";
 import { rekindle } from "../src/game/prestige";
 import { createInitialState, deserializeState, serializeState } from "../src/game/state";
 import type { GameState } from "../src/game/types";
+import { atBaseWarmth } from "./baseWarmth";
+
+// Chain math here is checked at First Light's plain starting support.
+atBaseWarmth();
 
 const crab = generatorById("candle-crab");
 const seventh = generatorById("seventh-light");

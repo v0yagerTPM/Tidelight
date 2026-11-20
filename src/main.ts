@@ -57,7 +57,7 @@ import {
   type EmberPerkDef,
   type KindlingDef,
 } from "./game/emberShop";
-import { autoHire, autoLearn } from "./game/automation";
+import { LAMP_CREW_LIGHTHOUSE, QUARTERMASTER_LIGHTHOUSE, autoHire, autoLearn, lampCrewUnlocked, quartermasterUnlocked } from "./game/automation";
 import {
   advanceToNow,
   LIVE_GAP_LIMIT_SECONDS,
@@ -89,7 +89,7 @@ import { Splash, type SplashPage } from "./ui/splash";
 import { tutorialPages } from "./ui/tutorial";
 import { infoTip, initTips, setTip, tipAttr } from "./ui/tips";
 import { FILL_BEAM_SHARE, bottleneckAtDemand, efficiencyAtDemand, feedNode, feedQuote, fillChain, stewardActive, stewardPurseCapSeconds, stewardUnlocked, tendChain } from "./game/supply";
-import { formatDuration, formatNumber } from "./game/format";
+import { affordableIn, formatDuration, formatNumber, withArticle } from "./game/format";
 import {
   attractMoth,
   cocoonReady,
@@ -194,6 +194,11 @@ window.addEventListener("keydown", () => sound.unlock(), { capture: true });
 function bonusText(percent: number): string {
   if (percent < 1000) return `+${fmt(percent)}%`;
   return `×${fmt(1 + percent / 100)}`;
+}
+
+/** "More than a day away…" from "more than a day away…". */
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /** Format a 0–1 fraction as a percentage that never reads "0%" while above zero. */
@@ -333,6 +338,7 @@ ${[
             )
             .join("")}
         </div>
+        <p id="supply-say" class="supply-say" role="status"></p>
         <div id="steward-panel" class="steward-panel hidden">
           <div class="steward-row"><span>Steward</span>
             <span class="buy-toggle steward-toggle"><button class="toggle-btn" data-steward-on="1">On</button><button class="toggle-btn" data-steward-on="0">Off</button></span>
@@ -521,8 +527,6 @@ challengeBanner?.addEventListener("click", () => activateTab("rekindle"));
 challengeBanner?.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") activateTab("rekindle");
 });
-
-// The bottleneck banner in the Light view jumps straight to the chain board.
 
 // ── Buy-amount toggle (persisted in the save) ────────────────────────────────
 // Only the ×1/×10/×100/Max buttons: other pill toggles (notation, the
@@ -798,12 +802,6 @@ function emberShopKey(): string {
   return `${state.emberPerks.join(",")}|${KINDLINGS.map((k) => kindlingLevel(state, k.id)).join(",")}|${state.autoLearn}|${state.autoHire}`;
 }
 
-/** What an automation perk's switch controls, by perk id. */
-const AUTOMATION_SWITCHES: Record<string, { key: "autoLearn" | "autoHire"; label: string }> = {
-  quartermaster: { key: "autoLearn", label: "Learning upgrades" },
-  "lamp-crew": { key: "autoHire", label: "Hiring helpers" },
-};
-
 /** The total effect a Kindling's levels give, in words ("×2.25 production"). */
 function kindlingTotal(def: KindlingDef, level: number): string {
   if (level === 0) return "Not kindled yet";
@@ -850,14 +848,11 @@ function rebuildEmberShop(): void {
 
   const perkCard = (def: EmberPerkDef): HTMLElement => {
     const owned = state.emberPerks.includes(def.id);
-    const sw = AUTOMATION_SWITCHES[def.id];
     const card = document.createElement("article");
     card.className = `perk${owned ? " owned" : ""}`;
     const foot = !owned
       ? `<span class="perk-cost">${EMBER_GLYPH}${fmt(def.costEmbers)}</span><button class="buy">Kindle</button>`
-      : sw
-        ? `<span class="learned">${sw.label}</span><button class="toggle-btn perk-switch${state[sw.key] ? " active" : ""}" data-auto="${sw.key}" aria-pressed="${state[sw.key]}">${state[sw.key] ? "On" : "Off"}</button>`
-        : `<span class="learned">Kindled ✓ · permanent</span>`;
+      : `<span class="learned">Kindled ✓ · permanent</span>`;
     card.innerHTML = `
       <div class="perk-art">${PERK_ICONS[def.id] ?? UNKNOWN_ICON}</div>
       <div class="perk-body">
@@ -896,11 +891,12 @@ function rebuildEmberShop(): void {
     kindlings.appendChild(card);
   }
 
-  const late = shelf("Late perks", "One-time perks for a keeper deep in the game, priced ten times apart. Quartermaster and Lamp Crew work while the game is open and can be switched off.");
+  const late = shelf("Late perks", "One-time perks for a keeper deep in the game, priced ten times apart.");
   for (const def of EMBER_PERKS.filter((p) => p.shelf === "late")) late.appendChild(perkCard(def));
 }
-// The automation switches: on the owned perk cards, beside Learn all
-// affordable (Quartermaster) and beside the buy amounts (Lamp Crew).
+// The automation switches: beside Learn all affordable (the Quartermaster,
+// with Gull Rock) and beside the buy amounts (the Lamp Crew, with
+// Cormorant Roost).
 document.addEventListener("click", (e) => {
   const btn = (e.target as Element | null)?.closest<HTMLButtonElement>("[data-auto]");
   if (!btn) return;
@@ -1601,7 +1597,7 @@ function updateShoreView(now: number): void {
       if (busy) note.textContent = "one bottle at a time — the sea is only so wide";
       else if (!affordable) {
         const tta = timeToAffordCost(state, new Decimal(route.cost));
-        note.textContent = Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : "";
+        note.textContent = Number.isFinite(tta) ? affordableIn(tta) : "";
       } else note.textContent = "";
     }
   }
@@ -1704,6 +1700,8 @@ function lighthouseBonusText(def: (typeof CHAIN_LIGHTHOUSES)[number]): string {
   if (brings) parts.push(brings.name.startsWith("The ") ? `${brings.name} answers its light` : `${brings.name}s answer its light`);
   if (def.productionBonus > 0) parts.push(`+${Math.round(def.productionBonus * 100)}% production`);
   if (def.supportBonus > 0) parts.push(`chain support +${Math.round(def.supportBonus * 100)}%`);
+  if (def.id === QUARTERMASTER_LIGHTHOUSE) parts.push("a Quartermaster learns your lessons");
+  if (def.id === LAMP_CREW_LIGHTHOUSE) parts.push("a Lamp Crew hires your helpers");
   if (def.id === "widows-walk") parts.push("a Chain Steward feeds your chain");
   if (def.emberGainBonus > 0) parts.push(`Ember gain +${Math.round(def.emberGainBonus * 100)}%`);
   if (def.offlineRateBonus > 0) parts.push(`offline rate +${Math.round(def.offlineRateBonus * 100)} pts`);
@@ -1971,7 +1969,7 @@ function updateChainView(): void {
     if (!ls.affordable) {
       const tta = timeToAffordCost(state, ls.cost);
       reasons.push(
-        Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : `costs ${fmt(ls.cost)} Lumen`,
+        Number.isFinite(tta) ? affordableIn(tta) : `costs ${fmt(ls.cost)} Lumen`,
       );
     }
     relightNote.textContent = ls.canRelight
@@ -1996,7 +1994,7 @@ function updateChainView(): void {
           : `→ Level ${level + 1} · +${fmt(nextLevelSupportGain(state, selectedBoardId, nodeId, Date.now()))}/s support`;
     } else {
       const tta = timeToAffordCost(state, cost);
-      refs.note.textContent = Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : "earn Lumen first";
+      refs.note.textContent = Number.isFinite(tta) ? affordableIn(tta) : "earn Lumen first";
     }
 
     if (nodeId === "beam") {
@@ -2488,6 +2486,7 @@ const supplyNodes = (["wick", "oil", "lens", "beam"] as const).map((nodeId) => {
 });
 const supplyFill = document.querySelector<HTMLButtonElement>("#supply-fill");
 const supplyEff = document.querySelector<HTMLElement>("#supply-eff");
+const supplySay = document.querySelector<HTMLElement>("#supply-say");
 const stewardBtn = document.querySelector<HTMLButtonElement>("#steward-btn");
 const stewardPanel = document.querySelector<HTMLElement>("#steward-panel");
 const stewardStatus = document.querySelector<HTMLElement>("#steward-status");
@@ -2543,6 +2542,9 @@ function pulseSupply(): void {
   supplyStrip.classList.add("tended");
 }
 
+/** Below this beam efficiency the supply strip warns that the beam is starving. */
+const STARVING_EFFICIENCY = 0.5;
+
 function updateSupplyStrip(now: number): void {
   if (!supplyStrip) return;
   const chain = chainStatus(state, now);
@@ -2550,11 +2552,27 @@ function updateSupplyStrip(now: number): void {
   if (!chain.unlocked) return;
   if (supplyEff) {
     supplyEff.textContent = pct(chain.efficiency);
-    supplyEff.classList.toggle("starved", chain.efficiency < 0.5);
+    supplyEff.classList.toggle("starved", chain.efficiency < STARVING_EFFICIENCY);
     setTip(
       supplyEff,
       `Beam efficiency: the weakest supply carries ${pct(chain.efficiency)} of the ${fmt(chain.demand)}/s your helpers produce, so the beam runs at ${Math.round(chain.chainFactor * 100)}% strength (25% + 75% × efficiency).`,
     );
+  }
+  // The chain's state in one line, always there (so nothing below it moves):
+  // a warning when the beam is starving, a note when it's short, calm when full.
+  if (supplySay) {
+    const starving = chain.efficiency < STARVING_EFFICIENCY && chain.bottleneck !== null;
+    const node = chain.bottleneck ? chain.nodes.find((n) => n.nodeId === chain.bottleneck) : undefined;
+    const name = chain.bottleneck ? CHAIN_NODES[chain.bottleneck].name : "";
+    const work = `Helpers work at ${Math.round(chain.chainFactor * 100)}%`;
+    const say =
+      starving && node
+        ? `⚠ The beam is starving: ${name} carries ${fmt(node.support)}/s of ${fmt(chain.demand)}/s. ${work}. Feed ${name} before hiring more.`
+        : node
+          ? `${name} holds the beam back, short by ${fmt(chain.shortfall)}/s. ${work}.`
+          : "Every supply carries your helpers. The beam is full.";
+    if (supplySay.textContent !== say) supplySay.textContent = say;
+    supplySay.classList.toggle("starving", starving);
   }
   for (const ref of supplyNodes) {
     const quote = feedQuote(state, ref.nodeId, now);
@@ -2706,7 +2724,7 @@ function renderDynamic(): void {
     const waiting = generatorLockedBy(state, GENERATORS[revealUpTo].id);
     genTeaserText.textContent = waiting
       ? `Relight ${chainLighthouseById(waiting).name} and new helpers will answer the light.`
-      : `Hire a ${GENERATORS[revealUpTo].name} and you'll see what else answers the light.`;
+      : `Hire ${withArticle(GENERATORS[revealUpTo].name)} and you'll see what else answers the light.`;
   }
   const chainNow = chainStatus(state, nowMs);
   for (const row of genRows) {
@@ -2766,7 +2784,7 @@ function renderDynamic(): void {
       row.note.textContent = quote.productionGain.gt(0) ? `+${fmt(quote.productionGain)} Lumen/s` : "";
     } else {
       const tta = timeToAffordCost(state, quote.cost);
-      row.note.textContent = Number.isFinite(tta) ? `affordable in ${formatDuration(tta)}` : "earn Lumen by flashing";
+      row.note.textContent = Number.isFinite(tta) ? affordableIn(tta) : "earn Lumen by flashing";
     }
   }
 
@@ -2776,14 +2794,14 @@ function renderDynamic(): void {
     upgradeStructureKey = key;
     rebuildUpgrades();
   }
-  // Automation switches where they matter, once the perk is owned.
-  for (const [id, perk, key, label] of [
-    ["#qm-switch", "quartermaster", "autoLearn", "The Quartermaster learns any upgrade that costs no more than a quarter of your Lumen, cheapest first."],
-    ["#crew-switch", "lamp-crew", "autoHire", "The Lamp Crew hires the best-value helper with up to a tenth of your Lumen, and never starves the beam."],
+  // Automation switches where they matter, once their lighthouse is lit.
+  for (const [id, unlocked, key, label] of [
+    ["#qm-switch", quartermasterUnlocked, "autoLearn", "The Quartermaster (with Gull Rock) learns any upgrade that costs no more than a quarter of your Lumen, cheapest first."],
+    ["#crew-switch", lampCrewUnlocked, "autoHire", "The Lamp Crew (with Cormorant Roost) hires the best-value helper with up to a tenth of your Lumen, and never starves the beam."],
   ] as const) {
     const wrap = document.querySelector<HTMLElement>(id);
     if (!wrap) continue;
-    const owned = state.emberPerks.includes(perk);
+    const owned = unlocked(state);
     wrap.classList.toggle("hidden", !owned);
     const btn = wrap.querySelector<HTMLButtonElement>("button");
     if (!owned || !btn) continue;
@@ -2814,7 +2832,7 @@ function renderDynamic(): void {
       row.note.textContent = "";
     } else {
       const tta = timeToAffordCost(state, new Decimal(row.def.cost));
-      row.note.textContent = Number.isFinite(tta) ? `Affordable in ${formatDuration(tta)}` : "";
+      row.note.textContent = Number.isFinite(tta) ? capitalize(affordableIn(tta)) : "";
     }
   }
   for (const row of lockedUpgradeRows) {
@@ -2828,7 +2846,7 @@ function renderDynamic(): void {
   if (hud.rkHeld) hud.rkHeld.textContent = fmt(state.embers);
   if (hud.rkHeldLabel) {
     hud.rkHeldLabel.textContent =
-      state.embers > EMBER_CURVE.knee
+      state.embers > EMBER_CURVE.knee && EMBER_CURVE.power < 1
         ? `Embers held (+${perEmberPct}% each for the first ${EMBER_CURVE.knee}, then less)`
         : `Embers held (each: +${perEmberPct}% production)`;
   }
@@ -3033,7 +3051,7 @@ function gameTick(): void {
     stewardLevels += fed;
     pulseSupply();
   }
-  // The Quartermaster and the Lamp Crew (Ember perks) work once a second, while the game is open.
+  // The Quartermaster and the Lamp Crew (with Gull Rock and Cormorant Roost) work once a second, while the game is open.
   if (result.mode === "live" && now - lastAutomationAt >= 1000) {
     lastAutomationAt = now;
     autoLearn(state);

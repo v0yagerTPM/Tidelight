@@ -17,6 +17,9 @@ hit the wall → **Rekindle** → relight faster and further.
 - Generator cost: `ceil(baseCost × growth^owned)`, growth 1.13–1.15.
 - Production is linear per copy, **doubled at 25 / 50 / 100 owned**.
 - Automation retires verbs in order: click → generator → keeper → allocation.
+  The lighthouses bring it: Gull Rock a Quartermaster (learns upgrades),
+  Cormorant Roost a Lamp Crew (hires helpers), Widow's Walk the Chain
+  Steward (feeds the chain).
 
 ## Signature systems (all shipped)
 
@@ -81,12 +84,14 @@ returned bottle, when the Shore has news.
   5–15 seconds early, every 1–5 minutes late.
 - First Rekindle in the 45–90 minute band for an engaged first session
   (recommended threshold: 40 Embers). The pessimistic bot bound
-  (`npm run sim`, no perks/moths/relics/tides): 85 minutes to the
-  first Rekindle, +60 to the second.
+  (`npm run sim`, no perks/moths/relics/tides): 70 minutes to the
+  first Rekindle, +51 to the second. The chain wakes at ten helpers
+  already fed (First Light's starting levels are warmed ×6 for a new
+  keeper), so the first starving lands around minute ten.
 - Full story: **35–50 hours** of engaged play to the ending, then the
   Next Keeping endless mode. The same no-everything bot relights the
-  coast at 3.5 / 6.7 / 12.4 / 21.8 / 37.5 hours and reaches the ending
-  at ~65 — each light taking a little under twice as long as the last.
+  coast at 2.9 / 5.4 / 11.1 / 19.5 / 33.4 hours and reaches the ending
+  at ~60 — each light taking a little under twice as long as the last.
   It is the floor, not the expectation; perks, moths, relics, tides and
   a keeper's own clicking should bring a real playthrough in around
   half that, though no player has measured it yet.

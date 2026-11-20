@@ -68,13 +68,18 @@ a hearth whose fire grows with the Embers you'd bank.
   production however large the light grows; each Upgrade button shows
   the support its next level adds. The flow board in the
   Lighthouses tab names the bottleneck and its shortfall; Beam levels
-  add +5% production each. A banner in the Light view warns you when a
-  node is starving the beam.
+  add +5% production each. A line under the supply strip always says
+  where the chain stands, and turns into a warning when the beam is
+  starving (below 50%). First Light's starting levels support six times
+  their usual amount, so the chain wakes fed and the first starving lands
+  around minute ten, once there's Lumen to feed it.
 - **All seven lighthouses** — they relight in order, each gated on the
   last, on the chain being awake, on a beam-efficiency requirement, and
   on its cost — and each grants something different: Gull Rock (+50%
-  production), Cormorant Roost (+75%), Widow's Walk (chain support
-  +50%), The Bellwether (Ember gain +25%), Siren's Rest (better offline
+  production, and a **Quartermaster** who learns upgrades for you),
+  Cormorant Roost (+75%, and a **Lamp Crew** who hires helpers for you
+  without starving the beam), Widow's Walk (chain support +50%, and the
+  Chain Steward), The Bellwether (Ember gain +25%), Siren's Rest (better offline
   earnings, +4h cap), and The Hollow Light (+150% — and the ending).
   The gates climb from 50% to 80% beam efficiency, so the far lights
   need a well-fed chain. Every lit lighthouse adds its own chain board,
@@ -109,14 +114,12 @@ a hearth whose fire grows with the Embers you'd bank.
     Deep Wicks (chain support +25%), The Long Night (12h offline cap), Full
     Reservoir (offline rate +10 points, cap 90%), Ember Heart (+1% per held
     Ember), Second Wind (+50% production).
-  - **Kindlings** (bought again and again, each level ×10 the last): Ember
-    Glow (+5% production a level, 10 levels), Long Watch (+1h offline cap,
-    8 levels), and Quick Lures, Spinning Silk and Tailwind (lures, cocoons
-    and bottles 5% sooner a level, 20 levels each).
-  - **Late perks** (one-time, 500 to 5 billion Embers):
-    - Quartermaster learns upgrades for you, and Lamp Crew hires helpers
-      for you without starving the beam. Each has an on/off switch on its
-      card and beside the controls it automates (Upgrades tab, buy amounts).
+  - **Kindlings** (bought again and again, each level dearer than the
+    last): Ember Glow (+5% production a level, 10 levels, ×10 a level),
+    Long Watch (+1h offline cap, 8 levels, ×4), and Quick Lures, Spinning
+    Silk and Tailwind (lures, cocoons and bottles 5% sooner a level, 20
+    levels each, ×3).
+  - **Late perks** (one-time, 50,000 to 5 billion Embers):
     - Warm Hearth starts each run with 10 of each of the first three helpers.
     - The Steward's Ledger lets the Chain Steward's purse hold 30 minutes.
     - Storm Charts halve a Stormfront's drain on the chain.
@@ -124,8 +127,11 @@ a hearth whose fire grows with the Embers you'd bank.
     - Ember Memory keeps every helper's first upgrade through a Rekindle.
     - Glass Charts bring bottles home 25% sooner.
   It is a comfort shop on purpose: production boosts compound through
-  Embers, so the shop mostly buys automation, time away and a quicker
-  Shore.
+  Embers, so the shop mostly buys time away, a quicker Shore and a few
+  conveniences. (The Quartermaster and Lamp Crew used to be sold here;
+  they now come with Gull Rock and Cormorant Roost, each with an on/off
+  switch beside the controls it automates, and a save that bought them
+  gets its 500 and 5,000 Embers back.)
 - **Challenges** — opt-in rule-changing runs for permanent rewards:
   Fogbound (half production), Still Hands (no clicking), First Light
   Only (tiers 1–3 only). Starting resets your run with no Embers;
@@ -176,11 +182,11 @@ a hearth whose fire grows with the Embers you'd bank.
   found. It shows on a fresh visit and when a sleeping laptop wakes.
   Cocoons hatch and bottles wash back while you're away, too.
 - Balance-checked end to end: the greedy-bot simulation (`npm run sim`)
-  reaches the first Rekindle in ~85 minutes and the second ~60 minutes
+  reaches the first Rekindle in ~70 minutes and the second ~50 minutes
   later, then simply plays on — growing, keeping the chain fed, saving
   for each light as it comes within reach — and relights the coast at
-  3.5h, 6.7h, 12.4h, 21.8h and 37.5h, reaching the ending at ~65
-  simulated hours with all eight generator tiers hired, without buying
+  2.9h, 5.4h, 11.1h, 19.5h and 33.4h, reaching the ending at ~60
+  simulated hours with all nine generator tiers hired, without buying
   perks, running challenges, keeping moths, sending bottles or minding
   the tides. Real keepers will be faster; the bot is the pessimistic
   bound.

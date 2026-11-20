@@ -992,3 +992,57 @@ hour 4.5 of a 62-hour game. Plan: the "Upgrades & Embers: the numbers" doc.
       Shore Kindlings now grow ×3 a level, not ×10, so their 20th level
       costs 2.3 trillion Embers instead of 20 sextillion.
       Tests: `tests/priceCeiling.test.ts`.
+
+## ✅ Post-launch — Design review: an easier opening, crews from the coast
+
+From a Design Council playtest (a live session, the sim, and bot saves at
+2.6 / 4 / 12.5 / 21 / 40 hours toured in the browser).
+
+- [x] **The opening chain is warmed.** At ten helpers the chain woke
+      already short (Lens carried 10/s against ~20/s of demand). The sim's
+      bot spent minute 20 at 6% efficiency and 48 Lumen/s, and a greedy live
+      session sat at 18% at minute 12. A new keeper's First Light starting
+      levels now support ×6 (`FIRST_LIGHT_WARMTH`, config.ts). The grace is
+      **added** to the lasting bonuses (`chain.ts startingWarmth`), not
+      multiplied: multiplied, it warmed all ~60 runs and cut the ending from
+      62.0h to 52.6h. Added, it fades as Embers grow.
+      - Early sim, warmth ×1 / ×3 / ×6 / ×10: the beam first drops below
+        50% at 4.9 / 7.7 / 9.8 / 11.5 minutes, minute 20 runs at 48 / 101 /
+        189 / 324 Lumen/s, and the first Rekindle comes at 85 / 76 / 70 /
+        65 minutes. ×6 puts the first starving near minute ten.
+      - `npm run sim`, before → after: first Rekindle 84.9 → 69.9 min,
+        second +57.9 → +50.9; lit at 3.4 / 6.1 / 11.8 / 20.2 / 34.2 / 62.0h
+        → 2.9 / 5.4 / 11.1 / 19.5 / 33.4 / 59.8h. The keeper who buys
+        everything: ending 50.3h → 47.8h.
+- [x] **A line that says where the chain stands.** The README promised a
+      starving banner, but only an orphaned comment remained. The supply
+      strip now ends with a status line, always present so nothing below it
+      moves (two lines reserved, three on phones):
+      - below 50%, a warning: "⚠ The beam is starving: Lens carries 317/s
+        of 6.32K/s. Helpers work at 29%. Feed Lens before hiring more.";
+      - when short, "Lens holds the beam back, short by …/s";
+      - when full, a calm "The beam is full".
+- [x] **The Quartermaster comes with Gull Rock, the Lamp Crew with
+      Cormorant Roost** (automation.ts), the way the Chain Steward comes
+      with Widow's Walk. As Ember perks (500 and 5,000) they arrived around
+      hour nine, so the first ten or so Rekindles meant relearning the same
+      lessons and re-hiring by hand. The late-perk shelf now starts at Warm
+      Hearth (50,000). A save that bought either gets its Embers back once,
+      with a log line (`RETIRED_PERKS`, state.ts). The lighthouse cards,
+      relight moments, hints and tutorial name the new crews. Like the
+      Steward, they follow the lit lighthouses, so a Next Keeping relights
+      them.
+- [x] **Fixes:**
+      - The Rekindle tab said "+3% each for the first 100, then less", and
+        the tutorial said Embers past 100 add less. The curve is a straight
+        line (`EMBER_CURVE.power` 1), so both now say so only when it isn't.
+      - Time-to-afford past a day reads "more than a day away at this rate"
+        instead of "affordable in 16807078d 15h" (`format.ts affordableIn`).
+      - "Hire an Oil Keeper", not "a Oil Keeper" (`withArticle`).
+      - "You Become the Wick" (hire The Seventh Light, which Siren's Rest
+        brings) now follows Siren's Rest in the story.
+      - README: the Kindlings grow ×10, ×4 and ×3 a level, not all ×10.
+- [x] Tests: `tests/openingChain.test.ts` (new), automation, refund and
+      shelf tests in `tests/emberShelves.test.ts`, and format helpers.
+      Eight files that check chain math against the plain 20 / 15 / 10
+      starting support pin the warmth at ×1 (`tests/baseWarmth.ts`).

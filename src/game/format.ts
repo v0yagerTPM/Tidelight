@@ -48,3 +48,20 @@ export function formatDuration(totalSeconds: number): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
   return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
 }
+
+/**
+ * The longest wait a time-to-afford note spells out. Past a day the number
+ * stops meaning anything ("affordable in 16807078d 15h" for a lighthouse
+ * one relight too far), so the note says so plainly instead.
+ */
+export const AFFORD_HORIZON_SECONDS = 86_400;
+
+/** "affordable in 3m 05s", or "more than a day away at this rate" past the horizon. */
+export function affordableIn(seconds: number): string {
+  return seconds > AFFORD_HORIZON_SECONDS ? "more than a day away at this rate" : `affordable in ${formatDuration(seconds)}`;
+}
+
+/** "a Tide Bell", "an Oil Keeper": the indefinite article for a name. */
+export function withArticle(name: string): string {
+  return `${/^[aeiou]/i.test(name) ? "an" : "a"} ${name}`;
+}

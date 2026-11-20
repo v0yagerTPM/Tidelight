@@ -51,6 +51,10 @@ import {
 } from "../src/game/tides";
 import type { GameState, Moth } from "../src/game/types";
 import { buyUpgrade, offlineRateFor } from "../src/game/upgrades";
+import { atBaseWarmth } from "./baseWarmth";
+
+// Chain math here is checked at First Light's plain starting support.
+atBaseWarmth();
 
 const crab = generatorById("candle-crab");
 const mothGen = generatorById("lantern-moth");

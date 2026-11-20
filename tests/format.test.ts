@@ -1,6 +1,6 @@
 import Decimal from "break_infinity.js";
 import { describe, expect, it } from "vitest";
-import { formatDuration, formatNumber } from "../src/game/format";
+import { affordableIn, formatDuration, formatNumber, withArticle } from "../src/game/format";
 
 describe("formatNumber (standard)", () => {
   it("prints full digits under 1000", () => {
@@ -37,5 +37,19 @@ describe("formatDuration", () => {
     expect(formatDuration(4800)).toBe("1h 20m");
     expect(formatDuration(190_000)).toBe("2d 4h");
     expect(formatDuration(Infinity)).toBe("—");
+  });
+});
+
+describe("affordableIn and withArticle", () => {
+  it("spells out waits up to a day, and says so plainly past it", () => {
+    expect(affordableIn(45)).toBe("affordable in 45s");
+    expect(affordableIn(86_400)).toBe("affordable in 1d 0h");
+    expect(affordableIn(86_401)).toBe("more than a day away at this rate");
+    expect(affordableIn(1.45e12)).toBe("more than a day away at this rate");
+  });
+
+  it("puts an before a vowel", () => {
+    expect(withArticle("Oil Keeper")).toBe("an Oil Keeper");
+    expect(withArticle("Tide Bell")).toBe("a Tide Bell");
   });
 });

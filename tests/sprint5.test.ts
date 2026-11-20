@@ -27,6 +27,10 @@ import { createInitialState, deserializeState, serializeState } from "../src/gam
 import { STORY_BEATS, checkStory } from "../src/game/story";
 import type { GameState } from "../src/game/types";
 import { offlineRateFor } from "../src/game/upgrades";
+import { atBaseWarmth } from "./baseWarmth";
+
+// Chain math here is checked at First Light's plain starting support.
+atBaseWarmth();
 
 const crab = generatorById("candle-crab");
 const ALL_RELIGHTABLE = [

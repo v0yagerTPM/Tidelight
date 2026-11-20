@@ -150,6 +150,18 @@ export const CHAIN_NODE_IDS: readonly ChainNodeId[] = ["wick", "oil", "lens", "b
 
 /** The chain wakes (and starts limiting the beam) at this many total generators. */
 export const CHAIN_UNLOCK_GENERATORS = 10;
+/**
+ * A new keeper's First Light starting levels (Wick, Oil and Lens at level
+ * 1) support this many times their usual amount. It is added to the
+ * lasting bonuses that warm every run (chain.ts startingWarmth), so it
+ * fades as they grow and the late game is untouched. At ×1 the chain woke
+ * at ten helpers already short (10 Lumen/s of Lens against ~20 of demand),
+ * and a new keeper spent the first twenty minutes at 6–25% efficiency.
+ * Warmed, the first starving lands near minute ten, once there is Lumen
+ * to feed it.
+ * (An object, not a constant, so the tuning harness can try other values.)
+ */
+export const FIRST_LIGHT_WARMTH = { factor: 6 };
 /** Chain factor = CHAIN_FLOOR + (1 − CHAIN_FLOOR) × efficiency. */
 export const CHAIN_FLOOR = 0.25;
 /** Each Beam level, across all boards, adds this much final production. */
@@ -242,7 +254,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
   {
     id: GULL_ROCK_ID,
     name: "Gull Rock Light",
-    hint: "A squat tower on a rock the gulls never left. Relight it for +50% production — but only a beam running at 50% efficiency or better can reach it.",
+    hint: "A squat tower on a rock the gulls never left. Relight it for +50% production, and a Quartermaster who learns your lessons for you — but only a beam running at 50% efficiency or better can reach it.",
     relightCost: 5_000_000,
     efficiencyRequirement: 0.5,
     productionBonus: 0.5,
@@ -253,7 +265,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
   {
     id: CORMORANT_ROOST_ID,
     name: "Cormorant Roost",
-    hint: "A tall, narrow tower the cormorants adopted as a cliff. They have been keeping the lens clean for a century, out of habit. Relight it for +75% production.",
+    hint: "A tall, narrow tower the cormorants adopted as a cliff. They have been keeping the lens clean for a century, out of habit. Relight it for +75% production, and a Lamp Crew who hires your helpers for you.",
     relightCost: 840_000_000,
     efficiencyRequirement: 0.6,
     productionBonus: 0.75,

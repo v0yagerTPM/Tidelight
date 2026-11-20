@@ -5,7 +5,7 @@ import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, GENERATORS, chainLig
 // time), so these imports form no load-time cycle with modules that import
 // addLog from here.
 import { CHALLENGES } from "./challenges";
-import { EMBER_PERKS, KINDLINGS } from "./emberShop";
+import { EMBER_PERKS, KINDLINGS, RETIRED_PERKS } from "./emberShop";
 import { RELICS } from "./expeditions";
 import { STORY_BEATS } from "./story";
 import { UPGRADES } from "./upgrades";
@@ -393,8 +393,13 @@ export function deserializeState(raw: unknown): GameState | null {
     return null;
   }
   try {
-    const embers = sanitizeCount(s.embers);
-    return {
+    // Perks no longer sold (the Quartermaster and Lamp Crew now come with
+    // the lighthouses) are refunded once: the sanitized perk list drops
+    // them, so the next save no longer holds them.
+    const retired = RETIRED_PERKS.filter((p) => Array.isArray(s.emberPerks) && s.emberPerks.includes(p.id));
+    const refund = retired.reduce((sum, p) => sum + p.costEmbers, 0);
+    const embers = sanitizeCount(s.embers) + refund;
+    const state: GameState = {
       version: SAVE_VERSION,
       lumen: new Decimal(s.lumen ?? "0"),
       lifetimeLumen: new Decimal(s.lifetimeLumen ?? "0"),
@@ -440,6 +445,14 @@ export function deserializeState(raw: unknown): GameState | null {
       lastSeen: typeof s.lastSeen === "number" && Number.isFinite(s.lastSeen) ? s.lastSeen : Date.now(),
       log: sanitizeLog(s.log),
     };
+    if (refund > 0) {
+      addLog(
+        state,
+        `${retired.map((p) => p.name).join(" and ")} now come${retired.length === 1 ? "s" : ""} with the lighthouses, so the ${refund.toLocaleString("en-US")} Embers you paid are back in the tin.`,
+        state.lastSeen,
+      );
+    }
+    return state;
   } catch {
     return null; // A corrupt Decimal string should never brick the game.
   }

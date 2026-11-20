@@ -6,6 +6,7 @@ import {
   CHAIN_NODES,
   CHAIN_UNLOCK_GENERATORS,
   FIRST_LIGHT_ID,
+  FIRST_LIGHT_WARMTH,
   GULL_ROCK_ID,
   HOLLOW_LIGHT_ID,
   SUPPLY_NODE_IDS,
@@ -110,7 +111,8 @@ function computeBoardNodeSupport(lighthouseId: string, nodeId: SupplyNodeId, lev
 /**
  * First Light's warm start: the levels every run begins with (Wick 1,
  * Oil 1, Lens 1) support their usual amount × the keeper's lasting
- * production bonuses (engine.lastingProductionMultiplier). Those bonuses
+ * production bonuses (engine.lastingProductionMultiplier), plus a new
+ * keeper's grace (FIRST_LIGHT_WARMTH, config.ts). Those bonuses
  * survive a Rekindle and multiply what the first generators demand, so
  * without this a keeper holding 1,000 Embers (×21) began every run with
  * the chain at a new keeper's 20/15/10 against twenty-one times the
@@ -125,9 +127,20 @@ export function startingCushion(state: GameState, nodeId: SupplyNodeId): Decimal
   const startLevel = chainLighthouseById(FIRST_LIGHT_ID).startLevels[nodeId];
   const counted = Math.min(startLevel, state.chainBoards[FIRST_LIGHT_ID]?.[nodeId] ?? 0);
   if (counted <= 0) return new Decimal(0);
-  const extra = lastingProductionMultiplier(state).sub(1);
+  const extra = startingWarmth(state).sub(1);
   if (extra.lte(0)) return new Decimal(0);
   return boardNodeSupport(FIRST_LIGHT_ID, nodeId, counted).mul(extra);
+}
+
+/**
+ * How many times their usual support First Light's starting levels give:
+ * the lasting bonuses, plus FIRST_LIGHT_WARMTH − 1. The grace is ADDED, not
+ * multiplied, so it eases the opening (×6 for a new keeper) and fades as
+ * the lasting bonuses grow: multiplied, it warmed all ~60 runs to the
+ * ending and cut the sim's ending from 62 to 53 hours.
+ */
+export function startingWarmth(state: GameState): Decimal {
+  return lastingProductionMultiplier(state).add(FIRST_LIGHT_WARMTH.factor - 1);
 }
 
 /** Every support multiplier at once (perks, relics, lighthouses, tide). */
