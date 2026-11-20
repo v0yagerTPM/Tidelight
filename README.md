@@ -103,7 +103,8 @@ a hearth whose fire grows with the Embers you'd bank.
   you — plus a legacy bonus of +25% production per Keeping, forever,
   and a handful of inherited Embers to start with.
 - **The Keeper's Desk** — at the bottom of the Log: switch number
-  notation between standard (1.23M) and scientific (1.23e6), export
+  notation between standard (1.23M, turning to 1.23e15 past T) and
+  scientific (1.23e6), export
   your save as JSON (with Copy) or import one back — handy for backups
   and for carrying a save to the Steam build one day — and a two-step
   hard reset for keepers who truly want a cold lamp.
@@ -173,7 +174,7 @@ a hearth whose fire grows with the Embers you'd bank.
   ready; Scented lure shows your scales toward the 8 it needs.
 - **A price ceiling** — no single purchase (upgrade, relight, roost
   expansion or rush lure) costs more than The Hollow Light's relight,
-  4.00No: a keeper who has lit it can afford anything.
+  4.00e30: a keeper who has lit it can afford anything.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache, a
   story fragment for the Log, and maybe one of eight permanent RELICS —
@@ -251,7 +252,9 @@ npm run build      # typecheck + production build to dist/
 - **Log tab** — the story so far, the Keeper's Log, and the Keeper's
   Desk (notation, save export/import, hard reset).
 - **Tabs** — Light · Upgrades · Lighthouses · Shore · Rekindle · Log.
-  One view at a time; on phones they sit in a bottom bar.
+  One view at a time; on phones they sit in a bottom bar. On screens
+  1024px wide and up, the Light view puts the lamp (scene and supply
+  chain) beside the helpers, so the buy rows are never below the fold.
 - Progress saves automatically to your browser (localStorage,
   `tidelight-save-v1`), including offline earnings for up to 8 hours.
 

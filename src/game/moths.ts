@@ -55,23 +55,21 @@ export interface MothPatternDef {
   weight: number;
   /** The highest glow this pattern can reach by attracting or breeding. */
   glowCeiling: number;
-  /** Emoji shown on the collection card. */
-  emoji: string;
   /** CSS gradient for the wing swatch on the collection card. */
   swatch: string;
 }
 
 export const MOTH_PATTERNS: readonly MothPatternDef[] = [
-  { id: "plain",     name: "Plain",     tier: 0, weight: 44, glowCeiling: 40, emoji: "🤍", swatch: "linear-gradient(135deg, #e8e0cf, #cfc4ab)" },
-  { id: "spotted",   name: "Spotted",   tier: 1, weight: 26, glowCeiling: 55, emoji: "💛", swatch: "radial-gradient(circle at 30% 35%, #8a6d3b 18%, transparent 19%), radial-gradient(circle at 68% 62%, #8a6d3b 14%, transparent 15%), linear-gradient(135deg, #f2d492, #dfba6a)" },
-  { id: "striped",   name: "Striped",   tier: 2, weight: 16, glowCeiling: 70, emoji: "🧡", swatch: "repeating-linear-gradient(45deg, #e8975a 0 6px, #f7cf9f 6px 12px)" },
-  { id: "crescent",  name: "Crescent",  tier: 3, weight: 9, glowCeiling: 80, emoji: "🌙", swatch: "radial-gradient(circle at 68% 32%, transparent 26%, #7d84b8 27%), linear-gradient(135deg, #4b5480, #7983b5)" },
-  { id: "starlit",   name: "Starlit",   tier: 4, weight: 4.5, glowCeiling: 90,  emoji: "⭐", swatch: "radial-gradient(circle at 25% 30%, #fff6c9 8%, transparent 9%), radial-gradient(circle at 70% 55%, #ffe9a8 6%, transparent 7%), radial-gradient(circle at 45% 78%, #fff6c9 5%, transparent 6%), linear-gradient(135deg, #232a52, #3d4a8a)" },
-  { id: "prismatic", name: "Prismatic", tier: 5, weight: 0.5, glowCeiling: 100,  emoji: "🌈", swatch: "linear-gradient(135deg, #f28ba8, #f7d774, #8fd18b, #7fb5d9, #b48fd9)" },
+  { id: "plain",     name: "Plain",     tier: 0, weight: 44, glowCeiling: 40, swatch: "linear-gradient(135deg, #e8e0cf, #cfc4ab)" },
+  { id: "spotted",   name: "Spotted",   tier: 1, weight: 26, glowCeiling: 55, swatch: "radial-gradient(circle at 30% 35%, #8a6d3b 18%, transparent 19%), radial-gradient(circle at 68% 62%, #8a6d3b 14%, transparent 15%), linear-gradient(135deg, #f2d492, #dfba6a)" },
+  { id: "striped",   name: "Striped",   tier: 2, weight: 16, glowCeiling: 70, swatch: "repeating-linear-gradient(45deg, #e8975a 0 6px, #f7cf9f 6px 12px)" },
+  { id: "crescent",  name: "Crescent",  tier: 3, weight: 9, glowCeiling: 80, swatch: "radial-gradient(circle at 68% 32%, transparent 26%, #7d84b8 27%), linear-gradient(135deg, #4b5480, #7983b5)" },
+  { id: "starlit",   name: "Starlit",   tier: 4, weight: 4.5, glowCeiling: 90,  swatch: "radial-gradient(circle at 25% 30%, #fff6c9 8%, transparent 9%), radial-gradient(circle at 70% 55%, #ffe9a8 6%, transparent 7%), radial-gradient(circle at 45% 78%, #fff6c9 5%, transparent 6%), linear-gradient(135deg, #232a52, #3d4a8a)" },
+  { id: "prismatic", name: "Prismatic", tier: 5, weight: 0.5, glowCeiling: 100,  swatch: "linear-gradient(135deg, #f28ba8, #f7d774, #8fd18b, #7fb5d9, #b48fd9)" },
   // Never wild and never bred true: a Starlit or Prismatic cocoon that opens in a Stormfront is Tidelit 5% of the time.
-  { id: "tidelit",   name: "Tidelit",   tier: 5, weight: 0, glowCeiling: 100, emoji: "🌊", swatch: "repeating-linear-gradient(160deg, #2d6f86 0 5px, #8fd6c4 5px 8px, #1d3f5c 8px 13px)" },
+  { id: "tidelit",   name: "Tidelit",   tier: 5, weight: 0, glowCeiling: 100, swatch: "repeating-linear-gradient(160deg, #2d6f86 0 5px, #8fd6c4 5px 8px, #1d3f5c 8px 13px)" },
   // Only after the ending: two glow-100 Prismatics have a 2% chance of a Hollow child (glow 100–120, two traits). It never breeds true.
-  { id: "hollow",    name: "Hollow",    tier: 6, weight: 0, glowCeiling: 120, emoji: "🌑", swatch: "radial-gradient(circle at 50% 50%, #0b1220 22%, transparent 23%), radial-gradient(circle at 50% 50%, #f4f7ff 0 40%, #b9c6e8 60%, #6d7fa8 100%)" },
+  { id: "hollow",    name: "Hollow",    tier: 6, weight: 0, glowCeiling: 120, swatch: "radial-gradient(circle at 50% 50%, #0b1220 22%, transparent 23%), radial-gradient(circle at 50% 50%, #f4f7ff 0 40%, #b9c6e8 60%, #6d7fa8 100%)" },
 ];
 
 const PATTERNS_BY_ID: ReadonlyMap<string, MothPatternDef> = new Map(MOTH_PATTERNS.map((p) => [p.id, p]));

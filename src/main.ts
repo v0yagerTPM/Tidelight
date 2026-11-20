@@ -151,6 +151,7 @@ import {
   EMBER_GLYPH,
   GENERATOR_ICONS,
   GLOBAL_UPGRADE_ICONS,
+  GLYPHS,
   KINDLING_ICONS,
   PERK_ICONS,
   HEARTH_ART,
@@ -159,7 +160,9 @@ import {
   SOUND_OFF_ICON,
   SOUND_ON_ICON,
   TAB_ICONS,
+  TIDE_GLYPHS,
   UNKNOWN_ICON,
+  wingDot,
 } from "./ui/icons";
 import {
   UPGRADES,
@@ -312,6 +315,7 @@ ${[
   <main>
     <section id="view-light" class="view active">
       <div id="challenge-banner" class="challenge-banner hidden" role="button" tabindex="0"></div>
+      <div class="light-main">
       <div class="scene">
         <canvas id="scene-canvas" aria-hidden="true"></canvas>
         <div id="tide-strip" class="tide-strip"></div>
@@ -335,7 +339,7 @@ ${[
           <div class="supply-node" data-node="${id}">
             <div class="sn-top"><span class="sn-name">${CHAIN_NODES[id].name}</span><span class="sn-pct"></span></div>
             <div class="sn-gauge"><span></span></div>
-            <button class="buy sn-feed">Feed</button>
+            <button class="buy sn-feed">${id === "beam" ? "Raise" : "Feed"}</button>
           </div>`,
             )
             .join("")}
@@ -357,6 +361,8 @@ ${[
           <p class="muted steward-status" id="steward-status"></p>
         </div>
       </section>
+      </div>
+      <div class="light-side">
       <div class="buy-toggle" role="group" aria-label="Buy amount">
         <span class="buy-toggle-label">Buy</span>
         <button class="toggle-btn" data-amount="1">×1</button>
@@ -369,10 +375,11 @@ ${[
         </span>
       </div>
       <div id="generators" class="gen-list"></div>
+      </div>
     </section>
 
     <section id="view-upgrades" class="view">
-      <h2>Upgrades ${infoTip("One-time lessons for the light. Most are forgotten when you Rekindle; the ones marked ♾ are keeper knowledge and are kept.", "About upgrades")}</h2>
+      <h2>Upgrades ${infoTip("One-time lessons for the light. Most are forgotten when you Rekindle; the ones marked ♾\uFE0E are keeper knowledge and are kept.", "About upgrades")}</h2>
       <p class="muted"><span id="upgrades-summary"></span></p>
       <div class="section-head">
         <h3 class="section-title">Ready to learn</h3>
@@ -408,8 +415,8 @@ ${[
       <div class="shore-head">
         <h2>The Shore ${infoTip("What the glass sea gives back. Moths, relics and story fragments are permanent: they roost through every Rekindle.", "About the Shore")}</h2>
         <div class="buy-toggle shore-panes" role="tablist" aria-label="The Shore">
-          <button class="toggle-btn active" data-pane="garden" role="tab" aria-selected="true">🦋 Moth Garden<span class="pane-dot hidden" id="garden-dot"></span></button>
-          <button class="toggle-btn" data-pane="sea" role="tab" aria-selected="false">🍾 Bottles &amp; Relics<span class="pane-dot hidden" id="sea-dot"></span></button>
+          <button class="toggle-btn active" data-pane="garden" role="tab" aria-selected="true">${GLYPHS.moth} Moth Garden<span class="pane-dot hidden" id="garden-dot"></span></button>
+          <button class="toggle-btn" data-pane="sea" role="tab" aria-selected="false">${GLYPHS.bottle} Bottles &amp; Relics<span class="pane-dot hidden" id="sea-dot"></span></button>
         </div>
       </div>
       <div class="shore-pane active" id="pane-garden">
@@ -476,7 +483,7 @@ ${[
         <div class="row"><span>New here, or need a refresher?</span><button class="buy" id="desk-tutorial">How to play</button></div>
         <div class="row"><span>Number notation</span>
           <span class="buy-toggle desk-toggle">
-            <button class="toggle-btn" id="notation-standard">Standard (1.23M)</button>
+            <button class="toggle-btn" id="notation-standard">Standard (1.23M, then 1.23e15)</button>
             <button class="toggle-btn" id="notation-scientific">Scientific (1.23e6)</button>
           </span>
         </div>
@@ -723,7 +730,7 @@ function rebuildUpgrades(): void {
         <div class="lesson-kind">${lessonKind(def)}</div>
         <h4 class="lesson-name">${def.name}</h4>
         <p class="lesson-effect">${def.effect}</p>
-        ${def.permanent ? `<p class="lesson-perm">♾ Keeper knowledge — kept through every Rekindle</p>` : ""}
+        ${def.permanent ? `<p class="lesson-perm">♾\uFE0E Keeper knowledge — kept through every Rekindle</p>` : ""}
       </div>
       <div class="lesson-foot">
         <span class="lesson-cost">${fmt(def.cost)} Lumen</span>
@@ -778,7 +785,7 @@ function rebuildUpgrades(): void {
     const chip = document.createElement("div");
     chip.className = `lesson-chip${def.permanent ? " permanent" : ""}`;
     chip.title = def.effect;
-    chip.innerHTML = `<span class="lesson-chip-icon">${lessonIcon(def)}</span><span class="lesson-chip-name">${def.name}</span><span class="lesson-chip-mark">${def.permanent ? "♾" : "✓"}</span>`;
+    chip.innerHTML = `<span class="lesson-chip-icon">${lessonIcon(def)}</span><span class="lesson-chip-name">${def.name}</span><span class="lesson-chip-mark">${def.permanent ? "♾\uFE0E" : "✓"}</span>`;
     upgradeContainers.purchased?.appendChild(chip);
   }
   if (upgradeContainers.purchased && learned.length === 0) {
@@ -1074,7 +1081,7 @@ function rebuildShore(): void {
     if (!mothsUnlocked(state)) {
       mothArea.innerHTML = `
         <div class="card">
-          <div class="gen-name">🔒 The roost is quiet</div>
+          <div class="gen-name">${GLYPHS.lock} The roost is quiet</div>
           <p class="muted">Hire a Lantern Moth (the second helper, in the Light view) and the wild moths of the glass sea will start following your light home. Collect them, set the brightest on duty, and breed new wings.</p>
         </div>`;
     } else {
@@ -1095,7 +1102,7 @@ function rebuildShore(): void {
       card.className = "card challenge active";
       const rider = riderOf(state);
       card.innerHTML = `
-        <div class="gen-name">🍾 Out at sea — ${route?.name ?? "an unknown route"}</div>
+        <div class="gen-name">${GLYPHS.bottle} Out at sea — ${route?.name ?? "an unknown route"}</div>
         ${rider ? `<p class="muted">${rider.name} rides on the cork.</p>` : ""}
         <p class="muted expedition-note"></p>
         <button class="buy expedition-claim">Claim the bottle</button>`;
@@ -1123,7 +1130,7 @@ function rebuildShore(): void {
       const pick = document.createElement("div");
       pick.className = "card";
       pick.innerHTML = `
-        <div class="gen-name">🦋 A rider for the bottle</div>
+        <div class="gen-name">${GLYPHS.moth} A rider for the bottle</div>
         <p class="muted">A moth can ride along: relic chance + glow ÷ 10 points (a Seeker adds 10 more). It leaves duty and its post for the trip. On the Deep Glass Crossing, a moth without a trait comes home with one 1 time in 10.</p>
         <select class="breed-select rider-select"><option value="">No rider</option>${riders
           .map((m) => `<option value="${m.id}">${m.name} (glow ${m.glow}${traitList(m)})</option>`)
@@ -1208,14 +1215,14 @@ function buildRoostBar(host: HTMLElement): void {
   bar.className = "card roost-bar";
   bar.innerHTML = `
     <div class="roost-stats">
-      <span class="gen-name">🦋 The Roost</span>
+      <span class="gen-name">${GLYPHS.moth} The Roost</span>
       <span class="muted moth-roost-line"></span>
     </div>
     <div class="roost-actions">
       <button class="buy moth-attract">Attract</button>
       <button class="buy moth-scented">Scented lure</button>
       <button class="buy moth-roost">Expand</button>
-      <button class="buy almanac-open">📖 Almanac ${state.almanac.length}/${ALMANAC_SIZE}</button>
+      <button class="buy almanac-open">${GLYPHS.book} Almanac ${state.almanac.length}/${ALMANAC_SIZE}</button>
     </div>
     <div class="gen-note muted moth-attract-note"></div>
     <span class="moth-roost-note hidden"></span>`;
@@ -1263,7 +1270,7 @@ function buildRoster(host: HTMLElement): void {
         : isAtSea(state, moth.id)
           ? `<span class="tile-status sea" title="Riding a bottle">at sea</span>`
           : "";
-    const cocoon = isCocoonParent(state, moth.id) ? `<span class="tile-status cocoon" title="In the cocoon">🌀</span>` : "";
+    const cocoon = isCocoonParent(state, moth.id) ? `<span class="tile-status cocoon" title="In the cocoon">${GLYPHS.cocoon}</span>` : "";
     const fill = Math.min(100, (moth.glow / pattern.glowCeiling) * 100);
     const tile = document.createElement("button");
     tile.type = "button";
@@ -1272,7 +1279,7 @@ function buildRoster(host: HTMLElement): void {
     tile.innerHTML = `
       <span class="moth-swatch" style="background:${pattern.swatch}"></span>
       <span class="tile-main">
-        <span class="tile-name">${pattern.emoji} ${moth.name}</span>
+        <span class="tile-name">${wingDot(pattern.swatch, pattern.name)} ${moth.name}</span>
         <span class="tile-line">
           <span class="glow-meter" title="Glow ${moth.glow} of ${pattern.glowCeiling}"><span style="width:${fill.toFixed(0)}%"></span></span>
           <span class="glow-num">${moth.glow}</span>
@@ -1316,7 +1323,7 @@ function mothDetail(onDuty: Set<string>): HTMLElement {
     <div class="detail-head">
       <span class="moth-swatch big" style="background:${pattern.swatch}"></span>
       <div>
-        <div class="gen-name">${pattern.emoji} ${moth.name}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}</div>
+        <div class="gen-name">${wingDot(pattern.swatch, pattern.name)} ${moth.name}${inCocoon ? ` <span class="perm">in the cocoon</span>` : ""}</div>
         <div class="gen-flavor">${pattern.name} wings · glow ${moth.glow}${isOldLight(moth) ? ` <span class="perm" title="From before the moth rebalance: it keeps its glow above the ${pattern.name} ceiling.">old light</span>` : ` of ${pattern.glowCeiling}`} · generation ${moth.generation} · ${where}</div>
         ${traitsOf(moth).map((t) => `<div class="gen-flavor moth-trait-line">${t.name}: ${t.effect}</div>`).join("")}
       </div>
@@ -1349,7 +1356,7 @@ function buildBreeding(host: HTMLElement): void {
     const a = mothById(state, state.cocoon.parentIds[0]);
     const b = mothById(state, state.cocoon.parentIds[1]);
     breed.innerHTML = `
-      <div class="side-title"><span class="gen-name">🌀 The Cocoon</span></div>
+      <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} The Cocoon</span></div>
       <p class="muted side-line">${a?.name ?? "?"} × ${b?.name ?? "?"}</p>
       <div class="progress"><div class="progress-bar cocoon-bar"></div></div>
       <div class="side-row"><span class="muted cocoon-note"></span><button class="buy cocoon-hatch">Hatch</button></div>`;
@@ -1370,7 +1377,7 @@ function buildBreeding(host: HTMLElement): void {
     }
     const options = home.map((m) => `<option value="${m.id}">${m.name} (${patternById(m.pattern).name}, ${m.glow}${traitList(m)})</option>`).join("");
     breed.innerHTML = `
-      <div class="side-title"><span class="gen-name">🌀 Breeding</span></div>
+      <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} Breeding</span></div>
       <select class="breed-select breed-a" aria-label="First parent">${options}</select>
       <select class="breed-select breed-b" aria-label="Second parent">${options}</select>
       <div class="side-row"><span class="muted breed-time"></span><button class="buy breed-start">Spin a cocoon</button></div>`;
@@ -1399,7 +1406,7 @@ function buildBreeding(host: HTMLElement): void {
     });
   } else {
     breed.innerHTML = `
-      <div class="side-title"><span class="gen-name">🌀 Breeding</span></div>
+      <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} Breeding</span></div>
       <p class="muted side-line">Breeding needs two moths at home in the roost.</p>`;
   }
   breed.querySelector(".side-title")?.appendChild(infoButton("How breeding works", breedingPages));
@@ -1425,7 +1432,7 @@ function buildPosts(host: HTMLElement): void {
       </div>`;
   });
   card.innerHTML = `
-    <div class="side-title"><span class="gen-name">🗼 Lighthouse posts</span></div>
+    <div class="side-title"><span class="gen-name">${GLYPHS.tower} Lighthouse posts</span></div>
     ${rows.join("")}
     ${picked ? (canPost ? "" : `<p class="muted side-line">${picked.name} can't take a post right now.</p>`) : `<p class="muted side-line">Select a moth to post it.</p>`}`;
   card.querySelector(".side-title")?.appendChild(infoButton("How lighthouse posts work", postPages));
@@ -1479,7 +1486,7 @@ function openAlmanac(): void {
     const cells = columns
       .map((t) => {
         const has = almanacHas(state, pid, t?.id);
-        return `<td class="${has ? "almanac-has" : "almanac-missing"}" title="${p.name}, ${t ? t.name : "no trait"}${has ? "" : " — not yet"}">${has ? p.emoji : "·"}</td>`;
+        return `<td class="${has ? "almanac-has" : "almanac-missing"}" title="${p.name}, ${t ? t.name : "no trait"}${has ? "" : " — not yet"}">${has ? wingDot(p.swatch, p.name) : "·"}</td>`;
       })
       .join("");
     return `<tr><th scope="row">${p.name}</th>${cells}</tr>`;
@@ -1721,7 +1728,7 @@ function rebuildEndingPanel(): void {
   const panel = document.createElement("div");
   panel.className = "card ending";
   panel.innerHTML = `
-    <div class="gen-name">🌅 The Sea Remembers</div>
+    <div class="gen-name">${GLYPHS.dawn} The Sea Remembers</div>
     <p>Seven lights stand in a row across the glass, and the glass has remembered it was water. The ships that are mostly memory are coming home. Whatever comes next is yours to choose, Keeper.</p>
     <p class="muted ending-stats"></p>
     <div class="kept-lost">
@@ -1886,7 +1893,7 @@ function rebuildLighthouses(): void {
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
-      <div class="gen-name">🔒 The supply chain is asleep</div>
+      <div class="gen-name">${GLYPHS.lock} The supply chain is asleep</div>
       <p class="muted locked-chain-note"></p>`;
     lockedChainNote = card.querySelector<HTMLElement>(".locked-chain-note");
     chainArea.appendChild(card);
@@ -2048,7 +2055,7 @@ function updateChainView(): void {
       const isBottleneck = status.bottleneck === nodeId;
       refs.box.classList.toggle("bottleneck", isBottleneck);
       refs.flag.textContent = isBottleneck
-        ? `⚠ BOTTLENECK — short by ${fmt(status.shortfall)}/s`
+        ? `⚠\uFE0E BOTTLENECK — short by ${fmt(status.shortfall)}/s`
         : "";
     }
   }
@@ -2093,8 +2100,8 @@ function rebuildStory(): void {
       const card = document.createElement("div");
       card.className = `card${seen ? " story-beat" : " lighthouse locked"}`;
       card.innerHTML = seen
-        ? `<div class="gen-name">📖 ${beat.title}</div><p>${beat.text}</p>`
-        : `<div class="gen-name">🌫 A story not yet heard</div><p class="muted">${beat.hint}</p>`;
+        ? `<div class="gen-name">${GLYPHS.book} ${beat.title}</div><p>${beat.text}</p>`
+        : `<div class="gen-name">${GLYPHS.fog} A story not yet heard</div><p class="muted">${beat.hint}</p>`;
       list.appendChild(card);
     }
     storyArea.appendChild(list);
@@ -2355,19 +2362,19 @@ function showAwayCard(r: AwayReport): void {
   const news: string[] = [];
   if (r.capped) {
     news.push(
-      `<li class="away-cap">⏳ Your keepers rest after ${formatDuration(r.capSeconds)}, so ${formatDuration(r.awaySeconds - r.creditedSeconds)} went unpaid. Ember perks and lighthouses keep them out longer.</li>`,
+      `<li class="away-cap">${GLYPHS.hourglass} Your keepers rest after ${formatDuration(r.capSeconds)}, so ${formatDuration(r.awaySeconds - r.creditedSeconds)} went unpaid. Ember perks and lighthouses keep them out longer.</li>`,
     );
   }
-  if (r.stewardLevels > 0) news.push(`<li>⚙ Your Chain Steward tended the chain: ${r.stewardLevels} level${r.stewardLevels === 1 ? "" : "s"} of supplies and Beam.</li>`);
+  if (r.stewardLevels > 0) news.push(`<li>${GLYPHS.gear} Your Chain Steward tended the chain: ${r.stewardLevels} level${r.stewardLevels === 1 ? "" : "s"} of supplies and Beam.</li>`);
   const shoreNews: string[] = [];
-  if (r.cocoonNew) shoreNews.push("<li>🐛 The cocoon is ready to hatch.</li>");
-  if (r.bottleNew) shoreNews.push("<li>🍾 A bottle has washed back onto the glass.</li>");
+  if (r.cocoonNew) shoreNews.push(`<li>${GLYPHS.cocoon} The cocoon is ready to hatch.</li>`);
+  if (r.bottleNew) shoreNews.push(`<li>${GLYPHS.bottle} A bottle has washed back onto the glass.</li>`);
   if ((r.luresGained ?? 0) > 0) {
     const full = r.luresHeld >= r.lureBank ? "your lure bank is full" : `${r.luresHeld} of ${r.lureBank} held`;
-    shoreNews.push(`<li>🦋 ${r.luresGained} lure${r.luresGained === 1 ? "" : "s"} regrew: ${full}.</li>`);
+    shoreNews.push(`<li>${GLYPHS.moth} ${r.luresGained} lure${r.luresGained === 1 ? "" : "s"} regrew: ${full}.</li>`);
   }
   news.push(...shoreNews);
-  for (const title of r.storyTitles) news.push(`<li>📜 A new page of the story: <strong>${title}</strong>.</li>`);
+  for (const title of r.storyTitles) news.push(`<li>${GLYPHS.scroll} A new page of the story: <strong>${title}</strong>.</li>`);
   const toShore = r.cocoonNew || r.bottleNew;
   splash.open(
     [
@@ -2413,8 +2420,8 @@ function openBottleSplash(claim: ExpeditionClaim, routeName: string, relicChance
   if (claim.rider) {
     const trait = MOTH_TRAITS.find((t) => t.id === claim.riderTrait);
     rider = trait
-      ? `<p class="bottle-rider">🦋 <strong>${claim.rider.name}</strong> comes home from the deep glass changed: <strong>${trait.name}</strong>. ${trait.effect}</p>`
-      : `<p class="bottle-rider">🦋 <strong>${claim.rider.name}</strong> hops off the cork and back into the roost.</p>`;
+      ? `<p class="bottle-rider">${GLYPHS.moth} <strong>${claim.rider.name}</strong> comes home from the deep glass changed: <strong>${trait.name}</strong>. ${trait.effect}</p>`
+      : `<p class="bottle-rider">${GLYPHS.moth} <strong>${claim.rider.name}</strong> hops off the cork and back into the roost.</p>`;
   }
   splash.open(
     [
@@ -2494,7 +2501,8 @@ let logStructureKey: string | null = null;
 
 // ── The supply strip: the chain, fed from the Light view ────────────────────
 // Wick, Oil and Lens as gauges of support against demand (the bottleneck
-// glows), the Beam bonus, a Feed button on each (the cheapest level on
+// glows), the Beam bonus, a Feed button on each supply and a Raise on the
+// Beam (the cheapest level on
 // any lit board: supply.ts), Fill the chain, and the Chain Steward's
 // settings. The board-by-board view stays on the Lighthouses tab.
 const supplyStrip = document.querySelector<HTMLElement>("#supply-strip");
@@ -2583,6 +2591,9 @@ function updateSupplyStrip(now: number): void {
   if (!supplyStrip) return;
   const chain = chainStatus(state, now);
   supplyStrip.classList.toggle("hidden", !chain.unlocked);
+  // On phones the scene gives up some height once the chain wakes, so the
+  // helpers start nearer the fold (style.css, .chain-awake).
+  document.querySelector("#view-light")?.classList.toggle("chain-awake", chain.unlocked);
   if (!chain.unlocked) return;
   if (supplyEff) {
     supplyEff.textContent = pct(chain.efficiency);
@@ -2601,7 +2612,7 @@ function updateSupplyStrip(now: number): void {
     const work = `Helpers work at ${Math.round(chain.chainFactor * 100)}%`;
     const say =
       starving && node
-        ? `⚠ The beam is starving: ${name} carries ${fmt(node.support)}/s of ${fmt(chain.demand)}/s. ${work}. Feed ${name} before hiring more.`
+        ? `⚠\uFE0E The beam is starving: ${name} carries ${fmt(node.support)}/s of ${fmt(chain.demand)}/s. ${work}. Feed ${name} before hiring more.`
         : node
           ? `${name} holds the beam back, short by ${fmt(chain.shortfall)}/s. ${work}.`
           : "Every supply carries your helpers. The beam is full.";
@@ -2637,7 +2648,9 @@ function updateSupplyStrip(now: number): void {
       }
     }
     if (ref.feed) {
-      ref.feed.textContent = quote.cost ? `Feed · ${fmt(quote.cost)}` : "Feed";
+      // The supplies are fed; the Beam is raised (it carries nothing, it adds light).
+      const verb = ref.nodeId === "beam" ? "Raise" : "Feed";
+      ref.feed.textContent = quote.cost ? `${verb} · ${fmt(quote.cost)}` : verb;
       ref.feed.disabled = !quote.affordable;
       ref.feed.classList.toggle("affordable", quote.affordable && (ref.nodeId === chain.bottleneck || (chain.bottleneck === null && ref.nodeId === "beam")));
     }
@@ -2661,7 +2674,8 @@ function updateSupplyStrip(now: number): void {
   // The Chain Steward.
   const unlocked = stewardUnlocked(state);
   if (stewardBtn) {
-    stewardBtn.textContent = unlocked ? `Steward · ${state.stewardOn ? "on" : "off"}` : "Steward 🔒";
+    const stewardLabel = unlocked ? `Steward · ${state.stewardOn ? "on" : "off"}` : `Steward ${GLYPHS.lock}`;
+    if (stewardBtn.innerHTML !== stewardLabel) stewardBtn.innerHTML = stewardLabel;
     stewardBtn.classList.toggle("active", unlocked && state.stewardOn);
     stewardBtn.setAttribute("aria-disabled", String(!unlocked));
     setTip(
@@ -2715,8 +2729,8 @@ function renderDynamic(): void {
         : "";
     const nextHint = next.def.id === "storm" ? " — shore up your chain." : "";
     hud.tideStrip.innerHTML =
-      `${current.def.icon} <strong>${current.def.name}</strong> ` +
-      `<span class="tide-turn">· turns in ${formatDuration((current.endsAt - nowMs) / 1000)} · next: ${next.def.icon} ${next.def.name}</span>`;
+      `${TIDE_GLYPHS[current.def.id]} <strong>${current.def.name}</strong> ` +
+      `<span class="tide-turn">· turns in ${formatDuration((current.endsAt - nowMs) / 1000)} · next: ${TIDE_GLYPHS[next.def.id]} ${next.def.name}</span>`;
     setTip(hud.tideStrip, `${current.def.name}: ${current.def.effectText}${stormRelic}\nNext, ${next.def.name}: ${next.def.effectText}${nextHint}`);
   }
 
@@ -2724,7 +2738,8 @@ function renderDynamic(): void {
   if (challengeBanner) {
     const progress = challengeProgress(state);
     if (progress) {
-      challengeBanner.textContent = `⚔ Challenge: ${progress.def.name} — ${fmt(progress.current)} / ${fmt(progress.goal)} lifetime Lumen. Your Embers rest until it ends. Tap for details.`;
+      const banner = `${GLYPHS.challenge} Challenge: ${progress.def.name} — ${fmt(progress.current)} / ${fmt(progress.goal)} lifetime Lumen. Your Embers rest until it ends. Tap for details.`;
+      if (challengeBanner.innerHTML !== banner) challengeBanner.innerHTML = banner;
       challengeBanner.classList.remove("hidden");
     } else {
       challengeBanner.classList.add("hidden");
@@ -2801,7 +2816,7 @@ function renderDynamic(): void {
       const after = efficiencyAtDemand(state, extra, nowMs);
       if (pct(after) !== pct(chainNow.efficiency) && after < chainNow.efficiency) {
         const node = bottleneckAtDemand(state, extra, nowMs);
-        warn = `⚠ beam ${pct(chainNow.efficiency)} → ${pct(after)}${node ? ` · feed ${CHAIN_NODES[node].name}` : ""}`;
+        warn = `⚠\uFE0E beam ${pct(chainNow.efficiency)} → ${pct(after)}${node ? ` · feed ${CHAIN_NODES[node].name}` : ""}`;
         warnTip =
           `These helpers would add +${fmt(quote.productionGain)} Lumen/s and ${fmt(extra)}/s of demand on the supply chain. ${node ? `${CHAIN_NODES[node].name} couldn't keep up, ` : ""}so the beam would drop to ${pct(after)} efficiency. Feed it from the supply strip above${stewardActive(state) ? ", or let the Chain Steward catch up" : ""}.`;
       }
@@ -3052,7 +3067,11 @@ function renderDynamic(): void {
       .reverse()
       .map(
         (e) =>
-          `<li${e.message.startsWith("📖") ? ` class="story-entry"` : ""}><span class="log-time">${new Date(e.at).toLocaleTimeString()}</span> ${e.message}</li>`,
+          // Story beats are saved with a 📖 mark (state.ts keeps old logs as
+          // they were); it is drawn as the book glyph.
+          e.message.startsWith("📖")
+            ? `<li class="story-entry"><span class="log-time">${new Date(e.at).toLocaleTimeString()}</span> ${GLYPHS.book}${e.message.slice("📖".length)}</li>`
+            : `<li><span class="log-time">${new Date(e.at).toLocaleTimeString()}</span> ${e.message}</li>`,
       )
       .join("");
   }

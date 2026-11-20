@@ -2,7 +2,13 @@ import Decimal from "break_infinity.js";
 
 export type Notation = "standard" | "scientific";
 
-const SUFFIXES = ["K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc"];
+/**
+ * Named suffixes, as far as most people read them. Past T (from 1e15) the
+ * standard notation turns scientific: Qa, Qi, Sx, Sp, Oc and No read as
+ * glyph soup (is 7.60Qi more or less than 50.00Sp?), and an exponent can
+ * be compared at a glance (design review).
+ */
+const SUFFIXES = ["K", "M", "B", "T"];
 
 function toDecimal(value: Decimal | number | string): Decimal {
   return value instanceof Decimal ? value : new Decimal(value);
@@ -19,7 +25,7 @@ function eNotation(d: Decimal): string {
 /**
  * Format a Lumen-style quantity.
  * Standard: full digits under 1000, then 1.50K / 2.34M / 5.67B / 8.90T,
- * then e-notation once the named suffixes run out.
+ * then e-notation from 1e15 (1.23e15).
  * Scientific: e-notation for anything ≥ 1000.
  */
 export function formatNumber(value: Decimal | number | string, notation: Notation = "standard"): string {

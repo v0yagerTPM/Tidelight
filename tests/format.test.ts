@@ -16,10 +16,11 @@ describe("formatNumber (standard)", () => {
     expect(formatNumber(new Decimal("8.9e12"))).toBe("8.90T");
   });
 
-  it("falls back to e-notation past the named suffixes", () => {
-    // 1e36 is past Dc (1e33 tier); expect mantissa e-notation.
+  it("turns scientific from 1e15, past T", () => {
+    expect(formatNumber(new Decimal("999.99e12"))).toBe("999.99T");
+    expect(formatNumber(new Decimal("1e15"))).toBe("1.00e15");
+    expect(formatNumber(new Decimal("1.53e24"))).toBe("1.53e24");
     expect(formatNumber(new Decimal("1.53e36"))).toBe("1.53e36");
-    expect(formatNumber(new Decimal("1.53e24"))).toBe("1.53Sp"); // still named at 1e24
   });
 });
 

@@ -235,3 +235,49 @@ export const BOTTLE_ART = `<svg class="bottle-art" viewBox="0 0 96 96" width="96
   </g>
   <path class="bottle-swell" d="M6 82c8 4 14 4 22 0s14-4 22 0 14 4 22 0 14-4 22 0" stroke="var(--seafoam)" opacity="0.7"/>
 </svg>`;
+
+// ── Glyphs: icons that sit inside a line of text ────────────────────────────
+// Headings, log lines, the tide strip, the welcome-back card. They replace
+// the system emoji the UI used to borrow (🦋 🍾 📖 🌀 🔒 🌊 🌕 🪞 ⛈️ …),
+// which drew in each platform's own colours and broke the nocturne palette
+// (design review). Sized 1em so they follow the text; same 32-grid, same
+// currentColor strokes and lamp accents as the rest of the set.
+const glyph = (body: string): string =>
+  `<svg class="glyph" viewBox="0 0 32 32" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+
+export const GLYPHS = {
+  moth: glyph(
+    `<path d="M15.5 13C11 7 4 8 5 13c.7 3.6 6 4.6 10.5 2M16.5 13C21 7 28 8 27 13c-.7 3.6-6 4.6-10.5 2"/><path d="M16 10v12"/>` +
+      `<path d="M15.5 17c-3 1-5 3-4 5.5M16.5 17c3 1 5 3 4 5.5"/><circle cx="16" cy="13" r="1.8" fill="var(--lamp)" stroke="none"/>`,
+  ),
+  bottle: glyph(
+    `<path d="M13.5 4h5M14.5 4v6.5C11.5 12 10 14.5 10 18v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8c0-3.5-1.5-6-4.5-7.5V4"/>` +
+      `<path d="M10.5 20c3.5-1.5 7.5 1.5 11 0" stroke="var(--lamp)"/>`,
+  ),
+  book: glyph(`<path d="M6 6.5c3-1 7-1 10 1.5 3-2.5 7-2.5 10-1.5v19c-3-1-7-1-10 1.5-3-2.5-7-2.5-10-1.5z"/><path d="M16 8v19.5"/>`),
+  cocoon: glyph(
+    `<path d="M16 3v4"/><ellipse cx="16" cy="18" rx="6" ry="10"/>` +
+      `<path d="M10.5 14c3 1.5 8 1.5 11 0M10.2 19c3 1.5 8.6 1.5 11.6 0M11 24c3 1.2 7 1.2 10 0" opacity=".7"/>`,
+  ),
+  lock: glyph(`<rect x="8" y="14" width="16" height="13" rx="2"/><path d="M11 14v-4a5 5 0 0 1 10 0v4"/><circle cx="16" cy="20.5" r="1.6" fill="var(--lamp)" stroke="none"/>`),
+  tower: glyph(`<path d="M12.5 28 14 12h4l1.5 16z"/><path d="M13 12V9h6v3M16 6.5V9"/><path d="M20 10l8-2.5v5z" fill="var(--lamp)" stroke="none"/><path d="M4 28h24"/>`),
+  dawn: glyph(`<path d="M9 23a7 7 0 0 1 14 0z" fill="var(--lamp)" fill-opacity=".35"/><path d="M4 23h24M8 27h16"/><path d="M16 8v3M7.5 13l2 2M24.5 13l-2 2"/>`),
+  fog: glyph(`<path d="M5 11c3-2 6-2 9 0s6 2 9 0M7 17c3-2 6-2 9 0s6 2 9 0M5 23c3-2 6-2 9 0s6 2 9 0" opacity=".85"/>`),
+  hourglass: glyph(`<path d="M9 4h14M9 28h14"/><path d="M10 4c0 6 6 8 6 12s-6 6-6 12M22 4c0 6-6 8-6 12s6 6 6 12"/><path d="M12.5 26c1.5-1.8 5.5-1.8 7 0z" fill="var(--lamp)" stroke="none"/>`),
+  gear: glyph(`<circle cx="16" cy="16" r="3.5" fill="var(--lamp)" stroke="none"/><circle cx="16" cy="16" r="7.5"/><path d="M16 4v4.5M16 23.5V28M4 16h4.5M23.5 16H28M7.5 7.5l3.2 3.2M21.3 21.3l3.2 3.2M7.5 24.5l3.2-3.2M21.3 10.7l3.2-3.2"/>`),
+  scroll: glyph(`<path d="M10 6h13a3 3 0 0 1 0 6h-2v13a3 3 0 0 1-3 3H8a3 3 0 0 1 0-6h2z"/><path d="M14 13h4M14 17h4" opacity=".7"/><path d="M10 6a3 3 0 0 0-3 3"/>`),
+  challenge: glyph(`<path d="M9 28V4"/><path d="M9 5h15l-4 5 4 5H9z" fill="var(--lamp)" fill-opacity=".35"/>`),
+};
+
+/** One glyph per tide id (tides.ts), for the tide strip, forecast and tutorial. */
+export const TIDE_GLYPHS: Record<string, string> = {
+  low: glyph(`<path d="M16 5v9M12 10l4 4 4-4" stroke="var(--lamp)"/><path d="M3 20c3-2 5-2 8 0s5 2 8 0 5-2 8 0"/><path d="M6 26h20" opacity=".6"/>`),
+  high: glyph(`<path d="M19 3.5a7 7 0 1 0 7 10 6 6 0 0 1-7-10z" fill="var(--lamp)" stroke="none"/><path d="M3 21c3-2 5-2 8 0s5 2 8 0 5-2 8 0M3 26.5c3-2 5-2 8 0s5 2 8 0 5-2 8 0"/>`),
+  calm: glyph(`<path d="M4 19h24"/><path d="M8 23.5h16M11 27.5h10" opacity=".6"/><path d="M16 5v8M12 9h8" stroke="var(--lamp)"/>`),
+  storm: glyph(`<path d="M9 18a5 5 0 0 1 .5-10 7 7 0 0 1 13 1.5A4.5 4.5 0 0 1 23 18z"/><path d="M17 18l-3 5h4l-3 6" stroke="var(--lamp)"/>`),
+};
+
+/** A moth's wing pattern as a small dot of its own swatch, in place of an emoji. */
+export function wingDot(swatch: string, label: string): string {
+  return `<span class="wing-dot" style="background:${swatch}" role="img" aria-label="${label} wings"></span>`;
+}

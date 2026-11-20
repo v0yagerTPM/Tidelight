@@ -1236,3 +1236,43 @@ run of the same tide said nothing about the weather.
 
       The chain-flow scene test now picks a time whose tide leaves support
       alone, instead of assuming one.
+
+## ✅ Post-launch — Interface notes from the design review
+
+- [x] **Two columns on wide screens** (≥1024px). At 900px the helper list
+      began below the fold on a laptop, under the scene and the supply
+      strip, so the main thing a keeper does was out of sight. The Light
+      view now puts the lamp (scene + supply strip, `.light-main`) beside
+      the helpers (buy amounts + rows, `.light-side`). The first helper
+      sits at y≈197 at 1024, 1100 and 1280px; it was at 897 at 1100px.
+      - The app widens to 1240px for every view, so the header and tabs
+        never jump between tabs. The other views stay a centred 900px
+        reading column.
+      - The supply nodes go 2×2 below 1280px, so no Feed button truncates
+        with late-game prices.
+      - Nothing moves in 5 seconds of idle play at 1024, 1100 or 1280px,
+        or on a phone.
+- [x] **Phones:** once the chain wakes and the supply strip joins the
+      scene, the scene shortens from 360px to 270px (`.chain-awake`).
+- [x] **Numbers past 1e15 turn scientific.** Standard notation keeps
+      K / M / B / T, then reads 1.23e15. Qa, Qi, Sx, Sp, Oc and No were
+      glyph soup: nobody could tell whether 7.60Qi was more than
+      50.00Sp. The Keeper's Desk label says so. The price ceiling reads
+      4.00e30.
+- [x] **SVG glyphs instead of system emoji** (`icons.ts GLYPHS`,
+      `TIDE_GLYPHS`, `wingDot`). The emoji were 🦋 🍾 📖 🌀 🔒 🗼 🌅 🌫 ⏳
+      ⚙ 🐛 📜 ⚔ and the tides' 🌊 🌕 🪞 ⛈️; each platform drew them in its
+      own colours, which broke the nocturne palette.
+      - The glyphs are 1em, currentColor, with lamp accents, like the rest
+        of the set.
+      - A moth's pattern is now a dot of its own CSS wing swatch.
+      - Tides and moth patterns no longer carry emoji fields; the UI maps
+        ids to glyphs.
+      - ⚠ and ♾ stay, pinned to text presentation (U+FE0E) so phones
+        don't draw them as colour emoji.
+      - Old log lines keep their 📖 mark in the save and are drawn with the
+        book glyph.
+- [x] **The Beam says Raise.** Wick, Oil and Lens are fed; the Beam
+      carries nothing and adds light, so its button reads
+      "Raise · 87.97M".
+- [x] Tests: the formatter's scientific switch at 1e15.
