@@ -180,9 +180,15 @@ export const BEAM_BONUS_PER_LEVEL = 0.05;
 // CHAIN_NODES) an hour of production fed to the chain clears even the 80%
 // gate at any scale (tests/balance.test.ts), so the gates can ask for a
 // genuinely well-fed beam. Relight costs are paced by the sim so the bot
-// relights steadily up the coast (docs/SPRINTS.md); each relight from Gull
-// Rock to Siren's Rest also brings the next generator tier (GENERATOR
-// UNLOCKS above). Bonuses come in several flavours:
+// relights steadily up the coast; each relight from Gull Rock to Siren's
+// Rest also brings the next generator tier (GENERATOR UNLOCKS above).
+//
+// PACING (design review re-pace): the bot lights them at about 2.9 / 6.7 /
+// 12.7 / 20.3 / 32.0 / 47.6 hours, each gap ~1.4× the last. Before, the
+// gaps doubled (2.9 / 5.4 / 11.1 / 19.5 / 33.4 / 59.8h) and the last one,
+// with no new helper, light or story beat in it, was 45% of the game.
+// The costs come from a search that moves each lighthouse's lessons with
+// it (docs/SPRINTS.md). Bonuses come in several flavours:
 //   productionBonus        ×(1 + bonus) to all production, multiplicative
 //   supportBonus           ×(1 + bonus) to every supply node's support
 //   emberGainBonus         ×(1 + bonus) to Embers gained at Rekindle
@@ -266,7 +272,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: CORMORANT_ROOST_ID,
     name: "Cormorant Roost",
     hint: "A tall, narrow tower the cormorants adopted as a cliff. They have been keeping the lens clean for a century, out of habit. Relight it for +75% production, and a Lamp Crew who hires your helpers for you.",
-    relightCost: 840_000_000,
+    relightCost: 4.8e9, // 8.4e8 before the re-pace
     efficiencyRequirement: 0.6,
     productionBonus: 0.75,
     ...NO_BONUS,
@@ -277,7 +283,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: WIDOWS_WALK_ID,
     name: "Widow's Walk",
     hint: "A railed platform above a keeper's cottage, worn smooth by pacing. Whoever waited here kept meticulous stores — relight it and every supply chain you tend runs +50% stronger, and a Chain Steward starts tending it for you.",
-    relightCost: 3.4e12,
+    relightCost: 2.1e13, // 3.4e12 before the re-pace
     efficiencyRequirement: 0.65,
     productionBonus: 0,
     ...NO_BONUS,
@@ -289,7 +295,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: BELLWETHER_ID,
     name: "The Bellwether",
     hint: "The lead light — the one the others were lit from, in the old order of things. Its bell still knows the way home, and so do the ships that heard it. Relight it and every Rekindle banks +25% more Embers.",
-    relightCost: 7.6e18,
+    relightCost: 8e18, // 7.6e18 before the re-pace
     efficiencyRequirement: 0.7,
     productionBonus: 0,
     ...NO_BONUS,
@@ -301,7 +307,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: SIRENS_REST_ID,
     name: "Siren's Rest",
     hint: "A low, lovely tower on the last rock before the deep glass. The sirens sleep here now, retired and harmless. Relight it and the night works harder for you: offline rate +10 points and the offline cap grows by 4 hours.",
-    relightCost: 5e25, // 8.5e21 → 2.5e22 with Memory Ships → 5e25 with the late upgrades
+    relightCost: 4.2e24, // 8.5e21 → 2.5e22 with Memory Ships → 5e25 with the late upgrades → 4.2e24 re-paced
     efficiencyRequirement: 0.75,
     productionBonus: 0,
     ...NO_BONUS,
@@ -314,7 +320,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: HOLLOW_LIGHT_ID,
     name: "The Hollow Light",
     hint: "The last tower, at the heart of the Hollow Sea — the light the sea itself was named for. No keeper has relit it. No keeper has come back from trying. Yet. +150% production, and whatever waits beyond it.",
-    relightCost: 1e31, // 3.2e24 → 6.5e24 with Memory Ships → 1e31 with the late upgrades
+    relightCost: 6.4e29, // 3.2e24 → 6.5e24 with Memory Ships → 1e31 with the late upgrades → 6.4e29 re-paced
     efficiencyRequirement: 0.8,
     productionBonus: 1.5,
     ...NO_BONUS,

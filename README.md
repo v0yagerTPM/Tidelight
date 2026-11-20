@@ -161,7 +161,7 @@ a hearth whose fire grows with the Embers you'd bank.
   ready; Scented lure shows your scales toward the 8 it needs.
 - **A price ceiling** — no single purchase (upgrade, relight, roost
   expansion or rush lure) costs more than The Hollow Light's relight,
-  10.0No: a keeper who has lit it can afford anything.
+  640.00Oc: a keeper who has lit it can afford anything.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache, a
   story fragment for the Log, and maybe one of eight permanent RELICS —
@@ -185,8 +185,8 @@ a hearth whose fire grows with the Embers you'd bank.
   reaches the first Rekindle in ~70 minutes and the second ~50 minutes
   later, then simply plays on — growing, keeping the chain fed, saving
   for each light as it comes within reach — and relights the coast at
-  2.9h, 5.4h, 11.1h, 19.5h and 33.4h, reaching the ending at ~60
-  simulated hours with all nine generator tiers hired, without buying
+  2.9h, 6.7h, 12.7h, 20.3h and 32.0h, reaching the ending at ~48
+  simulated hours (each gap about 1.4× the last) with all nine generator tiers hired, without buying
   perks, running challenges, keeping moths, sending bottles or minding
   the tides. Real keepers will be faster; the bot is the pessimistic
   bound.
