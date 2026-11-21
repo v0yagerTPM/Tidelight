@@ -7,13 +7,13 @@ import { createInitialState } from "../src/game/state";
 import { UPGRADES } from "../src/game/upgrades";
 
 // A keeper who has lit The Hollow Light can afford anything: no single
-// purchase costs more than its relight (8.20e30).
+// purchase costs more than its relight (8.80e30).
 describe("the price ceiling", () => {
   const ceiling = priceCeiling();
 
   it("is The Hollow Light's relight cost", () => {
     expect(ceiling).toBe(CHAIN_LIGHTHOUSES.find((l) => l.id === HOLLOW_LIGHT_ID)!.relightCost);
-    expect(ceiling).toBe(8.2e30);
+    expect(ceiling).toBe(8.8e30);
   });
 
   it("caps every upgrade and every relight", () => {

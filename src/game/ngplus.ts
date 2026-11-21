@@ -61,10 +61,13 @@ export function startNgPlus(state: GameState): boolean {
   // The keeping resets…
   state.lumen = new Decimal(headStartLumen(state));
   state.lifetimeLumen = new Decimal(0);
+  state.runSeconds = 0;
+  state.runBestGrowth = 0;
   state.generators = {};
   state.upgrades = state.upgrades.filter((id) => isPermanentUpgrade(id));
   state.litLighthouses = [FIRST_LIGHT_ID];
   state.crossing = 0; // the waymarks go dark with the lighthouses
+  state.deepGlassBottle = false; // and the Glass Stair's offering with them
   state.chainBoards = defaultChainBoards();
   vacateDarkPosts(state); // moths posted at the darkened lights come home
   state.activeChallenge = null;

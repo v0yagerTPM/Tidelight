@@ -6,6 +6,7 @@ import Decimal from "break_infinity.js";
 // Nothing here runs at load time.
 import { creditLumen, productionPerSecond } from "./engine";
 import { recordAlmanac } from "./almanac";
+import { SIRENS_REST_ID } from "./config";
 import { voyageMultiplier } from "./emberShop";
 import { formatDuration, formatNumber } from "./format";
 import { CROSSING_TRAIT_CHANCE, MOTH_TRAITS, mothRelicChanceBonus, riderOf, riderRelicBonus } from "./mothTraits";
@@ -266,6 +267,11 @@ export function claimExpedition(state: GameState, rng: () => number, now: number
     if (recordAlmanac(state, rider)) addLog(state, `A new page in the Wing Almanac (${state.almanac.length} filled).`, now);
   }
 
+  // The Glass Stair's offering (offerings.ts): a bottle home from the deep
+  // glass once Siren's Rest burns, charting the stair.
+  const chartsStair = route.id === "crossing" && state.litLighthouses.includes(SIRENS_REST_ID) && !state.deepGlassBottle;
+  if (chartsStair) state.deepGlassBottle = true;
+
   const fragment = STORY_FRAGMENTS[state.storyFragmentIndex % STORY_FRAGMENTS.length];
   state.storyFragmentIndex++;
   addLog(state, `The bottle washes back from ${route.name}: +${formatNumber(cache, state.notation)} Lumen of salvage and driftwood.`, now);
@@ -278,5 +284,8 @@ export function claimExpedition(state: GameState, rng: () => number, now: number
       : `${rider.name} hops off the cork and back into the roost, salt on its wings.`, now);
   }
   addLog(state, `From the bottle: ${fragment}`, now);
+  if (chartsStair && state.crossing < 2) {
+    addLog(state, "Folded around the message: a chart of the Glass Stair, every lantern marked. Lighting it will cost half. (the Glass Stair's offering)", now);
+  }
   return { cache, bonusLumen, relic, fragment, rider, riderTrait };
 }

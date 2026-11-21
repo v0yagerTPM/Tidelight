@@ -147,6 +147,20 @@ export interface GameState {
   playTimeSeconds: number;
   /** Guide pages read (game/guide.ts GUIDE_PAGE_IDS). Older saves count as having read them all. */
   guideSeen: string[];
+  /**
+   * Seconds this run has lasted (live play plus credited time away), for
+   * the Rekindle moment (game/rekindleMoment.ts). -1 in a save from before
+   * v15: estimated from the run's lifetime on first use.
+   */
+  runSeconds: number;
+  /** The best Ember growth rate this run has reached (rekindleMoment.ts). */
+  runBestGrowth: number;
+  /**
+   * A bottle has come home from the Deep Glass Crossing since Siren's Rest
+   * was lit: the Glass Stair's offering (config.ts WAYMARKS). Goes dark
+   * with the waymarks in a Next Keeping.
+   */
+  deepGlassBottle: boolean;
   /** Unix timestamp (ms) of the last save/tick — the offline-earnings anchor. */
   lastSeen: number;
   log: LogEntry[];
@@ -201,6 +215,10 @@ export interface SavedState {
   playTimeSeconds: number;
   /** v14: guide pages read; absent in older saves (they read the whole guide up front). */
   guideSeen?: string[];
+  /** v15: the run's length and best Ember growth rate, and the Glass Stair's offering. */
+  runSeconds?: number;
+  runBestGrowth?: number;
+  deepGlassBottle?: boolean;
   lastSeen: number;
   log: LogEntry[];
 }

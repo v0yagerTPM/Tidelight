@@ -87,7 +87,11 @@ a hearth whose fire grows with the Embers you'd bank.
   Crossing**: three waymarks on the deep glass, lit in order through its
   Relight button, each with its own story beat and gift: The Drowned
   Bell (chain support +25%), The Glass Stair (the thrown beam +25%) and
-  The Last Lantern (one more moth can stand duty). They stand on the
+  The Last Lantern (one more moth can stand duty). Each also asks for an
+  **offering from the Shore** that halves its price, never a gate: a moth
+  posted at Siren's Rest, a bottle home from the Deep Glass Crossing, a
+  moth glowing 80 or brighter on duty. The card and the Shore both name
+  the next one. They stand on the
   coast panorama between Siren's Rest and The Hollow Light, stay lit
   through Rekindle, and go dark with the lighthouses in a Next Keeping. Every lit lighthouse adds its own chain board,
   working at a bigger scale. Lighthouses stay lit through Rekindle;
@@ -110,6 +114,10 @@ a hearth whose fire grows with the Embers you'd bank.
   and for carrying a save to the Steam build one day — and a two-step
   hard reset for keepers who truly want a cold lamp.
 - **Rekindle, honestly priced** — gain preview, the recommended-40 marker,
+  then the **Rekindle moment**: the hearth fills with the run's Ember
+  growth and flares (a dot lights on the Rekindle tab) once the run has
+  done its best work, or says to relight a light that's within half an
+  hour first. It is the rule the balance bot plays by. Also
   a recovery-time estimate ("~X min to recover your current Lumen/s",
   simulated by the same greedy bot the balance checks use), and kept/lost
   lists that name your upgrades, Ember perks, and challenge rewards. Two
@@ -178,7 +186,7 @@ a hearth whose fire grows with the Embers you'd bank.
   ready; Scented lure shows your scales toward the 8 it needs.
 - **A price ceiling** — no single purchase (upgrade, relight, roost
   expansion or rush lure) costs more than The Hollow Light's relight,
-  8.20e30: a keeper who has lit it can afford anything.
+  8.80e30: a keeper who has lit it can afford anything.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache (half
   the light for as long as the bottle was out, so Tailwind and Glass
@@ -209,14 +217,16 @@ a hearth whose fire grows with the Embers you'd bank.
   for each light as it comes within reach, and Rekindling when a run's
   Ember growth has peaked — and relights the coast at 2.9h, 4.7h, 7.4h,
   11.8h and 16.7h, crosses the deep glass by the three waymarks at
-  21.6h, 25.8h and 28.4h, and reaches the ending at ~31 simulated hours
+  19.4h, 21.8h and 23.5h, and reaches the ending at ~30 simulated hours
   with all nine generator tiers hired, without buying perks, running
   challenges, keeping moths, sending bottles or minding the tides. With
-  the Ember shop it is ~20 hours, and the engaged keeper of
+  the Ember shop it is ~19 hours, and the engaged keeper of
   `scripts/worth.ts` ~19. A bot with the kit and habits of the one
   measured playthrough (five relics, five moths, bottles always out,
-  tapping 2.4 times a second) takes ~9 hours; that keeper took 3.6 hours
-  of play, plus time away, before the re-pace.
+  tapping 2.4 times a second) takes ~8.5 hours; that keeper took 3.6
+  hours of play, plus time away, before the re-pace. For every one of
+  them the last step, from the Last Lantern to the tower, is the
+  longest.
 
 ## Run it
 
@@ -250,8 +260,12 @@ npm run build      # typecheck + production build to dist/
   to a tenth of your Lumen). Relight Widow's Walk and the **Chain Steward** feeds the chain
   from a share of your income, raising the Beam alongside the supplies
   (the cheaper first, and only the Beam once the chain is at its target;
-  a switch in its panel turns the Beam off). Helper rows warn when a purchase would
-  drop the beam 10 points or more. The Lighthouses tab keeps the board-by-board view.
+  a switch in its panel turns the Beam off). Helper rows show what each
+  helper adds to the Lumen/s at the top (after the lighthouses, the chain,
+  the Beam and the lamp, so the rows add up to the header) and what the
+  next hire really adds, and warn when a purchase would
+  drop the beam 10 points or more. The Beam's bonus reads "+45%" while it
+  is small and "×109" once it more than doubles the light. The Lighthouses tab keeps the board-by-board view.
   On phones the strip folds to one line (efficiency, Fill, Show) while
   the beam is at 90% or more, and opens by itself below 80%. A Lamp Crew
   that can't hire says why beside its switch ("waiting on the chain",
