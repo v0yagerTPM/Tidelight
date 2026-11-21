@@ -320,7 +320,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: HOLLOW_LIGHT_ID,
     name: "The Hollow Light",
     hint: "The last tower, at the heart of the Hollow Sea — the light the sea itself was named for. No keeper has relit it. No keeper has come back from trying. Yet. +150% production, and whatever waits beyond it.",
-    relightCost: 8.2e30, // 3.2e24 → 6.5e24 with Memory Ships → 1e31 with the late upgrades → 6.4e29 re-paced → 4e30 after the Crossing → 8.2e30 for the 30-hour story
+    relightCost: 8.8e30, // 3.2e24 → 6.5e24 with Memory Ships → 1e31 with the late upgrades → 6.4e29 re-paced → 4e30 after the Crossing → 8.2e30 for the 30-hour story → 8.8e30 with the Crossing re-spaced so the last step is the longest
     efficiencyRequirement: 0.8,
     productionBonus: 1.5,
     ...NO_BONUS,
@@ -345,8 +345,11 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
 // They are steps of The Hollow Light's relight (chain.relightLighthouse):
 // its Relight button lights the next waymark until all three burn.
 // PACING: costs from a sim search, so the plain bot lights them at about
-// 21.6 / 25.8 / 28.4 hours and The Hollow Light at ~31 (the 30-hour
-// story; see docs/SPRINTS.md).
+// 19.4 / 21.8 / 23.5 hours and The Hollow Light at ~30 (the 30-hour
+// story). The last step, to the tower itself, is the longest for every
+// bot: 6.4h plain, 2.0h with the Ember shop, 1.0h for the phone keeper's
+// habits (design review: tuned on the plain bot alone, it was 0.5h for
+// anyone faster). See docs/SPRINTS.md.
 export interface WaymarkDef {
   id: string;
   name: string;
@@ -378,7 +381,7 @@ export const WAYMARKS: readonly WaymarkDef[] = [
     id: "drowned-bell",
     name: "The Drowned Bell",
     hint: "A bell-buoy sunk to its shoulders in the glass, its clapper stopped mid-swing. Light the lantern on its crown and the supply boats can steer by it.",
-    cost: 2.1e29,
+    cost: 5e28,
     reward: "chain support +25%",
     offering: "a moth posted at Siren's Rest",
   },
@@ -386,7 +389,7 @@ export const WAYMARKS: readonly WaymarkDef[] = [
     id: "glass-stair",
     name: "The Glass Stair",
     hint: "A stair of lanterns set out across the glass, a day's walk apart. Lit, the glass steps catch the beam and throw it on.",
-    cost: 1.4e30,
+    cost: 3.1e29,
     reward: "the thrown beam +25%",
     offering: "a bottle home from the Deep Glass Crossing",
   },
@@ -394,7 +397,7 @@ export const WAYMARKS: readonly WaymarkDef[] = [
     id: "last-lantern",
     name: "The Last Lantern",
     hint: "The lantern nearest The Hollow Light, close enough to see its door. Something waits there that would keep watch with your moths.",
-    cost: 4.3e30,
+    cost: 1.1e30,
     reward: "one more moth can stand duty",
     offering: "a moth glowing 80 or brighter on duty",
   },

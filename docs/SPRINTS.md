@@ -1458,3 +1458,66 @@ from Gull Rock to Cormorant Roost, eleven from Siren's Rest to the end).
         roost expansions and rush lures cap there.
 - [x] Tests: the Cormorant Roost and price-ceiling values; two exact
       comparisons became ratio checks (8.2e30 isn't exact in a Decimal).
+
+## ✅ Post-launch — Design review, round three
+
+The council re-ran on the 30-hour build. Findings 1, 2, 4 and 5 are done.
+
+- [x] **1. The Rekindle moment** (`game/rekindleMoment.ts`). When to
+      Rekindle moved the bot's ending from 42 hours to 15, and the game
+      taught the old answer: "Recommended first Rekindle: 40 — reached ✓"
+      stayed up forever, and the hearth filled at a ×2 gain. Now:
+      - The game and the bot share one rule. A run is worth
+        ln(1 + gain ÷ held) per second of run, plus 15 minutes to rebuild;
+        once that rate is 2% under its best, the run has done its best work.
+      - The hearth fills with the run's Ember growth and flares then; a dot
+        lights on the Rekindle tab. If a light costs no more than half an
+        hour of production, it says to relight first (the bot's saving rule).
+      - Save v15: `runSeconds` (live and credited time away) and
+        `runBestGrowth`. An older save's run is estimated from its lifetime
+        at today's rate, capped at the time played.
+      - "First" means fewer than 40 Embers *earned*: a shop bot that spent
+        below 40 held never left it and stalled.
+- [x] **2. The last step is the longest for every bot.** Tuned on the plain
+      bot alone, the shop bot lit The Hollow Light 30 minutes after the
+      Last Lantern. The waymarks now come closer and the tower costs more:
+
+      | | Before | Now |
+      |---|---|---|
+      | The Drowned Bell | 2.1e29 | 5e28 |
+      | The Glass Stair | 1.4e30 | 3.1e29 |
+      | The Last Lantern | 4.3e30 | 1.1e30 |
+      | The Hollow Light | 8.2e30 | 8.8e30 |
+
+      | Bot | Siren's Rest → waymarks → tower (hours) | Ending |
+      |---|---|---|
+      | Plain | 16.7 → 19.4 / 21.8 / 23.5 → 29.9 (last step 6.4) | 29.9h |
+      | Ember shop | 12.3 → 14.0 / 15.3 / 16.6 → 18.6 (last step 2.0) | 18.6h |
+      | The phone keeper's kit and habits | 5.8 → 6.5 / 7.2 / 7.5 → 8.5 (last step 1.0) | 8.5h |
+      | Engaged | | 18.9h |
+
+      Each light was searched on the plain bot to a target (19.5 / 22 /
+      24.5 / 30.5), then checked on the others. At 9.2e30 the plain bot's
+      ending jumps to 31.5h (an 8-hour last step), so the tower stays at
+      8.8e30.
+- [x] **4. The Crossing asks for the Shore** (`game/offerings.ts`). Each
+      waymark costs half with its offering, never a gate:
+      - The Drowned Bell: a moth posted at Siren's Rest.
+      - The Glass Stair: a bottle home from the Deep Glass Crossing once
+        Siren's Rest burns (remembered in the save, `deepGlassBottle`; a
+        log line says the stair is charted; a Next Keeping clears it).
+      - The Last Lantern: a moth glowing 80 or brighter on duty.
+      - The Crossing card names each offering under its waymark, and the
+        Shore says what the next one asks while The Hollow Light is next.
+- [x] **5. Helper rows tell the truth.** They showed each helper's own
+      output, before the lighthouses, the chain, the Beam and the lamp: at
+      the Last Lantern the rows summed to ~1/350 of the header. Now each
+      row is its share of the header's Lumen/s (`engine.thrownFactor`) and
+      "+X Lumen/s" is the real change from the next hire, the chain's
+      answer included (`engine.thrownGain`). The Beam reads "×109", not
+      "+10845%".
+- [x] Tests: `tests/rekindleMoment.test.ts` (8), `tests/offeringsAndRows.test.ts`
+      (8); the save-version and price-ceiling tests are updated. Checked in
+      the browser on desktop and phone: the hearth's three phases and the
+      tab dot, the Crossing card's offerings, the Shore's line, the rows
+      and the Beam.

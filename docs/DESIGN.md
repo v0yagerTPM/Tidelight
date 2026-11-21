@@ -124,10 +124,16 @@ returned bottle, when the Shore has news.
 - Full story: **~30 hours for the no-everything bot** to the ending,
   then the Next Keeping endless mode. It relights the coast at 2.9 /
   4.7 / 7.4 / 11.8 / 16.7 hours, lights the Crossing's waymarks at
-  21.6 / 25.8 / 28.4 and reaches the ending at ~31: gaps of 2–5 hours
-  all the way. With the Ember shop it is ~20 hours, the engaged keeper
-  of `scripts/worth.ts` ~19, and a bot with the measured phone keeper's
-  kit and habits ~9.
+  19.4 / 21.8 / 23.5 and reaches the ending at ~30. With the Ember shop
+  it is ~19 hours, the engaged keeper of `scripts/worth.ts` ~19, and a
+  bot with the measured phone keeper's kit and habits ~8.5.
+- **The last step is the longest, for everyone.** The Crossing was first
+  tuned on the plain bot alone, and anyone faster sprinted the finale
+  (the shop bot lit The Hollow Light 30 minutes after the Last Lantern).
+  Now the waymarks come closer together and the tower costs more, checked
+  on three bots: Last Lantern → The Hollow Light takes 6.4h (plain, after
+  steps of 2.7 / 2.4 / 1.7), 2.0h (shop, after 1.7 / 1.3 / 1.3) and 1.0h
+  (the phone keeper's habits, after 0.7 / 0.7 / 0.3).
   - Why 30, and why this bot (a real playthrough): the target was 35–50
     hours against a bot that Rekindled at +50% of the Embers held, 64
     times to the ending. The first measured playthrough, on a phone,
