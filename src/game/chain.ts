@@ -29,6 +29,7 @@ import { chainSupportMultiplier, gullRockRelightCost } from "./emberShop";
 import { baseProductionPerSecond, lastingProductionMultiplier } from "./engine";
 import { relicNodeCostMultiplier, relicSupportMultiplier } from "./expeditions";
 import { postSupportMultiplier } from "./mothTraits";
+import { waymarkCost } from "./offerings";
 import { addLog, startBoard } from "./state";
 import { tideSupportMultiplier } from "./tides";
 import type { ChainBoard, GameState } from "./types";
@@ -363,7 +364,7 @@ export function relightCost(state: GameState, lighthouseId: string): Decimal {
   if (lighthouseId === GULL_ROCK_ID) return gullRockRelightCost(state);
   // The Hollow Light is reached by the Crossing: its next step is a waymark.
   const waymark = lighthouseId === HOLLOW_LIGHT_ID ? nextWaymark(state) : null;
-  if (waymark) return new Decimal(waymark.cost);
+  if (waymark) return new Decimal(waymarkCost(state, waymark));
   return new Decimal(chainLighthouseById(lighthouseId).relightCost ?? 0);
 }
 

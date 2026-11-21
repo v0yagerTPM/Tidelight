@@ -356,7 +356,22 @@ export interface WaymarkDef {
   cost: number;
   /** Plain-words reward, for cards, moments and the log. */
   reward: string;
+  /**
+   * What the Shore can bring to it (game/offerings.ts): met, the waymark
+   * costs WAYMARK_OFFERING_PRICE_SHARE of its Lumen. Plain words, for the card.
+   */
+  offering: string;
 }
+
+/**
+ * An offering halves a waymark's price (design review: the back half of the
+ * game played itself, and the Shore's systems, which the balance bot never
+ * touches, went unused; the Crossing now asks for them). Never a gate: a
+ * keeper who ignores the Shore pays the full price, as the bot does.
+ */
+export const WAYMARK_OFFERING_PRICE_SHARE = 0.5;
+/** The Last Lantern's offering: a moth on duty glowing at least this bright. */
+export const LAST_LANTERN_OFFERING_GLOW = 80;
 
 export const WAYMARKS: readonly WaymarkDef[] = [
   {
@@ -365,6 +380,7 @@ export const WAYMARKS: readonly WaymarkDef[] = [
     hint: "A bell-buoy sunk to its shoulders in the glass, its clapper stopped mid-swing. Light the lantern on its crown and the supply boats can steer by it.",
     cost: 2.1e29,
     reward: "chain support +25%",
+    offering: "a moth posted at Siren's Rest",
   },
   {
     id: "glass-stair",
@@ -372,6 +388,7 @@ export const WAYMARKS: readonly WaymarkDef[] = [
     hint: "A stair of lanterns set out across the glass, a day's walk apart. Lit, the glass steps catch the beam and throw it on.",
     cost: 1.4e30,
     reward: "the thrown beam +25%",
+    offering: "a bottle home from the Deep Glass Crossing",
   },
   {
     id: "last-lantern",
@@ -379,6 +396,7 @@ export const WAYMARKS: readonly WaymarkDef[] = [
     hint: "The lantern nearest The Hollow Light, close enough to see its door. Something waits there that would keep watch with your moths.",
     cost: 4.3e30,
     reward: "one more moth can stand duty",
+    offering: "a moth glowing 80 or brighter on duty",
   },
 ];
 

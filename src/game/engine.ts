@@ -195,6 +195,46 @@ export function productionPerSecond(state: GameState, now?: number): Decimal {
     .mul(tidelitMultiplier(state, now));
 }
 
+// ── What a helper row shows ──────────────────────────────────────────────────
+// A helper's own output (generatorProduction) is counted before the
+// lighthouses, the supply chain, the Beam, the lamp and the tide. Late in the
+// game those multiply it ~100× (the Beam alone ×109 at the Last Lantern), so
+// rows showing it summed to about 1/350 of the header's Lumen/s (design
+// review). The rows show what reaches the thrown beam instead.
+
+/** Final Lumen/s per unit of helper output: everything after the helpers themselves. */
+export function thrownFactor(state: GameState, now?: number): Decimal {
+  let raw = new Decimal(0);
+  for (const def of GENERATORS) raw = raw.add(generatorProduction(state, def));
+  if (raw.lte(0)) {
+    // Nobody hired yet: the factor a first helper would see.
+    return lighthouseMultiplier(state).mul(beamMultiplier(state)).mul(lampMultiplier(state)).mul(tideProductionMultiplier(state, now));
+  }
+  return productionPerSecond(state, now).div(raw);
+}
+
+/** A helper type's share of the final Lumen/s (the rows sum to the header). */
+export function thrownProduction(state: GameState, def: GeneratorDef, now?: number): Decimal {
+  return generatorProduction(state, def).mul(thrownFactor(state, now));
+}
+
+/**
+ * Final Lumen/s gained by hiring `count` more of a helper, with the supply
+ * chain's answer included (more demand can lower efficiency, so this is
+ * less than the helpers' own output times today's factor when the chain is
+ * short). Never negative: a starved chain still passes a quarter of demand.
+ */
+export function thrownGain(state: GameState, def: GeneratorDef, count: number, now?: number): Decimal {
+  if (count <= 0) return new Decimal(0);
+  const owned = state.generators[def.id] ?? 0;
+  const before = productionPerSecond(state, now);
+  state.generators[def.id] = owned + count;
+  const after = productionPerSecond(state, now);
+  if (owned === 0) delete state.generators[def.id];
+  else state.generators[def.id] = owned;
+  return Decimal.max(0, after.sub(before));
+}
+
 // ── Actions ──────────────────────────────────────────────────────────────────
 
 /**
@@ -368,6 +408,7 @@ export function tick(state: GameState, dtSeconds: number, now?: number): Decimal
   const gain = productionPerSecond(state, now).mul(dtSeconds);
   if (gain.gt(0)) creditLumen(state, gain);
   state.playTimeSeconds += dtSeconds;
+  if (state.runSeconds >= 0) state.runSeconds += dtSeconds;
   return gain;
 }
 
@@ -396,6 +437,7 @@ export function offlineEarnings(state: GameState, now: number = Date.now()): Off
 export function applyOfflineEarnings(state: GameState, now: number = Date.now()): OfflineResult {
   const result = offlineEarnings(state, now);
   if (result.gain.gt(0)) creditLumen(state, result.gain);
+  if (state.runSeconds >= 0) state.runSeconds += result.creditedSeconds;
   state.lastSeen = now;
   return result;
 }

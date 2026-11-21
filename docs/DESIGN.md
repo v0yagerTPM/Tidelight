@@ -61,7 +61,12 @@ hit the wall → **Rekindle** → relight faster and further.
    on the deep glass between Siren's Rest and The Hollow Light, lit in
    order (with The Hollow Light's gates), each with a story beat and a
    different gift (chain support, the thrown beam, a duty slot), so the
-   final stretch has steps in it rather than one long save.
+   final stretch has steps in it rather than one long save. Each waymark
+   also asks for an **offering from the Shore** (`game/offerings.ts`) that
+   halves its price: a moth posted at Siren's Rest, a bottle home from the
+   Deep Glass Crossing, a moth glowing 80+ on duty. Never a gate, so the
+   idle keeper (and the balance bot) pays full price; it pulls the systems
+   the back half otherwise leaves alone into the main line.
 
 ## Prestige — Rekindle
 
@@ -71,6 +76,15 @@ hit the wall → **Rekindle** → relight faster and further.
   decision, not a formality.
 - The UI always previews the gain and marks the **recommended first Rekindle
   at 40 Embers**, so nobody falls for the genre's classic early-reset trap.
+- After that, the hearth teaches **the Rekindle moment**
+  (`game/rekindleMoment.ts`): a run is worth how far it grows the Embers,
+  ln(1 + gain ÷ held) per second of run plus 15 minutes to rebuild. That
+  rate climbs, peaks and falls; once it is 2% under its best the hearth
+  flares and a dot lights on the Rekindle tab ("This run has done its best
+  work"), unless a light costs no more than half an hour of production,
+  when it says to relight first. It is the same rule the balance bot plays
+  by, because when to Rekindle moved the bot's ending more than anything
+  else (42 hours to 15). The run's length and best rate are saved (v15).
 - Embers are spendable in the Ember Shop (eight permanent perks) — the
   production bonus applies to **held** Embers only, so spending is a
   real trade. Three opt-in challenges change the rules (half the thrown

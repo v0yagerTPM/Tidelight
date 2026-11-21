@@ -59,6 +59,8 @@ export function resetRun(state: GameState): void {
   const purse = headStartLumen(state);
   state.lumen = new Decimal(purse);
   state.lifetimeLumen = new Decimal(0);
+  state.runSeconds = 0;
+  state.runBestGrowth = 0;
   state.generators = {};
   // Warm Hearth (Ember perk): the new run starts with a crew of the first
   // three helpers (a challenge's rules are set before this runs).

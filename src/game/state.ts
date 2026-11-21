@@ -23,9 +23,9 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 /** Older saves (Sprint 0 = v1 … Chain Steward = v11) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 /** supply.ts STEWARD_SHARES / STEWARD_TARGETS (literal: this module stays a leaf). */
 const STEWARD_SHARE_CHOICES: readonly number[] = [0.1, 0.25, 0.5];
 const STEWARD_TARGET_CHOICES: readonly number[] = [0.8, 0.9, 1];
@@ -259,6 +259,9 @@ export function createInitialState(now: number = Date.now()): GameState {
     totalRekindles: 0,
     playTimeSeconds: 0,
     guideSeen: [],
+    runSeconds: 0,
+    runBestGrowth: 0,
+    deepGlassBottle: false,
     lastSeen: now,
     log: [{ at: now, message: "You arrive at Candlewick Point. The lamp is cold. The sea is glass." }],
   };
@@ -323,6 +326,9 @@ export function serializeState(state: GameState): SavedState {
     totalRekindles: state.totalRekindles,
     playTimeSeconds: state.playTimeSeconds,
     guideSeen: [...state.guideSeen],
+    runSeconds: state.runSeconds,
+    runBestGrowth: state.runBestGrowth,
+    deepGlassBottle: state.deepGlassBottle,
     lastSeen: state.lastSeen,
     log: state.log.map((e) => ({ ...e })),
   };
@@ -453,6 +459,11 @@ export function deserializeState(raw: unknown): GameState | null {
       guideSeen: Array.isArray(s.guideSeen)
         ? GUIDE_PAGE_IDS.filter((id) => (s.guideSeen as unknown[]).includes(id))
         : [...GUIDE_PAGE_IDS],
+      // v15: a run from before the Rekindle moment has an unknown length
+      // (-1); rekindleMoment.ts estimates it from the run's lifetime.
+      runSeconds: typeof s.runSeconds === "number" && Number.isFinite(s.runSeconds) && s.runSeconds >= 0 ? s.runSeconds : -1,
+      runBestGrowth: typeof s.runBestGrowth === "number" && Number.isFinite(s.runBestGrowth) && s.runBestGrowth >= 0 ? s.runBestGrowth : 0,
+      deepGlassBottle: s.deepGlassBottle === true,
       lastSeen: typeof s.lastSeen === "number" && Number.isFinite(s.lastSeen) ? s.lastSeen : Date.now(),
       log: sanitizeLog(s.log),
     };

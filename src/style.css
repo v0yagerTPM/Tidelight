@@ -92,6 +92,19 @@ button { font: inherit; }
   transition: color 0.15s, background 0.15s;
 }
 .tab:hover { color: var(--text); }
+/* The Rekindle tab glows when the run has done its best work (game/rekindleMoment.ts). */
+.tab { position: relative; }
+.tab.tab-ready::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 14%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lamp, #ffc463);
+  box-shadow: 0 0 8px rgba(255, 196, 99, 0.9);
+}
 .tab.active { background: var(--glass-2); color: var(--lamp-soft); box-shadow: inset 0 0 0 1px rgba(255, 196, 99, 0.45); }
 .tab-icon { display: inline-flex; width: 20px; height: 20px; }
 .tab-icon svg { width: 100%; height: 100%; }
@@ -1232,6 +1245,11 @@ body { font-variant-numeric: tabular-nums; }
 .waymark.next .wm-mark, .waymark.next .wm-name { color: var(--lamp); }
 .waymark.lit .wm-mark, .waymark.lit .wm-name { color: var(--lamp-soft); }
 .waymark.lit .wm-reward { color: var(--seafoam); }
+/* A waymark's offering from the Shore (game/offerings.ts), on its own line under the name. */
+.waymark .wm-offering { grid-column: 2 / -1; font-size: 0.8rem; color: var(--muted); font-style: italic; margin-top: -4px; }
+.waymark .wm-offering.met { color: var(--seafoam); font-style: normal; }
+.shore-offering { margin: 0 0 12px; padding: 8px 12px; border: 1px solid rgba(255, 196, 99, 0.35); border-radius: 10px; background: rgba(255, 196, 99, 0.06); font-size: 0.9rem; color: var(--lamp-soft); }
+.shore-offering .glyph { vertical-align: -2px; }
 @media (max-width: 560px) {
   .waymark { grid-template-columns: 1.2em 1fr; }
   .waymark .wm-reward { grid-column: 2; justify-self: start; text-align: left; }

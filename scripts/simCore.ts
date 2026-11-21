@@ -35,6 +35,7 @@ import { CHAIN_LIGHTHOUSES, GENERATORS, HOLLOW_LIGHT_ID, PRESTIGE_RECOMMENDED_EM
 import { chainStatus, lighthouseStatus, nextLighthouseId } from "../src/game/chain";
 import { clickBeam, productionPerSecond, tick } from "../src/game/engine";
 import { rekindle, rekindleGain } from "../src/game/prestige";
+import { rekindleMoment, trackRekindleGrowth } from "../src/game/rekindleMoment";
 import { createInitialState } from "../src/game/state";
 import type { GameState } from "../src/game/types";
 import { upgradeById } from "../src/game/upgrades";
@@ -83,24 +84,14 @@ export interface SimResult {
 }
 
 /**
- * Endgame Rekindle policy (re-baselined after a real playthrough): a
- * keeper Rekindles when the run has done the most it can for the Embers.
- * Held Embers multiply production, so what a run is worth is how far it
- * grows them: ln(1 + gain / held) per hour of run. That rate climbs while
- * the run builds and falls once the √ in the Ember formula takes over; the
- * bot Rekindles (when not saving) once it has fallen this far below its
- * best. The old rule, Rekindle at +50% of the Embers held, Rekindled eight
- * times as often as a person did and set the pacing ~8× too slow.
+ * Endgame Rekindle policy (re-baselined after a real playthrough): the
+ * game's own Rekindle moment (src/game/rekindleMoment.ts), the rule the
+ * hearth teaches. The bot Rekindles (when not saving for a light) once the
+ * run's Ember growth rate is past its peak. The old rule, Rekindle at +50%
+ * of the Embers held, Rekindled eight times as often as a person did and
+ * set the pacing ~8× too slow.
  */
-export const REKINDLE_PAST_PEAK = 0.98;
-/**
- * What a Rekindle costs in time beyond the run itself: buying the helpers
- * and the chain back. Without it the rate looks best in a run's first
- * minute (the √ again) and the bot Rekindles thousands of times for
- * nothing. Fifteen minutes puts the bot at 10 Rekindles to the ending with
- * the phone keeper's kit, who Rekindled 8 times.
- */
-export const REKINDLE_REBUILD_SECONDS = 900;
+export { REKINDLE_PAST_PEAK, REKINDLE_REBUILD_SECONDS } from "../src/game/rekindleMoment";
 
 export interface SimOptions {
   verbose?: boolean;
@@ -133,15 +124,11 @@ export interface SimOptions {
 
 export function runSim(opts: SimOptions = {}): SimResult {
   const rekindleGrowth = opts.rekindleGrowth;
-  // The best Ember growth rate this run has reached (peak-rate rule).
-  let bestGrowth = 0;
   const rekindleDue = (): boolean => {
     const gain = rekindleGain(state);
     if (gain < PRESTIGE_RECOMMENDED_EMBERS) return false;
     if (rekindleGrowth !== undefined) return gain >= state.embers * rekindleGrowth;
-    const growth = Math.log1p(gain / Math.max(1, state.embers)) / (runT + REKINDLE_REBUILD_SECONDS);
-    if (growth > bestGrowth) bestGrowth = growth;
-    return growth < bestGrowth * REKINDLE_PAST_PEAK;
+    return rekindleMoment(state).phase === "best";
   };
   const out: string[] = [];
   const say = (line: string) => {
@@ -220,7 +207,6 @@ export function runSim(opts: SimOptions = {}): SimResult {
         say(`★ Rekindle at ${(totalT / 60).toFixed(1)} min (+${gained} Embers)`);
         shop();
         runT = 0;
-        bestGrowth = 0;
         continue;
       }
     }
@@ -297,18 +283,17 @@ export function runSim(opts: SimOptions = {}): SimResult {
       if (rekindle(state) >= 1) {
         rekindles++;
         runT = 0;
-        bestGrowth = 0;
         shop();
       }
       savingSince = null;
       continue;
     }
+    trackRekindleGrowth(state);
     if (!saving && rekindleDue()) {
       noteRunEnd();
       if (rekindle(state) >= 1) {
         rekindles++;
         runT = 0;
-        bestGrowth = 0;
         shop();
       }
     }

@@ -46,6 +46,7 @@ import {
   lighthouseStatus,
   startingWarmth,
   nextLighthouseId,
+  nextWaymark,
   nextLevelSupportGain,
   nextNodeCost,
   relightLighthouse,
@@ -75,6 +76,9 @@ import {
   clickBeam,
   clickValue,
   generatorProduction,
+  productionForOwned,
+  thrownFactor,
+  thrownGain,
   productionPerSecond,
   timeToAffordCost,
 } from "./game/engine";
@@ -129,7 +133,9 @@ import {
 import { DUTY_GLOW_BONUS, MOTH_TRAITS, dutyBonusOf, isAtSea, postBonusOf, postOf, postedMoth, riderOf, traitsOf } from "./game/mothTraits";
 import { ALMANAC_PATTERNS, ALMANAC_REWARDS, ALMANAC_SIZE, almanacHas, dutySlots, lureBankSize } from "./game/almanac";
 import { legacyMultiplier, startNgPlus } from "./game/ngplus";
+import { offeringMet } from "./game/offerings";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
+import { type RekindleMoment, rekindleMoment, trackRekindleGrowth } from "./game/rekindleMoment";
 import { STORY_ACTS, STORY_BEATS, checkStory } from "./game/story";
 import { GUIDE_OPENING, GUIDE_PAGE_IDS, dueGuidePage, markGuideSeen } from "./game/guide";
 import { tideForecast } from "./game/tides";
@@ -434,6 +440,7 @@ ${[
           <button class="toggle-btn" data-pane="sea" role="tab" aria-selected="false">${GLYPHS.bottle} Bottles &amp; Relics<span class="pane-dot hidden" id="sea-dot"></span></button>
         </div>
       </div>
+      <p id="shore-offering" class="shore-offering hidden"></p>
       <div class="shore-pane active" id="pane-garden">
         <div id="roost-bar"></div>
         <div class="garden-grid">
@@ -615,6 +622,7 @@ if (genList) {
       }
     });
     genList.appendChild(row);
+    setTip(row.querySelector(".gen-prod") as HTMLElement, `What ${def.name}s add to your Lumen/s: their own light, carried through the lighthouses, the supply chain, the Beam and the lamp. The rows add up to the total at the top.`);
     genRows.push({
       def,
       row,
@@ -1534,6 +1542,18 @@ function updateShoreView(now: number): void {
     const duty = dutyMoths(state);
     roostLine.textContent = `${state.moths.length}/${mothCapacity(state)} moths · ${duty.length}/${dutySlots(state)} on duty (+${(dutyGlowTotal(state) * DUTY_GLOW_BONUS * 100).toFixed(1)}% to the beam) · ${state.wingScales} scale${state.wingScales === 1 ? "" : "s"}`;
   }
+  // The Crossing's next offering, while The Hollow Light is the next light.
+  const offeringLine = document.querySelector<HTMLElement>("#shore-offering");
+  if (offeringLine) {
+    const waymark = nextLighthouseId(state) === HOLLOW_LIGHT_ID ? nextWaymark(state) : null;
+    const text = waymark
+      ? offeringMet(state, waymark.id)
+        ? `${GLYPHS.tower} The Crossing: ${waymark.name}'s offering is brought (${waymark.offering}). It costs half.`
+        : `${GLYPHS.tower} The Crossing asks for ${waymark.offering}. Bring it and ${waymark.name} costs half.`
+      : "";
+    if (offeringLine.innerHTML !== text) offeringLine.innerHTML = text;
+    offeringLine.classList.toggle("hidden", !waymark);
+  }
   // Dots on the Shore's pane buttons: something is waiting there.
   document.querySelector("#garden-dot")?.classList.toggle("hidden", !(state.cocoon && cocoonReady(state, now)));
   document.querySelector("#sea-dot")?.classList.toggle("hidden", !(state.expedition && expeditionReady(state, now)));
@@ -1803,7 +1823,8 @@ let nodeRows = new Map<ChainNodeId, NodeRowRefs>();
 // rebuild per level redrew the whole tab every few seconds.
 function lighthouseStructureKey(): string {
   const unlocked = totalGeneratorsOwned(state) >= CHAIN_UNLOCK_GENERATORS;
-  return `${state.litLighthouses.join(",")}|${state.crossing}|${selectedBoardId}|${unlocked}`;
+  const offerings = WAYMARKS.map((w) => (offeringMet(state, w.id) ? 1 : 0)).join("");
+  return `${state.litLighthouses.join(",")}|${state.crossing}|${offerings}|${selectedBoardId}|${unlocked}`;
 }
 
 /**
@@ -1814,7 +1835,12 @@ function crossingHtml(): string {
   const rows = WAYMARKS.map((w, i) => {
     const lit = i < state.crossing;
     const next = i === state.crossing;
-    return `<li class="waymark${lit ? " lit" : next ? " next" : ""}"><span class="wm-mark" aria-hidden="true">${lit ? "◆" : "◇"}</span><span class="wm-name"${tipAttr(w.hint)}>${w.name}</span><span class="wm-reward">${lit ? `Lit ✓ — ${w.reward}` : w.reward}</span></li>`;
+    const met = offeringMet(state, w.id);
+    // An unlit waymark names its offering from the Shore (offerings.ts).
+    const offering = lit
+      ? ""
+      : `<span class="wm-offering${met ? " met" : ""}">${met ? `Offering brought ✓ — ${w.offering}: half price` : `Bring ${w.offering} and it costs half`}</span>`;
+    return `<li class="waymark${lit ? " lit" : next ? " next" : ""}"><span class="wm-mark" aria-hidden="true">${lit ? "◆" : "◇"}</span><span class="wm-name"${tipAttr(w.hint)}>${w.name}</span><span class="wm-reward">${lit ? `Lit ✓ — ${w.reward}` : w.reward}</span>${offering}</li>`;
   }).join("");
   const left = WAYMARKS.length - state.crossing;
   const lead =
@@ -2068,7 +2094,7 @@ function updateChainView(): void {
 
     if (nodeId === "beam") {
       const total = status.beamLevels;
-      refs.status.textContent = `+${Math.round((status.beamMultiplier.toNumber() - 1) * 100)}% output`;
+      refs.status.textContent = `${beamText(status.beamMultiplier.toNumber())} output`;
       refs.status.className = "node-status status-flowing";
       refs.detail.textContent = `${total} Beam level${total === 1 ? "" : "s"} across all boards · +5% production each`;
       refs.box.classList.remove("bottleneck");
@@ -2087,11 +2113,11 @@ function updateChainView(): void {
   }
 
   if (chainSummary) {
-    const beamPct = Math.round((status.beamMultiplier.toNumber() - 1) * 100);
+    const beamMult = status.beamMultiplier.toNumber();
     const boardDef = chainLighthouseById(selectedBoardId);
     chainSummary.textContent =
       `${boardDef.name} board · Beam efficiency ${pct(status.efficiency)} ` +
-      `(chain factor ×${status.chainFactor.toFixed(2)}${beamPct > 0 ? `, Beam +${beamPct}%` : ""}). ` +
+      `(chain factor ×${status.chainFactor.toFixed(2)}${beamMult > 1 ? `, Beam ${beamText(beamMult)}` : ""}). ` +
       `Support sums across every lit lighthouse. This board works at ×${boardDef.boardScale} scale: its levels cost and support ×${boardDef.boardScale}.`;
     const warm = startingWarmth(state).toNumber();
     chainSummary.textContent +=
@@ -2295,6 +2321,39 @@ function updateCoastPins(): void {
       lit ? `${def.name}, lit — show its chain board` : def.id === next ? `${def.name}, next to relight` : `${def.name}, dark`,
     );
   });
+}
+
+/**
+ * The Beam's bonus in words a keeper can read: "+45%" while it is small,
+ * "×109" once it more than doubles the light ("+10845%" was a number to
+ * decode, not read; design review).
+ */
+function beamText(mult: number): string {
+  if (mult < 2) return `+${Math.round((mult - 1) * 100)}%`;
+  return `×${mult < 100 ? mult.toFixed(1).replace(/\.0$/, "") : fmt(Math.round(mult))}`;
+}
+
+/** What the hearth says about the Rekindle moment (game/rekindleMoment.ts). */
+function rekindleAdvice(moment: RekindleMoment, gain: number): string {
+  // "×3.2" once a Rekindle would more than double the Embers held; before that, a share.
+  const m = moment.multiplier;
+  const times = m >= 2 ? `×${fmt(m)}` : m - 1 >= 0.01 ? `by ${Math.round((m - 1) * 100)}%` : "by less than 1%";
+  switch (moment.phase) {
+    case "first":
+      return gain >= PRESTIGE_RECOMMENDED_EMBERS
+        ? `Recommended first Rekindle: ${PRESTIGE_RECOMMENDED_EMBERS} Embers — reached ✓`
+        : `Recommended first Rekindle: ${PRESTIGE_RECOMMENDED_EMBERS} Embers (${fmt(gain)} so far — early Rekindles pay very little)`;
+    case "challenge":
+      return "A challenge is under way: the hearth waits until it's done.";
+    case "building":
+      return gain < PRESTIGE_RECOMMENDED_EMBERS
+        ? "A new run: the hearth is catching."
+        : `This run is still building: a Rekindle now would grow your Embers ${times}. The hearth flares when the run has done its best work.`;
+    case "relight-first":
+      return `This run has done its best work, but ${moment.relightName} is within reach: relight it first, then Rekindle (your Embers grow ${times}).`;
+    case "best":
+      return `This run has done its best work: Rekindle when you're ready (your Embers grow ${times}). Waiting longer still adds Embers, just more slowly.`;
+  }
 }
 
 /** Recent flashes, so the header's "per second" counts your own hands too. */
@@ -2539,6 +2598,7 @@ const hud = {
   rkBonus: document.querySelector<HTMLElement>("#rk-bonus"),
   rkAfter: document.querySelector<HTMLElement>("#rk-after"),
   rkHearth: document.querySelector<HTMLElement>("#rk-hearth"),
+  rkTab: document.querySelector<HTMLElement>('.tab[data-tab="rekindle"]'),
   rkRecovery: document.querySelector<HTMLElement>("#rk-recovery"),
   shopHeld: document.querySelector<HTMLElement>("#shop-held"),
   rkLabel: document.querySelector<HTMLElement>("#rk-progress-label"),
@@ -2704,10 +2764,10 @@ function updateSupplyStrip(now: number): void {
     const quote = feedQuote(state, ref.nodeId, now);
     const boardName = quote.board ? chainLighthouseById(quote.board).name : "";
     if (ref.nodeId === "beam") {
-      const bonus = Math.round((chain.beamMultiplier.toNumber() - 1) * 100);
-      if (ref.pct) ref.pct.textContent = `+${bonus}%`;
+      const bonus = beamText(chain.beamMultiplier.toNumber());
+      if (ref.pct) ref.pct.textContent = bonus;
       if (ref.gauge) ref.gauge.style.width = "0%";
-      if (ref.el) setTip(ref.el, `Beam: ${chain.beamLevels} level${chain.beamLevels === 1 ? "" : "s"} across all boards, +5% production each (+${bonus}% now). Beam doesn't carry supplies, so it never holds the chain back.`);
+      if (ref.el) setTip(ref.el, `Beam: ${chain.beamLevels} level${chain.beamLevels === 1 ? "" : "s"} across all boards, +5% production each (${bonus} now). Beam doesn't carry supplies, so it never holds the chain back.`);
       if (ref.feed) setTip(ref.feed, quote.board ? `The cheapest Beam level, on ${boardName}: +5% production.` : "");
     } else {
       const node = chain.nodes.find((n) => n.nodeId === ref.nodeId)!;
@@ -2857,16 +2917,20 @@ function renderDynamic(): void {
       : `Hire ${withArticle(GENERATORS[revealUpTo].name)} and you'll see what else answers the light.`;
   }
   const chainNow = chainStatus(state, nowMs);
+  // Once a frame: what reaches the thrown beam per unit of helper output.
+  const thrown = thrownFactor(state, nowMs);
   for (const row of genRows) {
     const owned = state.generators[row.def.id] ?? 0;
     row.ring.style.strokeDashoffset = String(100 - milestoneProgress(owned) * 100);
     row.row.classList.toggle("owned", owned > 0);
     const quote = buyQuote(state, row.def, state.buyAmount);
     row.owned.textContent = owned > 0 ? `× ${owned}` : "";
+    // What reaches the thrown beam (engine.thrownProduction): the rows sum to the header.
     row.prod.textContent =
       owned > 0
-        ? `${fmt(generatorProduction(state, row.def))} Lumen/s`
-        : `${fmt(new Decimal(row.def.baseProduction))} Lumen/s each`;
+        ? `${fmt(generatorProduction(state, row.def).mul(thrown))} Lumen/s`
+        : `${fmt(productionForOwned(state, row.def, 1).mul(thrown))} Lumen/s each`;
+    const gain = quote.count > 0 ? thrownGain(state, row.def, quote.count, nowMs) : new Decimal(0);
     setTip(row.milestone, milestoneHint(owned));
     // First Light Only challenge: tiers 4+ are blocked outright.
     const blockedByChallenge = !canBuyGenerator(state, row.def.id);
@@ -2878,7 +2942,7 @@ function renderDynamic(): void {
     setTip(
       row.buy,
       `Hire ${count} ${row.def.name}${count === 1 ? "" : row.def.name.endsWith("s") ? "" : "s"} for ${fmt(quote.cost)} Lumen` +
-        (quote.productionGain.gt(0) ? `: +${fmt(quote.productionGain)} Lumen/s.` : ".") +
+        (gain.gt(0) ? `: +${fmt(gain)} Lumen/s, after the supply chain, the Beam and the lamp.` : ".") +
         (owned > 0 ? ` You have ${owned}.` : ""),
     );
     // The price rides on the button: one line less on every row.
@@ -2902,7 +2966,7 @@ function renderDynamic(): void {
         const node = bottleneckAtDemand(state, extra, nowMs);
         warn = `⚠\uFE0E beam ${pct(chainNow.efficiency)} → ${pct(after)}${node ? ` · feed ${CHAIN_NODES[node].name}` : ""}`;
         warnTip =
-          `These helpers would add +${fmt(quote.productionGain)} Lumen/s and ${fmt(extra)}/s of demand on the supply chain. ${node ? `${CHAIN_NODES[node].name} couldn't keep up, ` : ""}so the beam would drop to ${pct(after)} efficiency. Feed it from the supply strip above${stewardActive(state) ? ", or let the Chain Steward catch up" : ""}.`;
+          `These helpers would add +${fmt(gain)} Lumen/s and ${fmt(extra)}/s of demand on the supply chain. ${node ? `${CHAIN_NODES[node].name} couldn't keep up, ` : ""}so the beam would drop to ${pct(after)} efficiency. Feed it from the supply strip above${stewardActive(state) ? ", or let the Chain Steward catch up" : ""}.`;
       }
     }
     row.note.classList.toggle("gen-warn", warn !== "");
@@ -2914,7 +2978,7 @@ function renderDynamic(): void {
     } else if (blockedByChallenge) {
       row.note.textContent = "Blocked — First Light Only challenge";
     } else if (quote.affordable) {
-      row.note.textContent = quote.productionGain.gt(0) ? `+${fmt(quote.productionGain)} Lumen/s` : "";
+      row.note.textContent = gain.gt(0) ? `+${fmt(gain)} Lumen/s` : "";
     } else {
       const tta = timeToAffordCost(state, quote.cost);
       row.note.textContent = Number.isFinite(tta) ? affordableIn(tta) : "earn Lumen by flashing";
@@ -3002,14 +3066,24 @@ function renderDynamic(): void {
   if (hud.rkAfter) {
     hud.rkAfter.textContent = state.activeChallenge !== null || gain < 1 ? "—" : bonusText(effectiveEmbers(state.embers + gain) * perEmberPct);
   }
-  // The hearth's fire grows toward the recommended Rekindle (40 Embers) —
-  // and beyond it, with the gain relative to what's already held.
+  // The hearth teaches the Rekindle moment (game/rekindleMoment.ts, the
+  // rule the balance bot plays by): it grows toward the recommended first
+  // Rekindle (40 Embers), then with the run's Ember growth, and flares when
+  // the run has done its best work.
+  const moment = rekindleMoment(state);
+  const heat =
+    moment.phase === "first"
+      ? gain <= 0 ? 0.08 : Math.min(1, 0.15 + 0.85 * (gain / PRESTIGE_RECOMMENDED_EMBERS))
+      : moment.phase === "best" || moment.phase === "relight-first"
+        ? 1
+        : moment.phase === "challenge"
+          ? 0.08
+          : 0.15 + 0.7 * Math.min(1, Math.log10(moment.multiplier));
   if (hud.rkHearth) {
-    const target = Math.max(PRESTIGE_RECOMMENDED_EMBERS, state.embers);
-    const heat = gain <= 0 ? 0.08 : Math.min(1, 0.15 + 0.85 * (gain / target));
     hud.rkHearth.style.setProperty("--heat", heat.toFixed(3));
-    hud.rkHearth.classList.toggle("ready", gain >= PRESTIGE_RECOMMENDED_EMBERS && state.activeChallenge === null);
+    hud.rkHearth.classList.toggle("ready", moment.phase === "best" || (moment.phase === "first" && gain >= PRESTIGE_RECOMMENDED_EMBERS));
   }
+  hud.rkTab?.classList.toggle("tab-ready", moment.phase === "best");
   if (hud.rkRecovery && activeTab === "rekindle") {
     hud.rkRecovery.textContent =
       state.activeChallenge !== null
@@ -3018,15 +3092,8 @@ function renderDynamic(): void {
           ? formatRecovery(recoveryEstimate())
           : "— (earn 5,000 lifetime Lumen for your first Ember)";
   }
-  if (hud.rkLabel) {
-    hud.rkLabel.textContent =
-      gain >= PRESTIGE_RECOMMENDED_EMBERS
-        ? `Recommended first Rekindle: ${PRESTIGE_RECOMMENDED_EMBERS} Embers — reached ✓`
-        : `Recommended first Rekindle: ${PRESTIGE_RECOMMENDED_EMBERS} Embers (${fmt(gain)} so far — early Rekindles pay very little)`;
-  }
-  if (hud.rkBar) {
-    hud.rkBar.style.width = `${Math.min(100, (gain / PRESTIGE_RECOMMENDED_EMBERS) * 100)}%`;
-  }
+  if (hud.rkLabel) hud.rkLabel.textContent = rekindleAdvice(moment, gain);
+  if (hud.rkBar) hud.rkBar.style.width = `${Math.round(Math.min(1, heat) * 100)}%`;
   if (hud.rkKept && hud.rkLost) {
     const kept: string[] = ["All Embers (old + new)", "Stats & log", "All-time Lumen"];
     // The next run's warm start: lasting bonuses with the new Embers counted in.
@@ -3222,6 +3289,7 @@ function gameTick(): void {
   // A long gap (a sleeping laptop) is time away: note the Shore before it's settled.
   const before = (now - state.lastSeen) / 1000 > LIVE_GAP_LIMIT_SECONDS ? snapshotAway(state) : null;
   const result = advanceToNow(state, now);
+  trackRekindleGrowth(state);
   // The Chain Steward takes its share of what was just earned and feeds the chain.
   const fed = tendChain(state, result.gain, now);
   if (fed > 0) {
