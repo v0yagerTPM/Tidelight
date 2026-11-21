@@ -169,9 +169,12 @@ const CLICK_UPGRADES: readonly UpgradeDef[] = [
 
 // ── Flash Echo: flashing that keeps up with the light ───────────────────────
 // Each tier adds a share of a second's production to every flash (they
-// stack: 5% + 10% + 20% = 35% at all three). Eight Lumen a flash is nothing
-// at 10^20 a second; this keeps the beam worth flashing in an active session.
-export const FLASH_ECHO_SHARES = [0.05, 0.1, 0.2] as const;
+// stack: 2% + 4% + 6% = 12% at all three), on up to three flashes a second
+// (engine.ECHO_FLASHES_PER_SECOND). Eight Lumen a flash is nothing at 10^20
+// a second; this keeps the beam worth flashing in an active session, up to
+// +36% for a busy thumb. It was 5/10/20% with no ceiling, and a phone
+// keeper tapping 2.4 times a second earned 84% more than the light did.
+export const FLASH_ECHO_SHARES = [0.02, 0.04, 0.06] as const;
 const ECHO_UPGRADES: readonly UpgradeDef[] = [
   { name: "Echo off the Glass", unlockAt: 1e8, cost: 5e7 },
   { name: "Echo off the Cliffs", unlockAt: 1e12, cost: 5e11 },
@@ -180,7 +183,7 @@ const ECHO_UPGRADES: readonly UpgradeDef[] = [
   id: `echo-${i + 1}`,
   name: e.name,
   kind: "echo" as const,
-  effect: `Each flash also pays ${Math.round(FLASH_ECHO_SHARES[i] * 100)}% of a second's production`,
+  effect: `Each flash also pays ${Math.round(FLASH_ECHO_SHARES[i] * 100)}% of a second's production (up to 3 flashes a second)`,
   cost: e.cost,
   unlock: { kind: "run-lifetime" as const, amount: e.unlockAt },
   permanent: false,

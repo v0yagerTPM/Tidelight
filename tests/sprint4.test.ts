@@ -14,6 +14,7 @@ import {
   expeditionCache,
   routeById,
   sendExpedition,
+  voyageMs,
 } from "../src/game/expeditions";
 import {
   LURE_BANK,
@@ -400,6 +401,15 @@ describe("bottle expeditions", () => {
     expect(productionPerSecond(state).toNumber()).toBe(5);
     expect(expeditionCache(state, drift).toNumber()).toBe(1_500); // 5 × 600 × 0.5
     expect(expeditionCache(state, routeById("coastal")!).toNumber()).toBe(9_000); // 5 × 3600 × 0.5
+  });
+
+  it("a faster voyage comes home sooner, not richer: the cache follows the voyage's real length", () => {
+    const drift = routeById("drift")!;
+    const state = createInitialState();
+    state.generators[crab.id] = 10; // 5/s
+    state.emberPerks.push("glass-charts"); // 25% sooner
+    expect(voyageMs(state, drift)).toBe(450_000);
+    expect(expeditionCache(state, drift).toNumber()).toBe(1_125); // 5 × 450 × 0.5
   });
 
   it("claiming before the bottle returns does nothing; claiming after pays the cache and a story fragment", () => {

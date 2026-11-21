@@ -7,13 +7,13 @@ import { createInitialState } from "../src/game/state";
 import { UPGRADES } from "../src/game/upgrades";
 
 // A keeper who has lit The Hollow Light can afford anything: no single
-// purchase costs more than its relight (4.00e30).
+// purchase costs more than its relight (8.20e30).
 describe("the price ceiling", () => {
   const ceiling = priceCeiling();
 
   it("is The Hollow Light's relight cost", () => {
     expect(ceiling).toBe(CHAIN_LIGHTHOUSES.find((l) => l.id === HOLLOW_LIGHT_ID)!.relightCost);
-    expect(ceiling).toBe(4e30);
+    expect(ceiling).toBe(8.2e30);
   });
 
   it("caps every upgrade and every relight", () => {
@@ -26,10 +26,10 @@ describe("the price ceiling", () => {
     state.generators["seventh-light"] = 400;
     state.embers = 1e15;
     state.roostExpansions = 40;
-    expect(roostExpansionCost(state).toNumber()).toBe(ceiling);
+    expect(roostExpansionCost(state).div(ceiling).toNumber()).toBeCloseTo(1, 12);
     state.allTimeLumen = new Decimal("1e40");
     state.mothLureRushes = 10;
-    expect(rushLureCost(state, 0).toNumber()).toBe(ceiling);
+    expect(rushLureCost(state, 0).div(ceiling).toNumber()).toBeCloseTo(1, 12);
   });
 
   it("keeps every Ember Shop item within reach of a keeper at the ending", () => {

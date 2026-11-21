@@ -2302,8 +2302,7 @@ const flashRate = new FlashRate();
 
 function flashBeam(): void {
   const now = Date.now();
-  const value = clickValue(state, now);
-  clickBeam(state, now);
+  const value = clickBeam(state, now);
   flashRate.add(now, value);
   sound.flash();
   if (value.gt(0)) scene?.flash(`+${fmt(value)}`);

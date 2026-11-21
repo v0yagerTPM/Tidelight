@@ -54,7 +54,8 @@ a hearth whose fire grows with the Embers you'd bank.
   - five tiers per helper (×2 at 10 and 30 copies, then ×2 / ×3 / ×5 at
     75, 150 and 250);
   - click tiers that take the beam from +1 to +8, and **Flash Echo**, which
-    adds 5% / 10% / 20% of a second's production to every flash;
+    adds 2% / 4% / 6% of a second's production to a flash, on up to three
+    flashes a second (quicker ones pay the plain flash);
   - six **synergies** (a helper +1% per copy of another, at 50 of each);
   - two **lighthouse lessons** per lit lighthouse: Wick, Oil or Lens support
     ×2, Beam levels worth +7.5%, groups of helpers ×3, all production ×2
@@ -177,9 +178,11 @@ a hearth whose fire grows with the Embers you'd bank.
   ready; Scented lure shows your scales toward the 8 it needs.
 - **A price ceiling** — no single purchase (upgrade, relight, roost
   expansion or rush lure) costs more than The Hollow Light's relight,
-  4.00e30: a keeper who has lit it can afford anything.
+  8.20e30: a keeper who has lit it can afford anything.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
-  minutes to 6 hours) and claim what washes back: a Lumen cache, a
+  minutes to 6 hours) and claim what washes back: a Lumen cache (half
+  the light for as long as the bottle was out, so Tailwind and Glass
+  Charts bring it home sooner, not richer), a
   story fragment for the Log, and maybe one of eight permanent RELICS —
   a Brass Compass (+5% to the beam), a Storm in a Bottle, a Gull
   Feather that trims chain costs, and five more.
@@ -203,13 +206,17 @@ a hearth whose fire grows with the Embers you'd bank.
 - Balance-checked end to end: the greedy-bot simulation (`npm run sim`)
   reaches the first Rekindle in ~70 minutes and the second ~50 minutes
   later, then simply plays on — growing, keeping the chain fed, saving
-  for each light as it comes within reach — and relights the coast at
-  2.9h, 6.7h, 12.7h, 20.3h and 32.0h, crosses the deep glass by the
-  three waymarks at 35.8h, 39.3h and 42.8h, and reaches the ending at
-  ~47 simulated hours (each gap between lights about 1.4× the last) with all nine generator tiers hired, without buying
-  perks, running challenges, keeping moths, sending bottles or minding
-  the tides. Real keepers will be faster; the bot is the pessimistic
-  bound.
+  for each light as it comes within reach, and Rekindling when a run's
+  Ember growth has peaked — and relights the coast at 2.9h, 4.7h, 7.4h,
+  11.8h and 16.7h, crosses the deep glass by the three waymarks at
+  21.6h, 25.8h and 28.4h, and reaches the ending at ~31 simulated hours
+  with all nine generator tiers hired, without buying perks, running
+  challenges, keeping moths, sending bottles or minding the tides. With
+  the Ember shop it is ~20 hours, and the engaged keeper of
+  `scripts/worth.ts` ~19. A bot with the kit and habits of the one
+  measured playthrough (five relics, five moths, bottles always out,
+  tapping 2.4 times a second) takes ~9 hours; that keeper took 3.6 hours
+  of play, plus time away, before the re-pace.
 
 ## Run it
 

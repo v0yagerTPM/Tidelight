@@ -66,7 +66,7 @@ describe("the Crossing", () => {
     });
     const last = lighthouseStatus(state, HOLLOW_LIGHT_ID);
     expect(last.waymark).toBeNull();
-    expect(last.cost.toNumber()).toBe(CHAIN_LIGHTHOUSES.find((l) => l.id === HOLLOW_LIGHT_ID)!.relightCost);
+    expect(last.cost.div(CHAIN_LIGHTHOUSES.find((l) => l.id === HOLLOW_LIGHT_ID)!.relightCost!).toNumber()).toBeCloseTo(1, 12);
     state.lumen = new Decimal("1e60");
     expect(relightLighthouse(state, HOLLOW_LIGHT_ID)).toBe(true);
     expect(state.litLighthouses).toContain(HOLLOW_LIGHT_ID);

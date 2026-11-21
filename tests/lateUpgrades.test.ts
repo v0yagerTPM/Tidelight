@@ -2,7 +2,7 @@ import Decimal from "break_infinity.js";
 import { describe, expect, it } from "vitest";
 import { beamMultiplier, totalSupport } from "../src/game/chain";
 import { CHAIN_LIGHTHOUSES, GULL_ROCK_ID, HOLLOW_LIGHT_ID, generatorById } from "../src/game/config";
-import { clickValue, generatorProduction, productionPerSecond } from "../src/game/engine";
+import { ECHO_FLASHES_PER_SECOND, clickBeam, clickValue, echoReady, generatorProduction, productionPerSecond } from "../src/game/engine";
 import { rekindleGain } from "../src/game/prestige";
 import { createInitialState, startBoard } from "../src/game/state";
 import type { GameState } from "../src/game/types";
@@ -129,9 +129,36 @@ describe("Flash Echo", () => {
     state.lifetimeLumen = new Decimal("1e17");
     const base = clickValue(state);
     for (const id of ["echo-1", "echo-2", "echo-3"]) expect(buyUpgrade(state, id)).toBe(true);
-    expect(flashEchoShare(state)).toBeCloseTo(0.35, 9);
-    const expected = base.add(productionPerSecond(state).mul(0.35));
+    expect(flashEchoShare(state)).toBeCloseTo(0.12, 9);
+    const expected = base.add(productionPerSecond(state).mul(0.12));
     expect(clickValue(state).div(expected).toNumber()).toBeCloseTo(1, 9);
+  });
+
+  it("rings back on at most three flashes a second; quicker ones pay the plain flash", () => {
+    const state = rich();
+    state.generators["candle-crab"] = 100;
+    state.lifetimeLumen = new Decimal("1e17");
+    for (const id of ["echo-1", "echo-2", "echo-3"]) buyUpgrade(state, id);
+    const t0 = 1_700_000_000_000;
+    // Glass Calm doubles a flash; compare against clickValue at the same moment.
+    const full = clickValue(state, t0).toNumber();
+    const plain = clickValue(state, t0, false).toNumber();
+    expect(full).toBeGreaterThan(plain * 10);
+    const paid = [0, 100, 200, 300, 400].map((dt) => clickBeam(state, t0 + dt).toNumber());
+    expect(paid.slice(0, ECHO_FLASHES_PER_SECOND).every((v) => Math.abs(v / full - 1) < 1e-9)).toBe(true);
+    expect(paid.slice(ECHO_FLASHES_PER_SECOND).every((v) => Math.abs(v / plain - 1) < 1e-9)).toBe(true);
+    expect(echoReady(state, t0 + 999)).toBe(false);
+    expect(echoReady(state, t0 + 1_000)).toBe(true); // the first echo has faded
+    expect(state.totalClicks).toBe(5);
+  });
+
+  it("without a time (the sim and estimates) every flash echoes", () => {
+    const state = rich();
+    state.generators["candle-crab"] = 100;
+    state.lifetimeLumen = new Decimal("1e17");
+    buyUpgrade(state, "echo-1");
+    const v = clickValue(state).toNumber();
+    for (let i = 0; i < 10; i++) expect(clickBeam(state).toNumber()).toBe(v);
   });
 
   it("pays nothing under Still Hands", () => {

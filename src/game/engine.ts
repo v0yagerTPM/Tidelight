@@ -213,23 +213,50 @@ export function creditLumen(state: GameState, amount: Decimal): void {
 /**
  * Lumen gained per Flash the Beam click: click upgrades ×2 each,
  * Warm Lamp Oil (Ember perk) ×2, Salt Lens (relic) ×1.5, plus Flash Echo
- * (a share of a second's production); then Glass Calm tide ×2 (only when
- * `now` is passed) and Still Hands (challenge) ×0 apply to the whole flash.
+ * (a share of a second's production) unless `echo` is false; then Glass
+ * Calm tide ×2 (only when `now` is passed) and Still Hands (challenge) ×0
+ * apply to the whole flash.
  */
-export function clickValue(state: GameState, now?: number): Decimal {
+export function clickValue(state: GameState, now?: number, echo = true): Decimal {
   let value = new Decimal(CLICK_LUMEN)
     .mul(clickMultiplier(state))
     .mul(emberShopClickMultiplier(state))
     .mul(relicClickMultiplier(state));
-  const echo = flashEchoShare(state);
-  if (echo > 0) value = value.add(productionPerSecond(state, now).mul(echo));
+  const share = echo ? flashEchoShare(state) : 0;
+  if (share > 0) value = value.add(productionPerSecond(state, now).mul(share));
   return value.mul(challengeClickMultiplier(state)).mul(tideClickMultiplier(now));
 }
 
-/** Flash the Beam: +click value in Lumen. */
-export function clickBeam(state: GameState, now?: number): void {
-  creditLumen(state, clickValue(state, now));
+/**
+ * The Flash Echo rings back on at most this many flashes a second; quicker
+ * flashes pay the plain flash only. Why (a phone playthrough): tapping 2.4
+ * times a second with a 35% echo added 84% to income, more than any helper
+ * upgrade, and a faster thumb or an autoclicker had no ceiling at all.
+ */
+export const ECHO_FLASHES_PER_SECOND = 3;
+
+/** When the echo last rang, per keeper (live play only: not saved). */
+const echoTimes = new WeakMap<GameState, number[]>();
+
+/**
+ * Whether a flash at `now` would carry the echo. Always true without a
+ * time (the sim, tests and estimates flash at a steady, slow pace).
+ */
+export function echoReady(state: GameState, now?: number): boolean {
+  if (now === undefined) return true;
+  const recent = (echoTimes.get(state) ?? []).filter((t) => now - t < 1000 && t <= now);
+  echoTimes.set(state, recent);
+  return recent.length < ECHO_FLASHES_PER_SECOND;
+}
+
+/** Flash the Beam: +click value in Lumen. Returns what the flash paid. */
+export function clickBeam(state: GameState, now?: number): Decimal {
+  const echo = echoReady(state, now);
+  if (echo && now !== undefined && flashEchoShare(state) > 0) echoTimes.get(state)!.push(now);
+  const value = clickValue(state, now, echo);
+  creditLumen(state, value);
   state.totalClicks++;
+  return value;
 }
 
 /** Buy `count` copies of a generator. Returns true if the purchase happened. */
