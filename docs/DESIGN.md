@@ -107,19 +107,21 @@ returned bottle, when the Shore has news.
   first Rekindle, +51 to the second. The chain wakes at ten helpers
   already fed (First Light's starting levels are warmed ×6 for a new
   keeper), so the first starving lands around minute ten.
-- Full story: the target was **35–50 hours** of engaged play to the
-  ending, then the Next Keeping endless mode. **It is not met now, and
-  the re-pace is still to be decided.** The first measured playthrough
-  (on a phone) reached the ending in 3.6 hours of play, against a bot
-  bound of ~47. The bot had been Rekindling at +50% of the Embers held,
-  64 times to the ending; the keeper Rekindled 8 times, for far bigger
-  jumps. Re-baselined to Rekindle when a run's Ember growth peaks
-  (scripts/simCore.ts), the no-everything bot relights the coast at
-  2.9 / 3.9 / 6.1 / 7.5 / 10.1 hours, lights the waymarks at 12.1 /
-  15.2 / 17.2 and reaches the ending at ~21; with the Ember shop, ~15;
-  the engaged keeper of `scripts/worth.ts`, ~15. Every price was tuned
-  on the old rule, so the gaps are lopsided: an hour from Gull Rock to
-  Cormorant Roost, eleven from Siren's Rest to the end.
+- Full story: **~30 hours for the no-everything bot** to the ending,
+  then the Next Keeping endless mode. It relights the coast at 2.9 /
+  4.7 / 7.4 / 11.8 / 16.7 hours, lights the Crossing's waymarks at
+  21.6 / 25.8 / 28.4 and reaches the ending at ~31: gaps of 2–5 hours
+  all the way. With the Ember shop it is ~20 hours, the engaged keeper
+  of `scripts/worth.ts` ~19, and a bot with the measured phone keeper's
+  kit and habits ~9.
+  - Why 30, and why this bot (a real playthrough): the target was 35–50
+    hours against a bot that Rekindled at +50% of the Embers held, 64
+    times to the ending. The first measured playthrough, on a phone,
+    reached the ending in 3.6 hours of play: the keeper Rekindled 8
+    times, for far bigger jumps. The bot now Rekindles when a run's
+    Ember growth peaks (scripts/simCore.ts), and the coast was re-priced
+    on it for 30 hours (`scripts/autotune.ts`-style search, one light at
+    a time).
 - Clicking and bottles are capped so neither runs away with income: the
   Flash Echo (2 / 4 / 6%) rings on at most three flashes a second, +36%
   at most for a busy thumb (it was 5 / 10 / 20% with no ceiling, +84%

@@ -119,7 +119,7 @@ describe("lighthouse order gating", () => {
     const state = richState();
     state.emberPerks.push("gull-friend");
     expect(relightCost(state, GULL_ROCK_ID).toNumber()).toBe(2_500_000);
-    expect(relightCost(state, CORMORANT_ROOST_ID).toNumber()).toBe(4.8e9);
+    expect(relightCost(state, CORMORANT_ROOST_ID).toNumber()).toBe(1.2e11);
   });
 });
 

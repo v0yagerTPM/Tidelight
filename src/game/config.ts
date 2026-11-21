@@ -272,7 +272,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: CORMORANT_ROOST_ID,
     name: "Cormorant Roost",
     hint: "A tall, narrow tower the cormorants adopted as a cliff. They have been keeping the lens clean for a century, out of habit. Relight it for +75% production, and a Lamp Crew who hires your helpers for you.",
-    relightCost: 4.8e9, // 8.4e8 before the re-pace
+    relightCost: 1.2e11, // 8.4e8 → 4.8e9 re-paced → 1.2e11 for the 30-hour story
     efficiencyRequirement: 0.6,
     productionBonus: 0.75,
     ...NO_BONUS,
@@ -283,7 +283,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: WIDOWS_WALK_ID,
     name: "Widow's Walk",
     hint: "A railed platform above a keeper's cottage, worn smooth by pacing. Whoever waited here kept meticulous stores — relight it and every supply chain you tend runs +50% stronger, and a Chain Steward starts tending it for you.",
-    relightCost: 2.1e13, // 3.4e12 before the re-pace
+    relightCost: 2.4e17, // 3.4e12 → 2.1e13 re-paced → 2.4e17 for the 30-hour story
     efficiencyRequirement: 0.65,
     productionBonus: 0,
     ...NO_BONUS,
@@ -295,7 +295,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: BELLWETHER_ID,
     name: "The Bellwether",
     hint: "The lead light — the one the others were lit from, in the old order of things. Its bell still knows the way home, and so do the ships that heard it. Relight it and every Rekindle banks +25% more Embers.",
-    relightCost: 8e18, // 7.6e18 before the re-pace
+    relightCost: 9.5e23, // 7.6e18 → 8e18 re-paced → 9.5e23 for the 30-hour story
     efficiencyRequirement: 0.7,
     productionBonus: 0,
     ...NO_BONUS,
@@ -307,7 +307,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: SIRENS_REST_ID,
     name: "Siren's Rest",
     hint: "A low, lovely tower on the last rock before the deep glass. The sirens sleep here now, retired and harmless. Relight it and the night works harder for you: offline rate +10 points and the offline cap grows by 4 hours.",
-    relightCost: 4.2e24, // 8.5e21 → 2.5e22 with Memory Ships → 5e25 with the late upgrades → 4.2e24 re-paced
+    relightCost: 1.5e27, // 8.5e21 → 2.5e22 with Memory Ships → 5e25 with the late upgrades → 4.2e24 re-paced → 1.5e27 for the 30-hour story
     efficiencyRequirement: 0.75,
     productionBonus: 0,
     ...NO_BONUS,
@@ -320,7 +320,7 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
     id: HOLLOW_LIGHT_ID,
     name: "The Hollow Light",
     hint: "The last tower, at the heart of the Hollow Sea — the light the sea itself was named for. No keeper has relit it. No keeper has come back from trying. Yet. +150% production, and whatever waits beyond it.",
-    relightCost: 4e30, // 3.2e24 → 6.5e24 with Memory Ships → 1e31 with the late upgrades → 6.4e29 re-paced → 4e30 after the Crossing
+    relightCost: 8.2e30, // 3.2e24 → 6.5e24 with Memory Ships → 1e31 with the late upgrades → 6.4e29 re-paced → 4e30 after the Crossing → 8.2e30 for the 30-hour story
     efficiencyRequirement: 0.8,
     productionBonus: 1.5,
     ...NO_BONUS,
@@ -344,9 +344,9 @@ export const CHAIN_LIGHTHOUSES: readonly ChainLighthouseDef[] = [
 //   The Last Lantern  one more moth on duty (almanac.dutySlots)
 // They are steps of The Hollow Light's relight (chain.relightLighthouse):
 // its Relight button lights the next waymark until all three burn.
-// PACING: costs from a sim search, so the bot lights them at about 35.8 /
-// 39.3 / 42.8 hours and The Hollow Light at ~47.5, as before the Crossing
-// (whose gifts let The Hollow Light itself cost more: 6.4e29 → 4e30).
+// PACING: costs from a sim search, so the plain bot lights them at about
+// 21.6 / 25.8 / 28.4 hours and The Hollow Light at ~31 (the 30-hour
+// story; see docs/SPRINTS.md).
 export interface WaymarkDef {
   id: string;
   name: string;
@@ -363,21 +363,21 @@ export const WAYMARKS: readonly WaymarkDef[] = [
     id: "drowned-bell",
     name: "The Drowned Bell",
     hint: "A bell-buoy sunk to its shoulders in the glass, its clapper stopped mid-swing. Light the lantern on its crown and the supply boats can steer by it.",
-    cost: 5.3e26,
+    cost: 2.1e29,
     reward: "chain support +25%",
   },
   {
     id: "glass-stair",
     name: "The Glass Stair",
     hint: "A stair of lanterns set out across the glass, a day's walk apart. Lit, the glass steps catch the beam and throw it on.",
-    cost: 5.8e28,
+    cost: 1.4e30,
     reward: "the thrown beam +25%",
   },
   {
     id: "last-lantern",
     name: "The Last Lantern",
     hint: "The lantern nearest The Hollow Light, close enough to see its door. Something waits there that would keep watch with your moths.",
-    cost: 7.1e29,
+    cost: 4.3e30,
     reward: "one more moth can stand duty",
   },
 ];

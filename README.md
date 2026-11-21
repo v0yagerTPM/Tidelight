@@ -178,7 +178,7 @@ a hearth whose fire grows with the Embers you'd bank.
   ready; Scented lure shows your scales toward the 8 it needs.
 - **A price ceiling** — no single purchase (upgrade, relight, roost
   expansion or rush lure) costs more than The Hollow Light's relight,
-  4.00e30: a keeper who has lit it can afford anything.
+  8.20e30: a keeper who has lit it can afford anything.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache (half
   the light for as long as the bottle was out, so Tailwind and Glass
@@ -207,15 +207,16 @@ a hearth whose fire grows with the Embers you'd bank.
   reaches the first Rekindle in ~70 minutes and the second ~50 minutes
   later, then simply plays on — growing, keeping the chain fed, saving
   for each light as it comes within reach, and Rekindling when a run's
-  Ember growth has peaked — and relights the coast at 2.9h, 3.9h, 6.1h,
-  7.5h and 10.1h, crosses the deep glass by the three waymarks at
-  12.1h, 15.2h and 17.2h, and reaches the ending at ~21 simulated hours
+  Ember growth has peaked — and relights the coast at 2.9h, 4.7h, 7.4h,
+  11.8h and 16.7h, crosses the deep glass by the three waymarks at
+  21.6h, 25.8h and 28.4h, and reaches the ending at ~31 simulated hours
   with all nine generator tiers hired, without buying perks, running
   challenges, keeping moths, sending bottles or minding the tides. With
-  the Ember shop it is ~15 hours. A bot with the kit and habits of the
-  one measured playthrough (five relics, five moths, bottles always out,
-  tapping 2.4 times a second) takes ~7.3 hours; that keeper took 3.6
-  hours of play, plus time away, under the older bottle and tap rules.
+  the Ember shop it is ~20 hours, and the engaged keeper of
+  `scripts/worth.ts` ~19. A bot with the kit and habits of the one
+  measured playthrough (five relics, five moths, bottles always out,
+  tapping 2.4 times a second) takes ~9 hours; that keeper took 3.6 hours
+  of play, plus time away, before the re-pace.
 
 ## Run it
 
