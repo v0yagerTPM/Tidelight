@@ -19,8 +19,10 @@
 // more than 10 minutes of production, as a keeper would), and once the next lighthouse costs no more
 // than SAVE_WINDOW_SECONDS of production, stop growing and save for it
 // (feeding the chain out of the surplus until its gate is met), then
-// relight. Rekindle whenever the gain is at least half the Embers held
-// (minimum 40) and the bot isn't saving. Before the rebalance this phase
+// relight. Rekindle (minimum 40 Embers, never while saving) when the run's
+// Ember growth rate is past its peak (REKINDLE_PAST_PEAK below), as a
+// keeper does: a phone playthrough Rekindled 8 times to the ending where
+// the old rule (at +50% of the Embers held) Rekindled 64. Before the rebalance this phase
 // needed a "demand cap" — the bot had to refuse to grow, because every
 // generator pushed the gates further away. It no longer does: if plain
 // greedy play reaches the ending, growing never locks it.
@@ -81,13 +83,31 @@ export interface SimResult {
 }
 
 /**
- * Endgame Rekindle policy: Rekindle (when not saving) once the gain is at
- * least this share of the Embers already held (and at least 40).
+ * Endgame Rekindle policy (re-baselined after a real playthrough): a
+ * keeper Rekindles when the run has done the most it can for the Embers.
+ * Held Embers multiply production, so what a run is worth is how far it
+ * grows them: ln(1 + gain / held) per hour of run. That rate climbs while
+ * the run builds and falls once the √ in the Ember formula takes over; the
+ * bot Rekindles (when not saving) once it has fallen this far below its
+ * best. The old rule, Rekindle at +50% of the Embers held, Rekindled eight
+ * times as often as a person did and set the pacing ~8× too slow.
  */
-export const REKINDLE_GROWTH = 0.5;
+export const REKINDLE_PAST_PEAK = 0.98;
+/**
+ * What a Rekindle costs in time beyond the run itself: buying the helpers
+ * and the chain back. Without it the rate looks best in a run's first
+ * minute (the √ again) and the bot Rekindles thousands of times for
+ * nothing. Fifteen minutes puts the bot at 10 Rekindles to the ending with
+ * the phone keeper's kit, who Rekindled 8 times.
+ */
+export const REKINDLE_REBUILD_SECONDS = 900;
 
 export interface SimOptions {
   verbose?: boolean;
+  /**
+   * The old fixed rule, for comparison: Rekindle once the gain is at least
+   * this share of the Embers held. Omit for the peak-rate rule above.
+   */
   rekindleGrowth?: number;
   /** Tuning shortcut: stop as soon as this lighthouse is lit. */
   stopWhenLit?: string;
@@ -112,7 +132,17 @@ export interface SimOptions {
 }
 
 export function runSim(opts: SimOptions = {}): SimResult {
-  const rekindleGrowth = opts.rekindleGrowth ?? REKINDLE_GROWTH;
+  const rekindleGrowth = opts.rekindleGrowth;
+  // The best Ember growth rate this run has reached (peak-rate rule).
+  let bestGrowth = 0;
+  const rekindleDue = (): boolean => {
+    const gain = rekindleGain(state);
+    if (gain < PRESTIGE_RECOMMENDED_EMBERS) return false;
+    if (rekindleGrowth !== undefined) return gain >= state.embers * rekindleGrowth;
+    const growth = Math.log1p(gain / Math.max(1, state.embers)) / (runT + REKINDLE_REBUILD_SECONDS);
+    if (growth > bestGrowth) bestGrowth = growth;
+    return growth < bestGrowth * REKINDLE_PAST_PEAK;
+  };
   const out: string[] = [];
   const say = (line: string) => {
     out.push(line);
@@ -190,6 +220,7 @@ export function runSim(opts: SimOptions = {}): SimResult {
         say(`★ Rekindle at ${(totalT / 60).toFixed(1)} min (+${gained} Embers)`);
         shop();
         runT = 0;
+        bestGrowth = 0;
         continue;
       }
     }
@@ -266,16 +297,18 @@ export function runSim(opts: SimOptions = {}): SimResult {
       if (rekindle(state) >= 1) {
         rekindles++;
         runT = 0;
+        bestGrowth = 0;
         shop();
       }
       savingSince = null;
       continue;
     }
-    if (!saving && rekindleGain(state) >= Math.max(PRESTIGE_RECOMMENDED_EMBERS, state.embers * rekindleGrowth)) {
+    if (!saving && rekindleDue()) {
       noteRunEnd();
       if (rekindle(state) >= 1) {
         rekindles++;
         runT = 0;
+        bestGrowth = 0;
         shop();
       }
     }

@@ -44,7 +44,9 @@ hit the wall → **Rekindle** → relight faster and further.
    its supply board.
 4. **Bottle expeditions** — bottles sent out return with Lumen caches,
    story fragments, and eight permanent relics — never just a timer and
-   a chest.
+   a chest. The cache is half the light for as long as the bottle was
+   out, so a faster voyage (Tailwind, Glass Charts) is sooner, never
+   richer: a bottle always out is worth +50% to income at any speed.
 5. **The seven lighthouses** — relit in order, each gated on the
    previous light, chain efficiency and cost, each granting a different
    permanent bonus (production, chain support, Ember gain, offline
@@ -105,16 +107,25 @@ returned bottle, when the Shore has news.
   first Rekindle, +51 to the second. The chain wakes at ten helpers
   already fed (First Light's starting levels are warmed ×6 for a new
   keeper), so the first starving lands around minute ten.
-- Full story: **35–50 hours** of engaged play to the ending, then the
-  Next Keeping endless mode. The same no-everything bot relights the
-  coast at 2.9 / 6.7 / 12.7 / 20.3 / 32.0 hours and reaches the ending
-  at ~47 — each gap about 1.4× the last (the gaps used to double, and
-  the last one, with no new helper, light or story beat in it, was 26
-  hours). The final stretch is broken by the Crossing's waymarks at
-  35.8 / 39.3 / 42.8 hours, so it is steps of 3.5–4.5 hours.
-  It is the floor, not the expectation; perks, moths, relics, tides and
-  a keeper's own clicking should bring a real playthrough in around
-  half that, though no player has measured it yet.
+- Full story: the target was **35–50 hours** of engaged play to the
+  ending, then the Next Keeping endless mode. **It is not met now, and
+  the re-pace is still to be decided.** The first measured playthrough
+  (on a phone) reached the ending in 3.6 hours of play, against a bot
+  bound of ~47. The bot had been Rekindling at +50% of the Embers held,
+  64 times to the ending; the keeper Rekindled 8 times, for far bigger
+  jumps. Re-baselined to Rekindle when a run's Ember growth peaks
+  (scripts/simCore.ts), the no-everything bot relights the coast at
+  2.9 / 3.9 / 6.1 / 7.5 / 10.1 hours, lights the waymarks at 12.1 /
+  15.2 / 17.2 and reaches the ending at ~21; with the Ember shop, ~15;
+  the engaged keeper of `scripts/worth.ts`, ~15. Every price was tuned
+  on the old rule, so the gaps are lopsided: an hour from Gull Rock to
+  Cormorant Roost, eleven from Siren's Rest to the end.
+- Clicking and bottles are capped so neither runs away with income: the
+  Flash Echo (2 / 4 / 6%) rings on at most three flashes a second, +36%
+  at most for a busy thumb (it was 5 / 10 / 20% with no ceiling, +84%
+  for that keeper's 2.4 taps a second); a bottle always out is +50%
+  (paid for the route's full length on a voyage 30% as long, it was
+  +168%).
 
 ## Story
 

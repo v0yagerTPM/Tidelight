@@ -1380,3 +1380,53 @@ Embers, moths and tides explained to someone who hadn't hired a crab.
       Candle Crabs "New in the guide · The Upgrades tab" opens on its own.
 - [x] Tests: `tests/guide.test.ts` (5); the save-version tests are
       updated.
+
+## ✅ Post-launch — A real playthrough, against the bots
+
+The first full playthrough on a phone reached the ending in **3.6 hours
+of play** (plus time away the save doesn't count), where the bots said
+47 (plain) and 24 (engaged). Re-running the bots with that keeper's
+habits found why, and three fixes.
+
+- [x] **The bot Rekindles like a keeper** (`scripts/simCore.ts`). It
+      Rekindled whenever the gain reached half the Embers held: 64
+      times to the ending. The keeper Rekindled 8 times and ended with
+      the same Embers. Now the bot Rekindles when the run's Ember growth,
+      ln(1 + gain ÷ held) per hour of run plus 15 minutes to rebuild, is
+      past its peak (`REKINDLE_PAST_PEAK`, `REKINDLE_REBUILD_SECONDS`).
+      Without the rebuild time it Rekindled thousands of times, because
+      the √ makes a run's first minute look best. The old rule stays as
+      `rekindleGrowth`, for comparison.
+- [x] **Bottles come home sooner, not richer** (`expeditionCache`). The
+      cache paid half the light for the route's full length, while
+      Tailwind and Glass Charts brought the bottle home in 30% of it:
+      +168% income for a bottle always out, and one Coastal Run paid more
+      than The Hollow Light costs. It now pays for the voyage as sailed:
+      +50% at any speed.
+- [x] **The echo is quieter and has a ceiling** (`FLASH_ECHO_SHARES`,
+      `engine.ECHO_FLASHES_PER_SECOND`). 5 / 10 / 20% of a second's
+      production on every flash, with no limit, gave 2.4 taps a second
+      +84% income. Now 2 / 4 / 6%, on at most three flashes a second
+      (faster ones pay the plain flash): +36% at most. The sim and the
+      estimates, which flash without a clock, are not rate-limited.
+      `clickBeam` returns what the flash paid, so the floating number is
+      always true.
+
+| Bot (ending, hours) | Before | After |
+|---|---|---|
+| Plain (`npm run sim`) | 47.2 | 21.0 |
+| Buys everything in the Ember shop | 42.1 | 15.2 |
+| Engaged (`SCEN=engaged scripts/worth.ts`) | 24.4 | 15.0 |
+| The phone keeper's kit and habits | 5.2 | 7.3 |
+
+Plain bot, after: lights at 2.9 / 3.9 / 6.1 / 7.5 / 10.1h, waymarks at
+12.1 / 15.2 / 17.2h, the ending at 21.0h, 12 Rekindles.
+
+- [ ] **The re-pace is still open.** Every price was tuned on the old
+      Rekindle rule, so the 35–50 hour target is no longer met and the
+      gaps are lopsided (an hour from Gull Rock to Cormorant Roost,
+      eleven from Siren's Rest to the end). How long the story should
+      be is a decision for the designer.
+- [x] Tests: the echo ceiling and the unclocked flash
+      (`tests/lateUpgrades.test.ts`), the cache following a faster
+      voyage (`tests/sprint4.test.ts`).

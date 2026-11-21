@@ -209,12 +209,18 @@ export interface ExpeditionClaim {
 
 /**
  * The Lumen cache a returning expedition pays:
- * max(route minimum, current production/sec × route duration in seconds × 0.5).
+ * max(route minimum, current production/sec × voyage seconds × 0.5).
+ * The voyage is this keeper's own (voyageMs: Glass Charts and Tailwind
+ * shorten it), so faster bottles come home sooner, not richer: a bottle
+ * always out pays half the light, whatever the speed. Why (a phone
+ * playthrough): paid for the route's full length, bottles brought home in
+ * 30% of the time added 168% to income, and one Coastal Run paid more than
+ * The Hollow Light costs.
  * "Current production" is read at the given moment (tide included when the
  * caller passes a real time, as the UI does).
  */
 export function expeditionCache(state: GameState, route: ExpeditionRouteDef, now?: number): Decimal {
-  const fromRate = productionPerSecond(state, now).mul(route.durationMinutes * 60).mul(0.5).floor();
+  const fromRate = productionPerSecond(state, now).mul(voyageMs(state, route) / 1000).mul(0.5).floor();
   return Decimal.max(new Decimal(route.minCache), fromRate);
 }
 
