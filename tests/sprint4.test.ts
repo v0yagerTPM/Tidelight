@@ -34,7 +34,7 @@ import {
   mothsUnlocked,
   patternById,
   releaseMoth,
-  releasePayout,
+  releaseScales,
   roostExpansionCost,
   rushAttractMoth,
   rushLureCost,
@@ -356,13 +356,15 @@ describe("lantern moths — breeding", () => {
 });
 
 describe("lantern moths — release", () => {
-  it("release gives a small gift, 10 × glow × (tier + 1), to the purse only, and clears duty", () => {
+  it("release leaves Wing Scales (no Lumen: the gift was too small to mean anything) and clears duty", () => {
     const state = gardenState(0);
     state.moths = [moth("a", "striped", 20), moth("b", "plain", 10)];
     toggleDuty(state, "a");
-    expect(releasePayout(state, state.moths[0]).toNumber()).toBe(10 * 20 * 3);
-    expect(releaseMoth(state, "a")!.toNumber()).toBe(600);
-    expect(state.lumen.toNumber()).toBe(600);
+    const lumen = state.lumen.toNumber();
+    const scales = releaseScales(state.moths[0]);
+    expect(releaseMoth(state, "a")).toBe(scales);
+    expect(state.wingScales).toBe(scales);
+    expect(state.lumen.toNumber()).toBe(lumen);
     expect(state.lifetimeLumen.toNumber()).toBe(0);
     expect(state.moths.map((m) => m.id)).toEqual(["b"]);
     expect(state.mothDuty).toEqual([]);
@@ -403,13 +405,14 @@ describe("bottle expeditions", () => {
     expect(expeditionCache(state, routeById("coastal")!).toNumber()).toBe(9_000); // 5 × 3600 × 0.5
   });
 
-  it("a faster voyage comes home sooner, not richer: the cache follows the voyage's real length", () => {
+  it("the cache follows the voyage's real length, and nothing hurries a bottle now", () => {
     const drift = routeById("drift")!;
     const state = createInitialState();
     state.generators[crab.id] = 10; // 5/s
-    state.emberPerks.push("glass-charts"); // 25% sooner
-    expect(voyageMs(state, drift)).toBe(450_000);
-    expect(expeditionCache(state, drift).toNumber()).toBe(1_125); // 5 × 450 × 0.5
+    state.emberPerks.push("glass-charts"); // sends bottles out again; no longer 25% sooner
+    state.kindlings = { tailwind: 5 }; // relic chance now, not speed
+    expect(voyageMs(state, drift)).toBe(600_000);
+    expect(expeditionCache(state, drift).toNumber()).toBe(1_500); // 5 × 600 × 0.5
   });
 
   it("claiming before the bottle returns does nothing; claiming after pays the cache and a story fragment", () => {
@@ -641,7 +644,7 @@ describe("permanence & save migration (v4 → v5)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v4Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(15);
+    expect(restored?.version).toBe(16);
     expect(restored?.moths).toEqual([]);
     expect(restored?.mothDuty).toEqual([]);
     expect(restored?.roostExpansions).toBe(0);
@@ -662,7 +665,7 @@ describe("permanence & save migration (v4 → v5)", () => {
     state.expedition = { routeId: "coastal", startedAt: 100, returnsAt: 200 };
     state.cocoon = { parentIds: ["m1", "m2"], readyAt: 999 };
     const saved = serializeState(state);
-    expect(saved.version).toBe(15);
+    expect(saved.version).toBe(16);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.moths).toEqual(state.moths);
     expect(restored?.mothDuty).toEqual(["m1"]);

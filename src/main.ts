@@ -58,10 +58,13 @@ import {
   KINDLE_ALL_SHARE,
   buyKindling,
   buyPerk,
+  hasPerk,
   kindleAll,
   kindleAllPreview,
   kindlingCost,
   kindlingLevel,
+  perkOpen,
+  tailwindRelicBonus,
   type EmberPerkDef,
   type KindlingDef,
 } from "./game/emberShop";
@@ -73,7 +76,9 @@ import {
   lastingProductionMultiplier,
   buyQuote,
   buyWithAmount,
+  ECHO_FLASHES_PER_SECOND,
   clickBeam,
+  echoCharges,
   clickValue,
   generatorProduction,
   productionForOwned,
@@ -93,6 +98,7 @@ import {
   routeById,
   sendExpedition,
   relicChanceFor,
+  tendBottles,
   voyageMs,
   type ExpeditionClaim,
 } from "./game/expeditions";
@@ -114,7 +120,6 @@ import {
   mothsUnlocked,
   patternById,
   releaseMoth,
-  releasePayout,
   roostExpansionCost,
   roostExpansionMinutes,
   rushAttractMoth,
@@ -180,6 +185,7 @@ import {
   UPGRADES,
   buyUpgrade,
   emberBonusPerEmber,
+  flashEchoShare,
   isPermanentUpgrade,
   isUnlocked,
   totalGeneratorsOwned,
@@ -286,6 +292,8 @@ const bootNow = state.lastSeen;
 welcomeBack(offline.gain, offline.creditedSeconds, offline.awaySeconds);
 // The Chain Steward takes its share of the time away, as it does live.
 const bootStewardLevels = tendChain(state, offline.gain, bootNow);
+// Glass Charts: the bottles that came home while you were away set out again.
+tendBottles(state, Math.random, bootNow);
 if (bootStewardLevels > 0) {
   addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${bootStewardLevels} level${bootStewardLevels === 1 ? "" : "s"}.`);
 }
@@ -339,7 +347,7 @@ ${[
         <canvas id="scene-canvas" aria-hidden="true"></canvas>
         <div id="tide-strip" class="tide-strip"></div>
         <div class="scene-foot">
-          <button id="flash" class="beam">Flash the Beam</button>
+          <button id="flash" class="beam">Flash the Beam<span class="echo-pips hidden" id="echo-pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
         </div>
       </div>
       <section id="supply-strip" class="card supply-strip hidden" aria-label="Supply chain">
@@ -471,6 +479,7 @@ ${[
               <div class="hearth-arrow" aria-hidden="true">→</div>
               <div><span class="stat-label">After Rekindle</span><strong id="rk-after">+0%</strong></div>
             </div>
+            <p class="hearth-relative" id="rk-relative"></p>
           </div>
         </div>
         <div class="row"><span id="rk-held-label">Embers held</span><strong id="rk-held">0</strong></div>
@@ -835,7 +844,7 @@ let shopRows: ShopRow[] = [];
 let shopStructureKey: string | null = null;
 
 function emberShopKey(): string {
-  return `${state.emberPerks.join(",")}|${KINDLINGS.map((k) => kindlingLevel(state, k.id)).join(",")}|${state.autoLearn}|${state.autoHire}`;
+  return `${state.emberPerks.join(",")}|${KINDLINGS.map((k) => kindlingLevel(state, k.id)).join(",")}|${state.autoLearn}|${state.autoHire}|${state.litLighthouses.length}`;
 }
 
 /** The total effect a Kindling's levels give, in words ("×2.25 production"). */
@@ -846,8 +855,9 @@ function kindlingTotal(def: KindlingDef, level: number): string {
       return `Now: all production +${Math.round((def.factor ** level - 1) * 100)}%`;
     case "quick-lures":
     case "spinning-silk":
-    case "tailwind":
       return `Now: ${Math.round((1 - def.factor ** level) * 100)}% less waiting`;
+    case "tailwind":
+      return `Now: relic chance +${Math.round(tailwindRelicBonus(state) * 100)} points`;
     case "long-watch":
       return `Now: offline cap +${level} hour${level === 1 ? "" : "s"}`;
     default:
@@ -884,20 +894,23 @@ function rebuildEmberShop(): void {
 
   const perkCard = (def: EmberPerkDef): HTMLElement => {
     const owned = state.emberPerks.includes(def.id);
+    const open = perkOpen(state, def);
     const card = document.createElement("article");
-    card.className = `perk${owned ? " owned" : ""}`;
-    const foot = !owned
-      ? `<span class="perk-cost">${EMBER_GLYPH}${fmt(def.costEmbers)}</span><button class="buy">Kindle</button>`
-      : `<span class="learned">Kindled ✓ · permanent</span>`;
+    card.className = `perk${owned ? " owned" : ""}${open ? "" : " shut"}`;
+    const foot = owned
+      ? `<span class="learned">Kindled ✓ · permanent</span>`
+      : open
+        ? `<span class="perk-cost">${EMBER_GLYPH}${fmt(def.costEmbers)}</span><button class="buy">Kindle</button>`
+        : `<span class="perk-cost">${EMBER_GLYPH}${fmt(def.costEmbers)}</span><span class="muted">Opens when Siren's Rest burns</span>`;
     card.innerHTML = `
       <div class="perk-art">${PERK_ICONS[def.id] ?? UNKNOWN_ICON}</div>
       <div class="perk-body">
         <h4 class="perk-name">${def.name}</h4>
         <p class="perk-effect">${def.effect}</p>
-        ${owned ? "" : `<p class="perk-warning"></p>`}
+        ${owned || !open ? "" : `<p class="perk-warning"></p>`}
       </div>
       <div class="perk-foot">${foot}</div>`;
-    if (!owned) addRow(card, () => def.costEmbers, () => buyPerk(state, def.id));
+    if (!owned && open) addRow(card, () => def.costEmbers, () => buyPerk(state, def.id));
     return card;
   };
 
@@ -929,6 +942,9 @@ function rebuildEmberShop(): void {
 
   const late = shelf("Late perks", "One-time perks for a keeper deep in the game, priced ten times apart.");
   for (const def of EMBER_PERKS.filter((p) => p.shelf === "late")) late.appendChild(perkCard(def));
+
+  const far = shelf("The far shelf", "Opens when Siren's Rest burns, for the long crossing to The Hollow Light: a quicker start to every run, and more from the moths on duty.");
+  for (const def of EMBER_PERKS.filter((p) => p.shelf === "far")) far.appendChild(perkCard(def));
 }
 // The automation switches: beside Learn all affordable (the Quartermaster,
 // with Gull Rock) and beside the buy amounts (the Lamp Crew, with
@@ -1087,6 +1103,8 @@ function shoreKey(): string {
     state.cocoon ? `${state.cocoon.parentIds.join("+")}@${state.cocoon.readyAt}` : "-",
     state.expedition ? `${state.expedition.routeId}@${state.expedition.returnsAt}:${state.expedition.riderId ?? ""}` : "-",
     state.relics.join(","),
+    state.bottleRoute ?? "-",
+    state.emberPerks.includes("glass-charts") ? "G" : "-",
   ].join("|");
 }
 
@@ -1131,6 +1149,7 @@ function rebuildShore(): void {
       card.innerHTML = `
         <div class="gen-name">${GLYPHS.bottle} Out at sea — ${route?.name ?? "an unknown route"}</div>
         ${rider ? `<p class="muted">${rider.name} rides on the cork.</p>` : ""}
+        ${hasPerk(state, "glass-charts") ? `<p class="muted">Glass Charts: when it washes home it's claimed and sets out again on ${routeById(state.bottleRoute ?? "")?.name ?? route?.name ?? "the same route"}. Choose another route below for the next voyage.</p>` : ""}
         <p class="muted expedition-note"></p>
         <button class="buy expedition-claim">Claim the bottle</button>`;
       shoreRefs.expeditionNote = card.querySelector<HTMLElement>(".expedition-note");
@@ -1188,6 +1207,14 @@ function rebuildShore(): void {
       chanceSpans.push({ route, el: card.querySelector<HTMLElement>(".route-chance") });
       if (btn) {
         btn.addEventListener("click", () => {
+          // With Glass Charts and a bottle at sea, the button sets the next voyage's route.
+          if (state.expedition && hasPerk(state, "glass-charts")) {
+            state.bottleRoute = route.id;
+            sound.chime();
+            saveState(state);
+            renderDynamic();
+            return;
+          }
           if (sendExpedition(state, route.id, Date.now(), bottleRider || undefined)) {
             bottleRider = "";
             sound.buy();
@@ -1357,7 +1384,7 @@ function mothDetail(onDuty: Set<string>): HTMLElement {
     </div>
     <div class="detail-actions">
       <button class="buy moth-duty"${post ? ` disabled title="Recall it from its post first"` : atSea ? ` disabled title="It is out at sea"` : ""}>${isDuty ? "Stand down" : "Put on duty"}</button>
-      <button class="buy moth-release"${atSea || inCocoon ? " disabled" : ""}>Release (+${fmt(releasePayout(state, moth))}, +${scales} scale${scales === 1 ? "" : "s"})</button>
+      <button class="buy moth-release"${atSea || inCocoon ? " disabled" : ""}>Release (+${scales} Wing Scale${scales === 1 ? "" : "s"})</button>
       <span class="muted detail-hint">${post || atSea || inCocoon ? "" : "Post it from the Lighthouse posts panel."}</span>
     </div>`;
   card.querySelector(".moth-duty")?.addEventListener("click", () => {
@@ -1639,6 +1666,18 @@ function updateShoreView(now: number): void {
     if (!route) continue;
     const busy = state.expedition !== null;
     const affordable = state.lumen.gte(route.cost);
+    if (busy && hasPerk(state, "glass-charts")) {
+      // Glass Charts: while a bottle is out, each route can be the next voyage's.
+      const standing = state.bottleRoute === route.id;
+      btn.disabled = standing;
+      btn.classList.toggle("affordable", !standing);
+      const label = standing ? "The next voyage ✓" : "Sail here next";
+      if (btn.textContent !== label) btn.textContent = label;
+      if (note) note.textContent = "";
+      continue;
+    }
+    const sendLabel = `Send a bottle — ${fmt(route.cost)} Lumen`;
+    if (btn.textContent !== sendLabel) btn.textContent = sendLabel;
     btn.disabled = busy || !affordable;
     btn.classList.toggle("affordable", !busy && affordable);
     if (note) {
@@ -2361,11 +2400,35 @@ const flashRate = new FlashRate();
 
 function flashBeam(): void {
   const now = Date.now();
+  // The Flash Echo rings on up to three flashes a second (engine.ECHO_FLASHES_PER_SECOND);
+  // a quicker flash says so, rather than paying a tiny number without a word.
+  const echoing = flashEchoShare(state) > 0 && echoCharges(state, now) > 0;
   const value = clickBeam(state, now);
   flashRate.add(now, value);
   sound.flash();
-  if (value.gt(0)) scene?.flash(`+${fmt(value)}`);
+  if (value.gt(0)) scene?.flash(flashEchoShare(state) > 0 && !echoing ? `+${fmt(value)} · echo resting` : `+${fmt(value)}`);
+  updateEchoPips(now);
   renderDynamic();
+}
+
+/** The three marks on Flash the Beam: echoes left this second (shown once a Flash Echo is learned). */
+const echoPips = document.querySelector<HTMLElement>("#echo-pips");
+function updateEchoPips(now: number): void {
+  const learned = flashEchoShare(state) > 0;
+  const flash = document.querySelector<HTMLElement>("#flash");
+  if (flash) {
+    setTip(
+      flash,
+      learned
+        ? `+${fmt(clickValue(state, now))} Lumen per flash (tapping the sea works too). The echo rings on up to ${ECHO_FLASHES_PER_SECOND} flashes a second: the marks show how many are left, and quicker flashes pay the plain flash.`
+        : `+${fmt(clickValue(state, now))} Lumen per flash (tapping the sea works too). Hire help below and the light keeps itself.`,
+    );
+  }
+  if (!echoPips) return;
+  echoPips.classList.toggle("hidden", !learned);
+  if (!learned) return;
+  const left = echoCharges(state, now);
+  echoPips.querySelectorAll("i").forEach((pip, i) => pip.classList.toggle("spent", i >= left));
 }
 document.querySelector<HTMLButtonElement>("#flash")?.addEventListener("click", flashBeam);
 // Tapping anywhere on the scene flashes too (the button stays for keyboards).
@@ -2597,6 +2660,7 @@ const hud = {
   rkTotal: document.querySelector<HTMLElement>("#rk-total"),
   rkBonus: document.querySelector<HTMLElement>("#rk-bonus"),
   rkAfter: document.querySelector<HTMLElement>("#rk-after"),
+  rkRelative: document.querySelector<HTMLElement>("#rk-relative"),
   rkHearth: document.querySelector<HTMLElement>("#rk-hearth"),
   rkTab: document.querySelector<HTMLElement>('.tab[data-tab="rekindle"]'),
   rkRecovery: document.querySelector<HTMLElement>("#rk-recovery"),
@@ -2857,8 +2921,7 @@ function renderDynamic(): void {
     }
   }
   if (hud.embers) hud.embers.textContent = fmt(state.embers);
-  const flashBtn = document.querySelector("#flash");
-  if (flashBtn) setTip(flashBtn, `+${fmt(clickValue(state, nowMs))} Lumen per flash (tapping the sea works too). Hire help below and the light keeps itself.`);
+  updateEchoPips(nowMs);
 
   // Tide strip (Sprint 4): current tide, its effect in words, the turn
   // countdown, and what's coming next.
@@ -3063,6 +3126,19 @@ function renderDynamic(): void {
   }
   if (hud.rkTotal) hud.rkTotal.textContent = fmt(state.embersTotalEarned);
   if (hud.rkBonus) hud.rkBonus.textContent = state.activeChallenge !== null ? "resting" : bonusText(effectiveEmbers(state.embers) * perEmberPct);
+  // The bonus in trillions says little; what a Rekindle does to the light does
+  // (design review). Same Ember bonus math as bonusText.
+  if (hud.rkRelative) {
+    const before = 1 + (effectiveEmbers(state.embers) * perEmberPct) / 100;
+    const after = 1 + (effectiveEmbers(state.embers + gain) * perEmberPct) / 100;
+    const ratio = after / before;
+    hud.rkRelative.textContent =
+      state.activeChallenge !== null || gain < 1
+        ? ""
+        : ratio >= 2
+          ? `A Rekindle now makes your light ×${fmt(ratio)} as bright.`
+          : `A Rekindle now makes your light ${Math.max(1, Math.round((ratio - 1) * 100))}% brighter.`;
+  }
   if (hud.rkAfter) {
     hud.rkAfter.textContent = state.activeChallenge !== null || gain < 1 ? "—" : bonusText(effectiveEmbers(state.embers + gain) * perEmberPct);
   }
@@ -3301,9 +3377,11 @@ function gameTick(): void {
     lastAutomationAt = now;
     autoLearn(state);
     autoHire(state, now);
+    tendBottles(state, Math.random, now);
   }
   if (result.mode === "offline") {
     welcomeBack(result.gain, result.creditedSeconds, result.elapsedSeconds);
+    tendBottles(state, Math.random, now);
     if (fed > 0) addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${fed} level${fed === 1 ? "" : "s"}.`);
   }
   // The guide's next page, when its part of the game first matters, if

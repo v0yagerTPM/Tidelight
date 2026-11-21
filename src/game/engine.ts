@@ -289,6 +289,17 @@ export function echoReady(state: GameState, now?: number): boolean {
   return recent.length < ECHO_FLASHES_PER_SECOND;
 }
 
+/**
+ * How many of the next flashes this second would still carry the echo
+ * (0–ECHO_FLASHES_PER_SECOND), for the marks on Flash the Beam. Always
+ * full without a time.
+ */
+export function echoCharges(state: GameState, now?: number): number {
+  if (now === undefined) return ECHO_FLASHES_PER_SECOND;
+  const recent = (echoTimes.get(state) ?? []).filter((t) => now - t < 1000 && t <= now).length;
+  return Math.max(0, ECHO_FLASHES_PER_SECOND - recent);
+}
+
 /** Flash the Beam: +click value in Lumen. Returns what the flash paid. */
 export function clickBeam(state: GameState, now?: number): Decimal {
   const echo = echoReady(state, now);

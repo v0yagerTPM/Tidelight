@@ -1,10 +1,9 @@
 import Decimal from "break_infinity.js";
 import { almanacCocoonMultiplier, dutySlots, lureBankSize, lureRegrowMs, recordAlmanac } from "./almanac";
 import { CHAIN_LIGHTHOUSES, priceCeiling } from "./config";
-import { MOTH_LANTERN_COCOON_MULTIPLIER, kindlingMultiplier } from "./emberShop";
+import { MOTH_LANTERN_COCOON_MULTIPLIER, MOTH_WATCH_MULTIPLIER, kindlingMultiplier } from "./emberShop";
 import { relicMothGlowBonus } from "./expeditions";
 import { productionPerSecond } from "./engine";
-import { formatNumber } from "./format";
 import {
   DUTY_GLOW_BONUS,
   FERTILE_COCOON_MULTIPLIER,
@@ -285,7 +284,9 @@ export function dutyGlowTotal(state: GameState): number {
 
 /** The duty roster's share of the lamp (engine.lampMultiplier): 1 + duty glow × 0.001. */
 export function mothProductionMultiplier(state: GameState): number {
-  return dutyProductionMultiplier(state);
+  // Moth-Watch (far shelf) doubles what the duty moths add.
+  const bonus = dutyProductionMultiplier(state) - 1;
+  return 1 + bonus * (state.emberPerks.includes("moth-watch") ? MOTH_WATCH_MULTIPLIER : 1);
 }
 
 /**
@@ -540,40 +541,29 @@ export function hatchCocoon(state: GameState, rng: () => number, now: number = D
 
 // ── Release ──────────────────────────────────────────────────────────────────
 
-/**
- * What releasing a moth pays: a small gift of stored lamplight, 10 × glow
- * × (pattern tier + 1). Wild moths cost lures, not Lumen, so there is no
- * attract-and-release loop to guard against; the gift stays small so a
- * release is about making room, not profit.
- */
-export function releasePayout(_state: GameState, moth: Moth): Decimal {
-  return new Decimal(10 * moth.glow * (patternById(moth.pattern).tier + 1));
-}
-
-/**
- * Release a moth back to the glass sea. The Lumen is a trade-in, credited
- * to the purse only (it doesn't count as earned lifetime). A moth sitting
- * in the cocoon can't be released. Returns the Lumen gained, or null.
- */
 /** Wing Scales a release leaves behind: 1 per tier + 1, and 1 more for a trait. */
 export function releaseScales(moth: Moth): number {
   return patternById(moth.pattern).tier + 1 + traitsOf(moth).length;
 }
 
-export function releaseMoth(state: GameState, mothId: string): Decimal | null {
+/**
+ * Release a moth back to the glass sea, for its Wing Scales. A moth in the
+ * cocoon or riding a bottle can't go. Returns the scales left behind, or
+ * null. It used to leave a gift of Lumen too, 10 × glow × (tier + 1): "+60
+ * Lumen" in a game making 1e28 a second (design review), so it is gone.
+ */
+export function releaseMoth(state: GameState, mothId: string): number | null {
   const moth = mothById(state, mothId);
   if (!moth) return null;
   if (isCocoonParent(state, mothId) || isAtSea(state, mothId)) return null;
-  const value = releasePayout(state, moth);
   state.moths = state.moths.filter((m) => m.id !== mothId);
   state.mothDuty = state.mothDuty.filter((id) => id !== mothId);
   const post = postOf(state, mothId);
   if (post) delete state.mothPosts[post];
-  state.lumen = state.lumen.add(value);
   const scales = releaseScales(moth);
   state.wingScales += scales;
-  addLog(state, `${moth.name} drifts out over the glass sea, unhurried. The lamp is dimmer for it. (+${formatNumber(value, state.notation)} Lumen of stored lamplight, +${scales} Wing Scale${scales === 1 ? "" : "s"})`);
-  return value;
+  addLog(state, `${moth.name} drifts out over the glass sea, unhurried. The lamp is dimmer for it. (+${scales} Wing Scale${scales === 1 ? "" : "s"})`);
+  return scales;
 }
 
 // ── Lighthouse posts ─────────────────────────────────────────────────────────

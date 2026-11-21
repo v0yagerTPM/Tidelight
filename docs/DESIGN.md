@@ -42,7 +42,9 @@ hit the wall → **Rekindle** → relight faster and further.
    patterns; up to three on duty brighten the thrown beam (+glow × 0.1%
    each), after the chain, and a moth posted at a lighthouse strengthens
    its supply board.
-4. **Bottle expeditions** — bottles sent out return with Lumen caches,
+4. **Bottle expeditions** — bottles sent out return with Lumen caches
+   (with Glass Charts, a returned bottle is claimed and set out again on
+   its standing route, even while away, inside the offline cap),
    story fragments, and eight permanent relics — never just a timer and
    a chest. The cache is half the light for as long as the bottle was
    out, so a faster voyage (Tailwind, Glass Charts) is sooner, never
@@ -85,9 +87,13 @@ hit the wall → **Rekindle** → relight faster and further.
   when it says to relight first. It is the same rule the balance bot plays
   by, because when to Rekindle moved the bot's ending more than anything
   else (42 hours to 15). The run's length and best rate are saved (v15).
-- Embers are spendable in the Ember Shop (eight permanent perks) — the
+- Embers are spendable in the Ember Shop (four shelves: keeper's perks,
+  Kindlings, late perks, and a far shelf that opens with Siren's Rest so
+  the shop doesn't run dry halfway through the story) — the
   production bonus applies to **held** Embers only, so spending is a
-  real trade. Three opt-in challenges change the rules (half the thrown
+  real trade. It stays a comfort shop: the far shelf buys a quicker start
+  to each run (Second Memory, Full Hearth) and more from the moths on
+  duty (Moth-Watch), not raw production. Three opt-in challenges change the rules (half the thrown
   beam, no clicking, tiers 1–3 only) for permanent rewards; held Embers
   rest through a challenge run, so each stays a real climb.
 - **What the lamp's companions light.** Helpers make Lumen and the chain

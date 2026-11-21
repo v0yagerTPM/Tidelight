@@ -7,7 +7,7 @@ import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, GENERATORS, HOLLOW_L
 import { CHALLENGES } from "./challenges";
 import { EMBER_PERKS, KINDLINGS, RETIRED_PERKS } from "./emberShop";
 import { GUIDE_PAGE_IDS } from "./guide";
-import { RELICS } from "./expeditions";
+import { EXPEDITION_ROUTES, RELICS } from "./expeditions";
 import { STORY_BEATS } from "./story";
 import { UPGRADES } from "./upgrades";
 import type {
@@ -23,9 +23,9 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 /** Older saves (Sprint 0 = v1 … Chain Steward = v11) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 /** supply.ts STEWARD_SHARES / STEWARD_TARGETS (literal: this module stays a leaf). */
 const STEWARD_SHARE_CHOICES: readonly number[] = [0.1, 0.25, 0.5];
 const STEWARD_TARGET_CHOICES: readonly number[] = [0.8, 0.9, 1];
@@ -262,6 +262,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     runSeconds: 0,
     runBestGrowth: 0,
     deepGlassBottle: false,
+    bottleRoute: null,
     lastSeen: now,
     log: [{ at: now, message: "You arrive at Candlewick Point. The lamp is cold. The sea is glass." }],
   };
@@ -329,6 +330,7 @@ export function serializeState(state: GameState): SavedState {
     runSeconds: state.runSeconds,
     runBestGrowth: state.runBestGrowth,
     deepGlassBottle: state.deepGlassBottle,
+    bottleRoute: state.bottleRoute,
     lastSeen: state.lastSeen,
     log: state.log.map((e) => ({ ...e })),
   };
@@ -464,6 +466,8 @@ export function deserializeState(raw: unknown): GameState | null {
       runSeconds: typeof s.runSeconds === "number" && Number.isFinite(s.runSeconds) && s.runSeconds >= 0 ? s.runSeconds : -1,
       runBestGrowth: typeof s.runBestGrowth === "number" && Number.isFinite(s.runBestGrowth) && s.runBestGrowth >= 0 ? s.runBestGrowth : 0,
       deepGlassBottle: s.deepGlassBottle === true,
+      // v16: Glass Charts' standing route; a v15 save's bottle at sea sets it.
+      bottleRoute: typeof s.bottleRoute === "string" && EXPEDITION_ROUTES.some((r) => r.id === s.bottleRoute) ? s.bottleRoute : null,
       lastSeen: typeof s.lastSeen === "number" && Number.isFinite(s.lastSeen) ? s.lastSeen : Date.now(),
       log: sanitizeLog(s.log),
     };

@@ -9,7 +9,7 @@ import {
   relightLighthouse,
 } from "./chain";
 import { baseProductionPerSecond, buyGenerator, clickValue, costFor, lastingProductionMultiplier, productionPerSecond } from "./engine";
-import { EMBER_PERKS, KINDLINGS, buyKindling, buyPerk, hasPerk, kindlingCost, kindlingLevel } from "./emberShop";
+import { EMBER_PERKS, KINDLINGS, buyKindling, buyPerk, hasPerk, kindlingCost, kindlingLevel, perkOpen } from "./emberShop";
 import { canBuyGenerator } from "./challenges";
 import type { GameState } from "./types";
 import { UPGRADES, buyUpgrade, isUnlocked } from "./upgrades";
@@ -311,7 +311,7 @@ export function botShop(state: GameState): string[] {
     const now = lastingProductionMultiplier(state);
     let pick: { name: string; run: () => boolean } | null = null;
     for (const def of EMBER_PERKS) {
-      if (hasPerk(state, def.id) || state.embers < def.costEmbers) continue;
+      if (hasPerk(state, def.id) || !perkOpen(state, def) || state.embers < def.costEmbers) continue;
       const ok = PRODUCTION_PERKS.has(def.id)
         ? lastingWith(
             state,

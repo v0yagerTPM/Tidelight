@@ -7,7 +7,7 @@ import Decimal from "break_infinity.js";
 import { creditLumen, productionPerSecond } from "./engine";
 import { recordAlmanac } from "./almanac";
 import { SIRENS_REST_ID } from "./config";
-import { voyageMultiplier } from "./emberShop";
+import { hasPerk, offlineCapSeconds, tailwindRelicBonus, voyageMultiplier } from "./emberShop";
 import { formatDuration, formatNumber } from "./format";
 import { CROSSING_TRAIT_CHANCE, MOTH_TRAITS, mothRelicChanceBonus, riderOf, riderRelicBonus } from "./mothTraits";
 import type { Moth } from "./types";
@@ -58,7 +58,7 @@ export const EXPEDITION_ROUTES: readonly ExpeditionRouteDef[] = [
  * defaults to the moth on the bottle at sea; pass one to preview a send.
  */
 export function relicChanceFor(state: GameState, route: ExpeditionRouteDef, rider: Moth | null = riderOf(state)): number {
-  return Math.min(1, route.relicChance + mothRelicChanceBonus(state) + riderRelicBonus(rider));
+  return Math.min(1, route.relicChance + mothRelicChanceBonus(state) + riderRelicBonus(rider) + tailwindRelicBonus(state));
 }
 
 export function routeById(id: string): ExpeditionRouteDef | undefined {
@@ -160,12 +160,12 @@ export const STORY_FRAGMENTS: readonly string[] = [
  * no charge) while one is already out, the route is unknown, or the
  * keeper can't pay.
  */
-/** How long a voyage on `route` takes for this keeper (Glass Charts, Tailwind). */
+/** How long a voyage on `route` takes for this keeper (emberShop.voyageMultiplier). */
 export function voyageMs(state: GameState, route: ExpeditionRouteDef): number {
   return Math.round(route.durationMinutes * 60_000 * voyageMultiplier(state));
 }
 
-export function sendExpedition(state: GameState, routeId: string, now: number = Date.now(), riderId?: string): boolean {
+export function sendExpedition(state: GameState, routeId: string, now: number = Date.now(), riderId?: string, log = true): boolean {
   if (state.expedition !== null) return false;
   const route = routeById(routeId);
   if (!route) return false;
@@ -180,12 +180,14 @@ export function sendExpedition(state: GameState, routeId: string, now: number = 
     returnsAt: now + voyageMs(state, route),
     ...(rider ? { riderId: rider.id } : {}),
   };
+  // The route Glass Charts sets the bottle out on again (tendBottles).
+  state.bottleRoute = routeId;
   if (rider) {
     // A rider leaves duty and its post for the whole trip.
     state.mothDuty = state.mothDuty.filter((id) => id !== rider.id);
     for (const [lighthouseId, id] of Object.entries(state.mothPosts)) if (id === rider.id) delete state.mothPosts[lighthouseId];
   }
-  addLog(state, `A bottle goes out on ${route.name} — a message, a hope, and a little lamplight for the journey${rider ? `, with ${rider.name} riding on the cork` : ""}. Back in ${formatDuration(voyageMs(state, route) / 1000)}.`, now);
+  if (log) addLog(state, `A bottle goes out on ${route.name} — a message, a hope, and a little lamplight for the journey${rider ? `, with ${rider.name} riding on the cork` : ""}. Back in ${formatDuration(voyageMs(state, route) / 1000)}.`, now);
   return true;
 }
 
@@ -228,9 +230,12 @@ export function expeditionCache(state: GameState, route: ExpeditionRouteDef, now
 /**
  * Claim the returned bottle. Fails (null) when nothing is out or it hasn't
  * returned yet. The rng is consumed in a fixed order: relic roll, then
- * relic pick (only when a relic is granted).
+ * relic pick (only when a relic is granted). `quiet` (Glass Charts'
+ * own claims, tendBottles) leaves out the routine lines — the salvage, a
+ * rider's plain return and story fragments already read — and keeps the
+ * news: relics, a changed rider, the Glass Stair's chart.
  */
-export function claimExpedition(state: GameState, rng: () => number, now: number = Date.now()): ExpeditionClaim | null {
+export function claimExpedition(state: GameState, rng: () => number, now: number = Date.now(), quiet = false): ExpeditionClaim | null {
   const expedition = state.expedition;
   if (!expedition || now < expedition.returnsAt) return null;
   const route = routeById(expedition.routeId);
@@ -272,20 +277,74 @@ export function claimExpedition(state: GameState, rng: () => number, now: number
   const chartsStair = route.id === "crossing" && state.litLighthouses.includes(SIRENS_REST_ID) && !state.deepGlassBottle;
   if (chartsStair) state.deepGlassBottle = true;
 
+  const freshFragment = state.storyFragmentIndex < STORY_FRAGMENTS.length;
   const fragment = STORY_FRAGMENTS[state.storyFragmentIndex % STORY_FRAGMENTS.length];
   state.storyFragmentIndex++;
-  addLog(state, `The bottle washes back from ${route.name}: +${formatNumber(cache, state.notation)} Lumen of salvage and driftwood.`, now);
+  if (!quiet) addLog(state, `The bottle washes back from ${route.name}: +${formatNumber(cache, state.notation)} Lumen of salvage and driftwood.`, now);
   if (relic) addLog(state, `Nestled in the bottle's neck — a relic: ${relic.name}. ${relic.effect}`, now);
-  if (bonusLumen.gt(0)) addLog(state, `The sea, having no relics left to give, pays half again in light: +${formatNumber(bonusLumen, state.notation)} Lumen.`, now);
-  if (rider) {
+  if (bonusLumen.gt(0) && !quiet) addLog(state, `The sea, having no relics left to give, pays half again in light: +${formatNumber(bonusLumen, state.notation)} Lumen.`, now);
+  if (rider && (!quiet || riderTrait)) {
     const trait = MOTH_TRAITS.find((t) => t.id === riderTrait);
     addLog(state, trait
       ? `${rider.name} comes home from the deep glass changed: ${trait.name.toLowerCase()} now. ${trait.effect}`
       : `${rider.name} hops off the cork and back into the roost, salt on its wings.`, now);
   }
-  addLog(state, `From the bottle: ${fragment}`, now);
+  if (!quiet || freshFragment) addLog(state, `From the bottle: ${fragment}`, now);
   if (chartsStair && state.crossing < 2) {
     addLog(state, "Folded around the message: a chart of the Glass Stair, every lantern marked. Lighting it will cost half. (the Glass Stair's offering)", now);
   }
   return { cache, bonusLumen, relic, fragment, rider, riderTrait };
+}
+
+// ── Glass Charts: bottles that set out again ─────────────────────────────────
+// Once a bottle paid for the voyage as sailed, a faster one was worth no
+// Lumen, and Glass Charts (the dearest late perk, "25% sooner") lost its
+// purpose (design review, round three). It now does the loop the phone
+// keeper did by hand every few minutes: a bottle that washes home is
+// claimed and set out again on the standing route (state.bottleRoute, the
+// last one sent or chosen), live or while away. Away, voyages are only
+// counted inside the offline cap, as the rest of the light is.
+
+export interface TendResult {
+  /** Voyages claimed and set out again. */
+  voyages: number;
+  /** Lumen they brought home (salvage, and the sea's bonus once every relic is home). */
+  lumen: Decimal;
+}
+
+/** Claim every bottle that has come home and set it out again (Glass Charts). */
+export function tendBottles(state: GameState, rng: () => number, now: number = Date.now()): TendResult {
+  const out: TendResult = { voyages: 0, lumen: new Decimal(0) };
+  if (!hasPerk(state, "glass-charts")) return out;
+  if (state.bottleRoute === null && state.expedition) state.bottleRoute = state.expedition.routeId;
+  const floor = now - offlineCapSeconds(state) * 1000;
+  let routeName = "";
+  for (let guard = 0; guard < 2_000; guard++) {
+    const expedition = state.expedition;
+    if (!expedition) {
+      const route = routeById(state.bottleRoute ?? "");
+      if (!route || !sendExpedition(state, route.id, now, undefined, false)) break;
+      continue;
+    }
+    if (now < expedition.returnsAt) break;
+    const at = expedition.returnsAt;
+    const claim = claimExpedition(state, rng, at, true);
+    if (!claim) break;
+    out.voyages++;
+    out.lumen = out.lumen.add(claim.cache).add(claim.bonusLumen);
+    const route = routeById(state.bottleRoute ?? "");
+    if (!route) break;
+    routeName = route.name;
+    // Set out again the moment it came home, or, after a long absence, from
+    // the start of the time the offline cap counts.
+    if (!sendExpedition(state, route.id, Math.max(at, floor), undefined, false)) break;
+  }
+  if (out.voyages > 0) {
+    addLog(
+      state,
+      `Glass Charts: ${out.voyages === 1 ? "a bottle came" : `${out.voyages} bottles came`} home and set out again on ${routeName}. +${formatNumber(out.lumen, state.notation)} Lumen of salvage.`,
+      now,
+    );
+  }
+  return out;
 }

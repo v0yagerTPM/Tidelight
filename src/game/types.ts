@@ -161,6 +161,8 @@ export interface GameState {
    * with the waymarks in a Next Keeping.
    */
   deepGlassBottle: boolean;
+  /** The route Glass Charts sets a returned bottle out on again (the last sent or chosen), or null. */
+  bottleRoute: string | null;
   /** Unix timestamp (ms) of the last save/tick — the offline-earnings anchor. */
   lastSeen: number;
   log: LogEntry[];
@@ -219,6 +221,8 @@ export interface SavedState {
   runSeconds?: number;
   runBestGrowth?: number;
   deepGlassBottle?: boolean;
+  /** v16: Glass Charts' standing route. */
+  bottleRoute?: string | null;
   lastSeen: number;
   log: LogEntry[];
 }

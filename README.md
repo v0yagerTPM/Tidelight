@@ -55,7 +55,8 @@ a hearth whose fire grows with the Embers you'd bank.
     75, 150 and 250);
   - click tiers that take the beam from +1 to +8, and **Flash Echo**, which
     adds 2% / 4% / 6% of a second's production to a flash, on up to three
-    flashes a second (quicker ones pay the plain flash);
+    flashes a second (quicker ones pay the plain flash: three marks on
+    the button empty and refill, and a quick flash says "echo resting");
   - six **synergies** (a helper +1% per copy of another, at 50 of each);
   - two **lighthouse lessons** per lit lighthouse: Wick, Oil or Lens support
     ×2, Beam levels worth +7.5%, groups of helpers ×3, all production ×2
@@ -124,7 +125,9 @@ a hearth whose fire grows with the Embers you'd bank.
   upgrades (Longer Wicks, Ember Resonance) are keeper knowledge and
   survive the reset. The first Rekindle, and every tenth, plays the full
   moment; the rest flare the hearth and leave a line under the button.
-- **The Ember Shop** — three shelves, all bought with held Embers.
+  Under the Ember numbers, a plain line says what a Rekindle does to the
+  light ("×1.6 as bright"), since bonuses in the trillions say little.
+- **The Ember Shop** — four shelves, all bought with held Embers.
   Spending lowers your held-Ember bonus, and each card shows how much.
   **Kindle all under 1%** buys every perk and Kindling level that costs
   no more than a hundredth of the Embers you hold, cheapest first.
@@ -135,16 +138,24 @@ a hearth whose fire grows with the Embers you'd bank.
     Ember), Second Wind (+50% production).
   - **Kindlings** (bought again and again, each level dearer than the
     last): Ember Glow (+5% production a level, 10 levels, ×10 a level),
-    Long Watch (+1h offline cap, 8 levels, ×4), and Quick Lures, Spinning
-    Silk and Tailwind (lures, cocoons and bottles 5% sooner a level, 20
-    levels each, ×3).
+    Long Watch (+1h offline cap, 8 levels, ×4), Quick Lures and Spinning
+    Silk (lures and cocoons 5% sooner a level) and Tailwind (relic chance
+    +2 points a level), 20 levels each, ×3.
   - **Late perks** (one-time, 50,000 to 5 billion Embers):
     - Warm Hearth starts each run with 10 of each of the first three helpers.
     - The Steward's Ledger lets the Chain Steward's purse hold 30 minutes.
     - Storm Charts halve a Stormfront's drain on the chain.
     - Moth Lantern adds a lure to the bank and spins cocoons 25% faster.
     - Ember Memory keeps every helper's first upgrade through a Rekindle.
-    - Glass Charts bring bottles home 25% sooner.
+    - Glass Charts claim a bottle that washes home and set it out again,
+      on the route you choose, even while you're away (counted inside the
+      offline cap).
+  - **The far shelf** (opens when Siren's Rest burns, 100 billion to 10
+    trillion Embers), so the shop doesn't run dry halfway through the
+    story: Second Memory (every helper's second upgrade survives a
+    Rekindle too), Moth-Watch (moths on duty light the beam twice as
+    brightly) and Full Hearth (Warm Hearth's crew covers the first six
+    helpers).
   It is a comfort shop on purpose: production boosts compound through
   Embers, so the shop mostly buys time away, a quicker Shore and a few
   conveniences. (The Quartermaster and Lamp Crew used to be sold here;
@@ -175,7 +186,7 @@ a hearth whose fire grows with the Embers you'd bank.
   lighthouse has a **moth post**: a posted moth adds +(glow × 0.2)% to
   that lighthouse's chain support. The **Wing Almanac** has a page for
   every wing and trait (49 in all) and rewards you at 6, 12, 24, 36 and
-  every page; released moths leave **Wing Scales** that buy scented
+  every page; released moths leave **Wing Scales** (and only those) that buy scented
   lures. A cocoon that opens in a Stormfront may hatch a rare **Tidelit**
   moth, and a moth can **ride a bottle** for better relic odds. After the
   ending, two perfect Prismatics may hatch a **Hollow** moth: glow up to
@@ -189,8 +200,7 @@ a hearth whose fire grows with the Embers you'd bank.
   8.80e30: a keeper who has lit it can afford anything.
 - **Bottle expeditions** — send a bottle out on the glass sea (10
   minutes to 6 hours) and claim what washes back: a Lumen cache (half
-  the light for as long as the bottle was out, so Tailwind and Glass
-  Charts bring it home sooner, not richer), a
+  the light for as long as the bottle was out), a
   story fragment for the Log, and maybe one of eight permanent RELICS —
   a Brass Compass (+5% to the beam), a Storm in a Bottle, a Gull
   Feather that trims chain costs, and five more.
