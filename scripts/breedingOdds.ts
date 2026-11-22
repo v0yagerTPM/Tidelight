@@ -1,0 +1,107 @@
+// ── Breeding odds, exactly (balance tooling, not part of the game) ───────────
+// The odds of a cocoon's child, worked out from the rules in
+// src/game/moths.ts hatchCocoon rather than sampled: which wing pattern,
+// which trait, the Tidelit and Hollow chances. scripts/almanacSim.ts uses it
+// to choose breeding pairs; tests/breedingOdds.test.ts checks it against the
+// game's own hatchCocoon, so the two can't drift apart unnoticed.
+
+import {
+  HOLLOW_CHANCE,
+  MAX_TIER,
+  PRISMATIC_TRUE_CHANCE,
+  TIDELIT_CHANCE,
+  TIER_DOWN_CHANCE,
+  TIER_UP_CHANCE,
+  TRAIT_INHERIT_CHANCE as INHERIT,
+  TRAIT_MUTATION_CHANCE as MUTATE,
+  patternById,
+  patternByTier,
+} from "../src/game/moths";
+import { MOTH_TRAITS, traitById } from "../src/game/mothTraits";
+import type { Moth } from "../src/game/types";
+
+/** The higher-tier parent's pattern is the starting point this often (moths.ts: hatchCocoon step 1). */
+export const HIGHER_PARENT_CHANCE = 0.65;
+
+/** Wing pattern of the child, before the storm and the ending have their say: tier → probability. */
+export function childTierOdds(a: Moth, b: Moth): Map<number, number> {
+  const tA = patternById(a.pattern).tier;
+  const tB = patternById(b.pattern).tier;
+  const out = new Map<number, number>();
+  const add = (tier: number, p: number) => out.set(tier, (out.get(tier) ?? 0) + p);
+  const bases: [number, number][] = tA === tB ? [[tA, 1]] : [[Math.max(tA, tB), HIGHER_PARENT_CHANCE], [Math.min(tA, tB), 1 - HIGHER_PARENT_CHANCE]];
+  for (const [base, pb] of bases) {
+    if (base >= MAX_TIER) {
+      // Prismatic (and above) is unstable: true 60%, else Starlit.
+      add(patternByTier(base).tier, pb * PRISMATIC_TRUE_CHANCE);
+      add(MAX_TIER - 1, pb * (1 - PRISMATIC_TRUE_CHANCE));
+    } else {
+      add(patternByTier(base + 1).tier, pb * TIER_UP_CHANCE);
+      add(patternByTier(base - 1).tier, pb * TIER_DOWN_CHANCE);
+      add(base, pb * (1 - TIER_UP_CHANCE - TIER_DOWN_CHANCE));
+    }
+  }
+  return out;
+}
+
+/** The child's trait (null = none): trait → probability. */
+export function childTraitOdds(a: Moth, b: Moth): Map<string | null, number> {
+  const inherited = [a.trait, b.trait].filter((t): t is string => traitById(t) !== null);
+  const out = new Map<string | null, number>();
+  const add = (t: string | null, p: number) => out.set(t, (out.get(t) ?? 0) + p);
+  const pInherit = inherited.length > 0 ? INHERIT : 0;
+  for (const t of inherited) add(t, pInherit / inherited.length);
+  const rest = 1 - pInherit;
+  for (const t of MOTH_TRAITS) add(t.id, (rest * MUTATE) / MOTH_TRAITS.length);
+  add(null, rest * (1 - MUTATE));
+  return out;
+}
+
+export interface ChildOutcome {
+  pattern: string;
+  /** The Almanac pages the child fills (a Hollow child can fill two). */
+  keys: string[];
+  p: number;
+}
+
+const key = (pattern: string, trait: string | null | undefined) => `${pattern}:${trait ?? "none"}`;
+
+/**
+ * Every outcome of a cocoon from `a` and `b`, with its probability: pattern
+ * and trait, then a Starlit or Prismatic child opening in a Stormfront is
+ * Tidelit 5% of the time (`storm`), and after the ending two glow-100
+ * Prismatics have a 2% Hollow child carrying up to two of the family's traits.
+ */
+export function childOutcomes(a: Moth, b: Moth, opts: { storm: boolean; endingSeen: boolean }): ChildOutcome[] {
+  const tiers = childTierOdds(a, b);
+  const traits = childTraitOdds(a, b);
+  const perfect = (m: Moth) => m.pattern === "prismatic" && m.glow >= 100;
+  const hollowP = opts.endingSeen && perfect(a) && perfect(b) ? HOLLOW_CHANCE : 0;
+  const out: ChildOutcome[] = [];
+  for (const [tier, pt] of tiers) {
+    const pattern = patternByTier(tier).id;
+    for (const [trait, pr] of traits) {
+      const p = pt * pr;
+      if (p <= 0) continue;
+      const tideP = opts.storm && tier >= MAX_TIER - 1 ? TIDELIT_CHANCE : 0;
+      // Hollow overrides everything else; Tidelit overrides the bred pattern.
+      if (hollowP > 0) {
+        const family = [...new Set([a.trait, b.trait, a.trait2, b.trait2, trait])].filter((t): t is string => traitById(t) !== null);
+        const keys = family.length === 0 ? [key("hollow", null)] : family.slice(0, 2).map((t) => key("hollow", t));
+        out.push({ pattern: "hollow", keys, p: p * hollowP });
+      }
+      const rest = p * (1 - hollowP);
+      if (tideP > 0) out.push({ pattern: "tidelit", keys: [key("tidelit", trait)], p: rest * tideP });
+      out.push({ pattern, keys: [key(pattern, trait)], p: rest * (1 - tideP) });
+    }
+  }
+  return out;
+}
+
+/** Expected glow of the child (before the ceiling): the parents' average − 1, or a bright jump 3% of the time. */
+export function expectedChildGlow(a: Moth, b: Moth): number {
+  const avg = (a.glow + b.glow) / 2;
+  const bright = 0.03 * (avg + 11.5 * (avg >= 90 ? 0.5 : 1));
+  const normal = 0.97 * (avg - 1);
+  return bright + normal;
+}

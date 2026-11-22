@@ -188,10 +188,13 @@ a hearth whose fire grows with the Embers you'd bank.
   Seeker, Fertile, Tidewise) that children can inherit, and every lit
   lighthouse has a **moth post**: a posted moth adds +(glow × 0.2)% to
   that lighthouse's chain support. The **Wing Almanac** has a page for
-  every wing and trait (49 in all) and rewards you at 6, 12, 24, 36 and
-  every page; released moths leave **Wing Scales** (and only those) that buy scented
-  lures. A cocoon that opens in a Stormfront may hatch a rare **Tidelit**
-  moth, and a moth can **ride a bottle** for better relic odds. After the
+  every wing and trait (56 in all) and rewards you at 6, 12, 24, 36, 42,
+  49 and every page (42 pages: A Fifth Nest, one more cocoon); released moths leave **Wing Scales** (and only those) that buy scented
+  lures. **Release spares** lets go, in one tap, of every moth that isn't
+  on duty, posted, in a cocoon or among the best of its pattern or page,
+  and **Let spares go** releases such a moth the moment it arrives. A cocoon that opens in a Stormfront may hatch a rare **Tidelit**
+  moth (a Starlit or Prismatic cocoon can be told to wait for the next
+  Stormfront and open by itself), and a moth can **ride a bottle** for better relic odds. After the
   ending, two perfect Prismatics may hatch a **Hollow** moth: glow up to
   120 and two traits. Moths are permanent: Rekindle can't touch the roost.
   The roost starts at 6 moths; each expansion adds 2 and costs about 3
@@ -240,6 +243,14 @@ a hearth whose fire grows with the Embers you'd bank.
   hours of play, plus time away, before the re-pace. For every one of
   them the last step, from the Last Lantern to the tower, is the
   longest.
+- The Wing Almanac has its own analysis (`npm run almanac`): a keeper
+  bot plays the Shore with the game's own functions and chases every
+  missing page, many times per kind of keeper, and the exact breeding and
+  lure odds are worked out from the rules. A late-game keeper who looks in
+  every 10 minutes fills all 56 pages in a median of ~10 days; hourly,
+  ~26; every 4 hours, ~87. Without Ember-shop help and with a 6-moth
+  roost, ~72 and ~98. The last pages are Hollow wings (two glow-100
+  Prismatics, 2% a cocoon).
 
 ## Run it
 
@@ -248,6 +259,8 @@ npm install
 npm run dev        # Vite dev server
 npm test           # Vitest suite
 npm run build      # typecheck + production build to dist/
+npm run sim        # the balance bot, start to ending
+npm run almanac    # the Wing Almanac simulation, into out/almanac
 ```
 
 ## Controls

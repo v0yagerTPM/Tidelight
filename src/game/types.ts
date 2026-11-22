@@ -45,6 +45,12 @@ export interface Cocoon {
   parentIds: [string, string];
   /** Unix timestamp (ms) when the cocoon can be hatched. */
   readyAt: number;
+  /**
+   * Wait for a Stormfront (v18): once ready, the cocoon opens by itself in
+   * the next Stormfront, live or while away (moths.tendCocoons), so a
+   * Starlit or Prismatic hatchling can turn Tidelit without the keeper there.
+   */
+  stormWait?: boolean;
 }
 
 /** A bottle expedition out at sea (see expeditions.ts). Timestamp-based. */
@@ -161,6 +167,12 @@ export interface GameState {
    * with the waymarks in a Next Keeping.
    */
   deepGlassBottle: boolean;
+  /**
+   * Let spares go on arrival (v18): a lured moth that fills no new Almanac
+   * page and isn't brighter than the best of its wings already kept flies
+   * straight back out, leaving its Wing Scales.
+   */
+  autoReleaseSpares: boolean;
   /** The route Glass Charts sets a returned bottle out on again (the last sent or chosen), or null. */
   bottleRoute: string | null;
   /** Unix timestamp (ms) of the last save/tick — the offline-earnings anchor. */
@@ -224,6 +236,8 @@ export interface SavedState {
   runSeconds?: number;
   runBestGrowth?: number;
   deepGlassBottle?: boolean;
+  /** v18: let spares go on arrival. */
+  autoReleaseSpares?: boolean;
   /** v16: Glass Charts' standing route. */
   bottleRoute?: string | null;
   lastSeen: number;

@@ -1,5 +1,5 @@
 import Decimal from "break_infinity.js";
-import { almanacCocoonMultiplier, dutySlots, lureBankSize, lureRegrowMs, recordAlmanac } from "./almanac";
+import { almanacCocoonMultiplier, almanacKeysOf, dutySlots, hasAlmanacReward, lureBankSize, lureRegrowMs, recordAlmanac } from "./almanac";
 import { CHAIN_LIGHTHOUSES, priceCeiling } from "./config";
 import { MOTH_LANTERN_COCOON_MULTIPLIER, MOTH_WATCH_MULTIPLIER, kindlingMultiplier } from "./emberShop";
 import { relicMothGlowBonus } from "./expeditions";
@@ -18,7 +18,7 @@ import {
   postOf,
   traitById,
 } from "./mothTraits";
-import { tideAt } from "./tides";
+import { TIDE_BUCKET_MS, tideAt } from "./tides";
 import { addLog } from "./state";
 import type { GameState, Moth } from "./types";
 
@@ -375,7 +375,15 @@ function wildMoth(state: GameState, rng: () => number, scented = false): Moth {
   if (trait) moth.trait = trait;
   state.moths.push(moth);
   addLog(state, `A lantern moth settles by the lamp: ${moth.name}, ${pattern.name.toLowerCase()}-winged and glowing at ${glow}${traitPhrase(moth)}. It followed the light home. It stayed.`);
+  const newPage = almanacKeysOf(moth).some((k) => !state.almanac.includes(k));
   noteInAlmanac(state, moth);
+  // Let spares go on arrival: a moth that fills no new page and isn't
+  // brighter than the best of its wings already kept flies straight back out.
+  const best = state.moths.filter((m) => m !== moth && m.pattern === moth.pattern).reduce((g, m) => Math.max(g, m.glow), 0);
+  if (state.autoReleaseSpares && !newPage && moth.glow <= best) {
+    const scales = releaseMoth(state, moth.id, false) ?? 0;
+    addLog(state, `${moth.name} circles the lamp once and goes back to the glass sea: no new page, and you keep brighter. (+${scales} Wing Scale${scales === 1 ? "" : "s"})`);
+  }
   return moth;
 }
 
@@ -428,7 +436,8 @@ export function isCocoonParent(state: GameState, mothId: string): boolean {
 
 // ── Nests: cocoons at once ───────────────────────────────────────────────────
 // Every keeper's roost has two nests, so two cocoons spin at once; a bigger
-// roost makes room for more (a third at 3 roost expansions, a fourth at 6).
+// roost makes room for more (a third at 3 roost expansions, a fourth at 6),
+// and the Wing Almanac's A Fifth Nest (42 pages) adds one more.
 // One cocoon at a time made breeding the slowest thing on the Shore: a pair
 // at a time toward a glow-100 Prismatic, with the rest of the roost idle
 // (a player asked for more hatches).
@@ -438,14 +447,22 @@ export const EXPANSIONS_PER_NEST = 3;
 /** …up to this many. */
 export const MAX_NESTS = 4;
 
-/** How many cocoons can spin at once. */
+/**
+ * How many cocoons can spin at once (A Fifth Nest adds one past MAX_NESTS),
+ * but never so many that their parents fill the roost: a cocoon needs room
+ * to hatch, and a cocoon's parents can't be released, so one moth always
+ * stays free. (A 6-moth roost with A Fifth Nest could put all six in three
+ * cocoons, and then nothing could ever hatch: the Almanac analysis found it.)
+ */
 export function nestCount(state: GameState): number {
-  return Math.min(MAX_NESTS, BASE_NESTS + Math.floor(state.roostExpansions / EXPANSIONS_PER_NEST));
+  const fromRoost = Math.min(MAX_NESTS, BASE_NESTS + Math.floor(state.roostExpansions / EXPANSIONS_PER_NEST));
+  const nests = fromRoost + (hasAlmanacReward(state, "fifth-nest") ? 1 : 0);
+  return Math.min(nests, Math.floor((mothCapacity(state) - 1) / 2));
 }
 
-/** Roost expansions until the next nest, or null at the most there can be. */
+/** Roost expansions until the next nest, or null at the most a roost can give. */
 export function expansionsToNextNest(state: GameState): number | null {
-  if (nestCount(state) >= MAX_NESTS) return null;
+  if (BASE_NESTS + Math.floor(state.roostExpansions / EXPANSIONS_PER_NEST) >= MAX_NESTS) return null;
   return EXPANSIONS_PER_NEST - (state.roostExpansions % EXPANSIONS_PER_NEST);
 }
 
@@ -578,6 +595,54 @@ export function hatchCocoon(state: GameState, rng: () => number, now: number = D
   return child;
 }
 
+// ── Waiting for a Stormfront ─────────────────────────────────────────────────
+// A Starlit or Prismatic hatchling that opens in a Stormfront is Tidelit 5%
+// of the time, and only the keeper's own Hatch opened a cocoon, so the
+// Tidelit pages needed a keeper there during a storm (3 half-hours in every
+// 20). A keeper who looked in every 4 hours took ~80 days for a Tidelit page
+// with a trait (the Almanac analysis). A cocoon set to wait now opens by
+// itself in the first Stormfront after it is ready, live or while away.
+
+/** The start of the first Stormfront at or after `from` (they come three times every 10 hours). */
+export function nextStormAt(from: number): number {
+  for (let t = from, i = 0; i < 200; i++, t = (Math.floor(t / TIDE_BUCKET_MS) + 1) * TIDE_BUCKET_MS) {
+    if (tideAt(t).def.id === "storm") return t;
+  }
+  return Infinity;
+}
+
+/** Set or clear a cocoon's wait for a Stormfront. Returns false for no such cocoon. */
+export function setStormWait(state: GameState, index: number, on: boolean): boolean {
+  const cocoon = state.cocoons[index];
+  if (!cocoon) return false;
+  if (on) cocoon.stormWait = true;
+  else delete cocoon.stormWait;
+  return true;
+}
+
+/** When a waiting cocoon will open (the first storm once it is ready), or null if it isn't waiting. */
+export function stormHatchAt(state: GameState, index: number): number | null {
+  const cocoon = state.cocoons[index];
+  return cocoon?.stormWait ? nextStormAt(cocoon.readyAt) : null;
+}
+
+/**
+ * Open every waiting cocoon whose Stormfront has come (at that storm's time,
+ * even if it passed while the keeper was away), where the roost has room;
+ * a cocoon with no room keeps waiting. Returns the moths hatched.
+ */
+export function tendCocoons(state: GameState, rng: () => number, now: number = Date.now()): Moth[] {
+  const hatched: Moth[] = [];
+  for (let i = state.cocoons.length - 1; i >= 0; i--) {
+    const at = stormHatchAt(state, i);
+    if (at === null || at > now) continue;
+    if (state.moths.length >= mothCapacity(state)) break;
+    const child = hatchCocoon(state, rng, at, i);
+    if (child) hatched.push(child);
+  }
+  return hatched;
+}
+
 // ── Release ──────────────────────────────────────────────────────────────────
 
 /** Wing Scales a release leaves behind: 1 per tier + 1, and 1 more for a trait. */
@@ -591,7 +656,7 @@ export function releaseScales(moth: Moth): number {
  * null. It used to leave a gift of Lumen too, 10 × glow × (tier + 1): "+60
  * Lumen" in a game making 1e28 a second (design review), so it is gone.
  */
-export function releaseMoth(state: GameState, mothId: string): number | null {
+export function releaseMoth(state: GameState, mothId: string, log = true): number | null {
   const moth = mothById(state, mothId);
   if (!moth) return null;
   if (isCocoonParent(state, mothId) || isAtSea(state, mothId)) return null;
@@ -601,8 +666,53 @@ export function releaseMoth(state: GameState, mothId: string): number | null {
   if (post) delete state.mothPosts[post];
   const scales = releaseScales(moth);
   state.wingScales += scales;
-  addLog(state, `${moth.name} drifts out over the glass sea, unhurried. The lamp is dimmer for it. (+${scales} Wing Scale${scales === 1 ? "" : "s"})`);
+  if (log) addLog(state, `${moth.name} drifts out over the glass sea, unhurried. The lamp is dimmer for it. (+${scales} Wing Scale${scales === 1 ? "" : "s"})`);
   return scales;
+}
+
+/**
+ * The spares: moths a keeper can let go without losing anything worth
+ * breeding. Every moth is kept that is on duty, posted, spinning a cocoon,
+ * at sea, one of the two brightest of its wing pattern, or the brightest of
+ * any of its Almanac pages; the rest are spares. (Keeping two of every page
+ * kept nearly the whole roost, so a bulk release freed one moth at a time.) Releasing them one by one was
+ * thousands of clicks in a chase for the Almanac (the analysis counted
+ * 5,500 releases for a devoted keeper, 18,000 for a fresh one).
+ */
+export function spareMoths(state: GameState): Moth[] {
+  const keep = new Set<string>(state.mothDuty);
+  for (const id of Object.values(state.mothPosts)) keep.add(id);
+  for (const c of state.cocoons) for (const id of c.parentIds) keep.add(id);
+  if (state.expedition?.riderId) keep.add(state.expedition.riderId);
+  const groups = new Map<string, Moth[]>();
+  for (const m of state.moths) {
+    for (const g of [`pattern:${m.pattern}`, ...almanacKeysOf(m)]) {
+      const list = groups.get(g) ?? [];
+      list.push(m);
+      groups.set(g, list);
+    }
+  }
+  for (const [g, list] of groups) {
+    list.sort((a, b) => b.glow - a.glow);
+    for (const m of list.slice(0, g.startsWith("pattern:") ? 2 : 1)) keep.add(m.id);
+  }
+  return state.moths.filter((m) => !keep.has(m.id));
+}
+
+/** Release every spare at once (spareMoths). Returns how many went and the Wing Scales they left. */
+export function releaseSpares(state: GameState): { count: number; scales: number } {
+  let count = 0;
+  let scales = 0;
+  for (const m of spareMoths(state)) {
+    const s = releaseMoth(state, m.id, false);
+    if (s === null) continue;
+    count++;
+    scales += s;
+  }
+  if (count > 0) {
+    addLog(state, `${count} moth${count === 1 ? "" : "s"} drift out over the glass sea together, the spares of the roost. (+${scales} Wing Scale${scales === 1 ? "" : "s"})`);
+  }
+  return { count, scales };
 }
 
 // ── Lighthouse posts ─────────────────────────────────────────────────────────
