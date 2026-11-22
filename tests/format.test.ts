@@ -49,6 +49,12 @@ describe("affordableIn and withArticle", () => {
     expect(affordableIn(1.45e12)).toBe("more than a day away at this rate");
   });
 
+  it("rounds up, and never says 0s (a greyed button above \"affordable in 0s\" read as broken)", () => {
+    expect(affordableIn(0.2)).toBe("affordable in 1s");
+    expect(affordableIn(0)).toBe("affordable in 1s");
+    expect(affordableIn(44.1)).toBe("affordable in 45s");
+  });
+
   it("puts an before a vowel", () => {
     expect(withArticle("Oil Keeper")).toBe("an Oil Keeper");
     expect(withArticle("Tide Bell")).toBe("a Tide Bell");

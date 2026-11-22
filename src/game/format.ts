@@ -64,7 +64,8 @@ export const AFFORD_HORIZON_SECONDS = 86_400;
 
 /** "affordable in 3m 05s", or "more than a day away at this rate" past the horizon. */
 export function affordableIn(seconds: number): string {
-  return seconds > AFFORD_HORIZON_SECONDS ? "more than a day away at this rate" : `affordable in ${formatDuration(seconds)}`;
+  // Rounded up, and never "0s": a greyed button above "affordable in 0s" read as broken (design review 5).
+  return seconds > AFFORD_HORIZON_SECONDS ? "more than a day away at this rate" : `affordable in ${formatDuration(Math.max(1, Math.ceil(seconds)))}`;
 }
 
 /** "a Tide Bell", "an Oil Keeper": the indefinite article for a name. */
