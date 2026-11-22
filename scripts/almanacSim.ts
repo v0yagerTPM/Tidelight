@@ -84,6 +84,14 @@ function keepValue(state: GameState, moth: Moth, missing: Set<string>): number {
   const same = state.moths.filter((m) => m.pattern === moth.pattern).sort((a, b) => b.glow - a.glow);
   if (same.indexOf(moth) < 2) v += 5;
   if (moth.pattern === "prismatic" && moth.glow >= 95) v += 12;
+  // The brightest Prismatics of each family a missing Hollow page needs (none, or a trait).
+  if (moth.pattern === "prismatic") {
+    for (const fam of hollowFamilies(missing)) {
+      if (!inFamily(moth, fam)) continue;
+      const kin = state.moths.filter((m) => m.pattern === "prismatic" && inFamily(m, fam)).sort((a, b) => b.glow - a.glow);
+      if (kin.indexOf(moth) < 2) v += 8;
+    }
+  }
   // A trait carrier for a pattern whose trait pages are missing is a parent to keep.
   if (moth.trait && ALMANAC_PATTERNS.some((p) => missing.has(`${p}:${moth.trait}`))) v += 3;
   return v;
@@ -100,19 +108,40 @@ function makeRoom(state: GameState, missing: Set<string>, run: AlmanacRun): bool
   return true;
 }
 
+/**
+ * The families a missing Hollow page needs a glow-100 Prismatic from:
+ * "none" (Hollow with no trait needs two traitless parents) or a trait (a
+ * parent carrying it).
+ */
+function hollowFamilies(missing: Set<string>): string[] {
+  return [...missing].filter((k) => k.startsWith("hollow:")).map((k) => k.slice("hollow:".length));
+}
+function inFamily(m: Moth, fam: string): boolean {
+  return fam === "none" ? !m.trait && !m.trait2 : m.trait === fam || m.trait2 === fam;
+}
+
 /** How much a pair is worth breeding now: the chance of a new page, plus the climb toward Hollow. */
 function pairScore(state: GameState, a: Moth, b: Moth, missing: Set<string>, storm: boolean): number {
   let score = 0;
   for (const o of childOutcomes(a, b, { storm, endingSeen: state.endingSeen })) {
     if (o.keys.some((k) => missing.has(k))) score += o.p;
   }
-  // Hollow needs two glow-100 Prismatics: value raising the second-best one.
-  const hollowMissing = [...missing].some((k) => k.startsWith("hollow:"));
-  if (state.endingSeen && hollowMissing && a.pattern === "prismatic" && b.pattern === "prismatic") {
-    const prisms = state.moths.filter((m) => m.pattern === "prismatic").map((m) => m.glow).sort((x, y) => y - x);
-    const second = prisms[1] ?? 0;
-    const gain = Math.max(0, Math.min(100, expectedChildGlow(a, b)) - second);
-    score += 0.6 * 0.004 * gain; // 60% the child stays Prismatic
+  // Hollow needs two glow-100 Prismatics, of the right family for the page:
+  // value raising the second-brightest of each family still short of a page.
+  // (Breeding for the brightest Prismatic alone stalled on Hollow with no
+  // trait, which needs two traitless ones.)
+  if (state.endingSeen && a.pattern === "prismatic" && b.pattern === "prismatic") {
+    const child = Math.min(100, expectedChildGlow(a, b));
+    for (const fam of hollowFamilies(missing)) {
+      // How likely the child joins the family: traitless parents stay traitless 97%;
+      // a carrier passes its trait half the time, split between the parents' traits.
+      const traits = [a.trait, b.trait].filter(Boolean);
+      const pFam = fam === "none" ? (traits.length === 0 ? 0.97 : 0.485) : traits.includes(fam) ? 0.5 * (traits.filter((t) => t === fam).length / traits.length) : 0.005;
+      if (pFam <= 0.01) continue;
+      const kin = state.moths.filter((m) => m.pattern === "prismatic" && inFamily(m, fam)).map((m) => m.glow).sort((x, y) => y - x);
+      const second = kin[1] ?? 0;
+      score += 0.6 * pFam * 0.004 * Math.max(0, child - second); // 60% the child stays Prismatic
+    }
   }
   // A small pull toward higher tiers, so the roost climbs when nothing is close.
   score += 0.0004 * (patternById(a.pattern).tier + patternById(b.pattern).tier);
