@@ -1887,3 +1887,31 @@ drifted. Fixed:
       Lumen · half again 46% of the time, now every relic is home" (the relic
       chance is the chance of the sea's bonus).
 
+## ✅ Post-launch — Design review 6: early, mid and late game
+
+A council round across a new game (five minutes on a phone), two mid-game
+saves (6 h and 13 h) and the designer's late save. Fixed:
+
+- [x] **The best buy weighs every buy** (`src/game/bestBuy.ts`): besides the
+      hires, a feed on the supply chain (unless the Chain Steward is
+      feeding it) and each lesson, measured by the Lumen/s it adds on the
+      game's own production, affordable or within a minute's production
+      (worth saving for). When one beats every hire for its Lumen, a line
+      above the helpers names it with its own button ("A lesson does more
+      than any hire: Wax-Rich Diet, +27% of your light · Learn it · 600", or
+      "Save for it: … · in 12s"), and the helper rows lose the gold edge. A
+      hire that would starve the beam is never the best buy and isn't gold.
+      Lessons the Quartermaster is about to learn aren't named. (In five
+      minutes, a new keeper following the gold had learned no lessons with
+      two ×2 lessons affordable.) The measurement also showed that on the
+      6-hour save, one level of Lens adds 0.06% of the light for 67K, so
+      the strip's "Feed Lens before hiring more" is about the relight
+      threshold, not about Lumen.
+- [x] **The Log in two panes**: The Story and Keeper's Log. Each act folds
+      ("Act II — The Hollow Sea, 9 of 10 heard"), the latest heard one open.
+      ~11,000px on a phone became 4,907 (story) and 1,808 (log).
+- [x] **The empty moth garden** shows only the invitation ("Lantern moths
+      follow your light home…") and Attract. Breeding comes at two moths,
+      posts with the first, the spare controls at four.
+- [x] **"+1 Ember"**, not "+1 Embers", on the Rekindle button and its messages.
+

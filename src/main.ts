@@ -110,6 +110,7 @@ import { FILL_BEAM_SHARE, bottleneckAtDemand, efficiencyAtDemand, feedNode, feed
 import { affordableIn, formatDuration, formatNumber, withArticle } from "./game/format";
 import { pairForecast, suggestPair } from "./game/breedingOdds";
 import { pageRoute } from "./game/almanacRoutes";
+import { otherBuys, type OtherBuy } from "./game/bestBuy";
 import {
   attractMoth,
   dutyUpgrade,
@@ -256,6 +257,43 @@ function namedList(label: string, names: string[]): string {
 
 /** A hire that adds less than this share of your light is shown quietly (the Light view). */
 const MINOR_BUY_SHARE = 0.001;
+/** The feeds and lessons weighed against the hires (bestBuy.otherBuys), measured once a second. */
+let otherBuyCache: OtherBuy[] = [];
+let lastOtherBuysAt = 0;
+/** What the advice line above the helpers offers now. */
+let adviceBuy: OtherBuy | null = null;
+
+/** The line above the helpers when a feed or a lesson beats every hire, with its own button. */
+function showBuyAdvice(o: OtherBuy | null, rate: Decimal): void {
+  adviceBuy = o;
+  const box = document.querySelector<HTMLElement>("#buy-advice");
+  if (!box) return;
+  box.classList.toggle("hidden", !o);
+  if (!o) return;
+  const text = box.querySelector<HTMLElement>(".buy-advice-text");
+  const go = box.querySelector<HTMLButtonElement>("#buy-advice-go");
+  const share = shareOfLight(o.gain, rate);
+  const say =
+    o.kind === "feed"
+      ? o.id === "beam"
+        ? `Raising the Beam does more than any hire: ${share} of your light.`
+        : `Feeding ${o.name} does more than any hire: ${share} of your light.`
+      : `A lesson does more than any hire: ${o.name}, ${share} of your light.`;
+  // Not affordable yet (but within a minute): worth saving for, with the wait.
+  const short = state.lumen.lt(o.cost);
+  const wait = short ? timeToAffordCost(state, o.cost, rate) : 0;
+  const line = short ? `Save for it: ${say.charAt(0).toLowerCase()}${say.slice(1)}` : say;
+  if (text && text.textContent !== line) text.textContent = line;
+  const label = short
+    ? `${Number.isFinite(wait) ? affordableIn(wait).replace("affordable ", "") : "soon"} · ${fmt(o.cost)}`
+    : `${o.kind === "feed" ? (o.id === "beam" ? "Raise" : `Feed ${o.name}`) : "Learn it"} · ${fmt(o.cost)}`;
+  if (go) {
+    if (go.textContent !== label) go.textContent = label;
+    go.disabled = short;
+    go.classList.toggle("affordable", !short);
+  }
+}
+
 /** When the tab dots were last worked out (once a second is plenty). */
 let lastTabNewsAt = 0;
 /** How many helper rows could be hired right now (the Light view's last refresh). */
@@ -450,6 +488,7 @@ ${[
           <span class="crew-note" id="crew-note"></span>
         </span>
       </div>
+      <div class="buy-advice hidden" id="buy-advice" aria-live="polite"><span class="buy-advice-text"></span><button class="buy affordable" id="buy-advice-go"></button></div>
       <div id="generators" class="gen-list"></div>
       </div>
     </section>
@@ -569,10 +608,19 @@ ${[
     </section>
 
     <section id="view-log" class="view">
-      <h2>The Story So Far</h2>
+      <div class="shore-head">
+        <h2>The Log</h2>
+        <div class="buy-toggle shore-panes log-panes" role="tablist" aria-label="The Log">
+          <button class="toggle-btn active" data-logpane="story" role="tab" aria-selected="true">The Story</button>
+          <button class="toggle-btn" data-logpane="log" role="tab" aria-selected="false">Keeper's Log</button>
+        </div>
+      </div>
+      <div class="shore-pane active" id="logpane-story">
       <div id="story-area"></div>
-      <h2>Keeper's Log</h2>
+      </div>
+      <div class="shore-pane" id="logpane-log">
       <ul id="log-list" class="log-list"></ul>
+      </div>
       <h3 class="section-title">Keeper's Desk</h3>
       <div class="card desk">
         <div class="row"><span>New here, or need a refresher?</span><button class="buy" id="desk-tutorial">How to play</button></div>
@@ -660,6 +708,18 @@ interface GenRow {
 }
 
 const genRows: GenRow[] = [];
+// The advice line's button makes the buy it names.
+document.querySelector("#buy-advice-go")?.addEventListener("click", () => {
+  const o = adviceBuy;
+  if (!o) return;
+  const done = o.kind === "feed" ? feedNode(state, o.id as ChainNodeId) : buyUpgrade(state, o.id);
+  if (done) {
+    sound.buy();
+    lastOtherBuysAt = 0;
+    saveState(state);
+    renderDynamic();
+  }
+});
 const genList = document.querySelector<HTMLDivElement>("#generators");
 if (genList) {
   for (const def of GENERATORS) {
@@ -686,6 +746,7 @@ if (genList) {
         row.classList.remove("bought");
         void row.offsetWidth; // restart the purchase pulse
         row.classList.add("bought");
+        lastOtherBuysAt = 0;
         saveState(state);
         renderDynamic();
       }
@@ -1164,6 +1225,19 @@ for (const btn of shorePaneButtons) {
     }
   });
 }
+// The Log's two panes: the story, and the keeper's log. One column of
+// every story beat with the log at its foot was ~11,000px on a phone.
+const logPaneButtons = [...document.querySelectorAll<HTMLButtonElement>(".log-panes [data-logpane]")];
+for (const btn of logPaneButtons) {
+  btn.addEventListener("click", () => {
+    for (const b of logPaneButtons) {
+      const on = b === btn;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", String(on));
+      document.querySelector(`#logpane-${b.dataset.logpane}`)?.classList.toggle("active", on);
+    }
+  });
+}
 // Rekindle's three panes: the hearth, the Ember Shop, the challenges. One
 // long column of all three was ~9,000px on a phone (design review 5).
 const rkPaneButtons = [...document.querySelectorAll<HTMLButtonElement>(".rk-panes [data-rkpane]")];
@@ -1258,10 +1332,15 @@ function rebuildShore(): void {
         </div>`;
     } else {
       if (!state.moths.some((m) => m.id === selectedMoth)) selectedMoth = "";
+      // The garden grows its machinery as it's needed (design review 6):
+      // before the first moth, only the invitation and Attract; breeding at
+      // two moths; posts with the first; the spare controls at four.
       buildRoostBar(roostBar);
+      roostBar.firstElementChild?.classList.toggle("first-moth", state.moths.length === 0);
+      roostBar.firstElementChild?.classList.toggle("few-moths", state.moths.length < 4);
       buildRoster(mothArea);
-      buildBreeding(gardenSide);
-      buildPosts(gardenSide);
+      if (state.moths.length >= 2 || state.cocoons.length > 0) buildBreeding(gardenSide);
+      if (state.moths.length > 0) buildPosts(gardenSide);
     }
   }
 
@@ -1488,7 +1567,7 @@ function buildRoster(host: HTMLElement): void {
   const roster = document.createElement("div");
   roster.className = "roster";
   if (state.moths.length === 0) {
-    roster.innerHTML = `<p class="muted">No moths yet. Attract one — the first always remembers the way.</p>`;
+    roster.innerHTML = `<p class="first-moth-call">Lantern moths follow your light home. Attract one: the first always remembers the way. On duty, the brightest add to your beam; with two you can breed new wings, and every wing and trait fills a page of the Wing Almanac.</p>`;
   }
   // Grouped by wings, rarest first (Hollow, Tidelit, Prismatic … Plain), brightest first within:
   // twenty tiles in arrival order made "my Lamp-loyal Starlit" a scan of everything (design review).
@@ -1537,7 +1616,7 @@ function buildRoster(host: HTMLElement): void {
     roster.appendChild(tile);
   }
   host.appendChild(roster);
-  host.appendChild(mothDetail(onDuty));
+  if (state.moths.length > 0) host.appendChild(mothDetail(onDuty));
 }
 
 /** The selected moth's details and actions (or a hint). */
@@ -1946,7 +2025,7 @@ function updateShoreView(now: number): void {
   if (roostLine) {
     const duty = dutyMoths(state);
     const kept = keptPlaces(state);
-    roostLine.textContent = `${state.moths.length}/${mothCapacity(state)} moths${kept > 0 ? ` (+${kept} kept for hatchlings)` : ""} · ${duty.length}/${dutySlots(state)} on duty (+${(dutyGlowTotal(state) * DUTY_GLOW_BONUS * 100).toFixed(1)}% to the beam) · ${state.wingScales} scale${state.wingScales === 1 ? "" : "s"}`;
+    roostLine.textContent = state.moths.length === 0 && state.cocoons.length === 0 ? `Room for ${mothCapacity(state)} moths.` : `${state.moths.length}/${mothCapacity(state)} moths${kept > 0 ? ` (+${kept} kept for hatchlings)` : ""} · ${duty.length}/${dutySlots(state)} on duty (+${(dutyGlowTotal(state) * DUTY_GLOW_BONUS * 100).toFixed(1)}% to the beam) · ${state.wingScales} scale${state.wingScales === 1 ? "" : "s"}`;
   }
   // The Crossing's next offering, while The Hollow Light is the next light.
   const offeringLine = document.querySelector<HTMLElement>("#shore-offering");
@@ -2595,14 +2674,20 @@ function rebuildStory(): void {
   if (state.ngPlusCount > 0) {
     const keeping = document.createElement("p");
     keeping.className = "muted";
-    keeping.textContent = `Keeping № ${state.ngPlusCount + 1} — legacy production ×${legacyMultiplier(state).toFixed(2)}. The story below is yours from every Keeping; it is never taken away.`;
+    keeping.textContent = `Keeping № ${state.ngPlusCount + 1} — legacy production ×${legacyMultiplier(state).toFixed(2)}. The story is yours from every Keeping; it is never taken away.`;
     storyArea.appendChild(keeping);
   }
+  // Each act folds; the latest act you've heard a beat of starts open.
+  const heardActs = STORY_ACTS.filter((a) => STORY_BEATS.some((b) => b.act === a.act && state.storySeen.includes(b.id)));
+  const latest = heardActs[heardActs.length - 1]?.act ?? STORY_ACTS[0].act;
   for (const act of STORY_ACTS) {
-    const title = document.createElement("h3");
-    title.className = "section-title";
-    title.textContent = `Act ${["I", "II", "III"][act.act - 1]} — ${act.name}`;
-    storyArea.appendChild(title);
+    const beats = STORY_BEATS.filter((b) => b.act === act.act);
+    const heard = beats.filter((b) => state.storySeen.includes(b.id)).length;
+    const fold = document.createElement("details");
+    fold.className = "story-act";
+    fold.open = act.act === latest;
+    fold.innerHTML = `<summary><span class="section-title">Act ${["I", "II", "III"][act.act - 1]} — ${act.name}</span> <span class="muted">${heard} of ${beats.length} heard</span></summary>`;
+    storyArea.appendChild(fold);
     const list = document.createElement("div");
     list.className = "card-list";
     for (const beat of STORY_BEATS.filter((b) => b.act === act.act)) {
@@ -2614,7 +2699,7 @@ function rebuildStory(): void {
         : `<div class="gen-name">${GLYPHS.fog} A story not yet heard</div><p class="muted">${beat.hint}</p>`;
       list.appendChild(card);
     }
-    storyArea.appendChild(list);
+    fold.appendChild(list);
   }
 }
 
@@ -3052,7 +3137,7 @@ const rkFlare = document.querySelector<HTMLElement>("#rk-flare");
 /** The full Rekindle moment plays on the first Rekindle and every this-many after. */
 const REKINDLE_MOMENT_EVERY = 10;
 if (rkButton) {
-  armTwoStep(rkButton, () => `Are you sure? Click again to Rekindle for +${fmt(rekindleGain(state))} Embers`, () => {
+  armTwoStep(rkButton, () => `Are you sure? Click again to Rekindle for +${fmt(rekindleGain(state))} ${rekindleGain(state) === 1 ? "Ember" : "Embers"}`, () => {
     if (!canRekindle(state)) return;
     const gained = rekindle(state);
     saveState(state);
@@ -3068,14 +3153,14 @@ if (rkButton) {
         "rekindle",
         n === 1 ? "Rekindle" : `Rekindle ${n}`,
         "The light catches again",
-        `+${fmt(gained)} Embers banked. You hold ${fmt(state.embers)}: your production bonus is now ${bonus}.`,
+        `+${fmt(gained)} ${gained === 1 ? "Ember" : "Embers"} banked. You hold ${fmt(state.embers)}: your production bonus is now ${bonus}.`,
       );
     } else {
       rkHearth?.classList.remove("rekindled");
       void rkHearth?.offsetWidth; // restart the flare animation
       rkHearth?.classList.add("rekindled");
     }
-    if (rkFlare) rkFlare.textContent = `Rekindle ${n}: +${fmt(gained)} Embers banked; your production bonus is now ${bonus}.`;
+    if (rkFlare) rkFlare.textContent = `Rekindle ${n}: +${fmt(gained)} ${gained === 1 ? "Ember" : "Embers"} banked; your production bonus is now ${bonus}.`;
   });
 }
 
@@ -3451,7 +3536,7 @@ function renderDynamic(full = true): void {
     // Each affordable hire's gain, to say which buy matters: late in a run every
     // row is gold and affordable, and a Candle Crab adds a billionth of the
     // light (design review 5).
-    const buys: { row: GenRow; gain: Decimal; cost: Decimal }[] = [];
+    const buys: { row: GenRow; gain: Decimal; cost: Decimal; warn: boolean }[] = [];
     for (const row of genRows) {
       const owned = state.generators[row.def.id] ?? 0;
       row.ring.style.strokeDashoffset = String(100 - milestoneProgress(owned) * 100);
@@ -3467,7 +3552,7 @@ function renderDynamic(full = true): void {
       // (performance pass: nine of these every refresh were a third of its cost).
       const gain = quote.affordable && quote.count > 0 ? thrownGain(state, row.def, quote.count, nowMs, rateNow) : new Decimal(0);
       if (quote.affordable && !row.row.classList.contains("hidden") && canBuyGenerator(state, row.def.id) && generatorLockedBy(state, row.def.id) === null) {
-        buys.push({ row, gain, cost: quote.cost });
+        buys.push({ row, gain, cost: quote.cost, warn: false });
       }
       setTip(row.milestone, milestoneHint(owned));
       // First Light Only challenge: tiers 4+ are blocked outright.
@@ -3507,6 +3592,9 @@ function renderDynamic(full = true): void {
             `These helpers would add +${fmt(gain)} Lumen/s and ${fmt(extra)}/s of demand on the supply chain. ${node ? `${CHAIN_NODES[node].name} couldn't keep up, ` : ""}so the beam would drop to ${pct(after)} efficiency. Feed it from the supply strip above${stewardActive(state) ? ", or let the Chain Steward catch up" : ""}.`;
         }
       }
+      // A hire that would starve the beam is never the best buy, and isn't gold.
+      const entry = buys[buys.length - 1];
+      if (entry && entry.row === row) entry.warn = warn !== "";
       row.note.classList.toggle("gen-warn", warn !== "");
       setTip(row.note, warnTip);
       if (warn) {
@@ -3526,16 +3614,30 @@ function renderDynamic(full = true): void {
     // keeps its glow and an edge; a hire that adds under 0.1% of your light goes quiet.
     let best: (typeof buys)[number] | null = null;
     for (const b of buys) {
-      if (b.gain.lte(0)) continue;
+      if (b.gain.lte(0) || b.warn) continue;
       if (!best || b.gain.div(b.cost).gt(best.gain.div(best.cost))) best = b;
     }
+    // …weighed against a feed on the chain and an affordable lesson (bestBuy.otherBuys,
+    // measured once a second): when one does more for its Lumen, it takes the gold.
+    if (nowMs - lastOtherBuysAt >= 1000) {
+      lastOtherBuysAt = nowMs;
+      otherBuyCache = otherBuys(state, nowMs, rateNow);
+    }
+    let other: OtherBuy | null = null;
+    for (const o of otherBuyCache) {
+      if (o.gain.lte(0) || (o.kind === "lesson" && state.upgrades.includes(o.id))) continue;
+      if (!other || o.gain.div(o.cost).gt(other.gain.div(other.cost))) other = o;
+    }
+    const otherWins = other !== null && (best === null || other.gain.div(other.cost).gt(best.gain.div(best.cost)));
+    if (otherWins) best = null;
     for (const row of genRows) {
       const b = buys.find((x) => x.row === row);
-      const minor = b !== undefined && rateNow.gt(0) && b.gain.div(rateNow).lt(MINOR_BUY_SHARE);
+      const minor = b !== undefined && (b.warn || (rateNow.gt(0) && b.gain.div(rateNow).lt(MINOR_BUY_SHARE)));
       row.row.classList.toggle("minor-buy", minor && b !== best);
       row.row.classList.toggle("best-buy", buys.length >= 2 && b !== undefined && b === best);
     }
     affordableHires = buys.length;
+    showBuyAdvice(otherWins ? other : null, rateNow);
   }
 
   // Upgrades view: rebuild on structure change, refresh affordability in place.
@@ -3749,7 +3851,7 @@ function renderDynamic(full = true): void {
         rkButton.textContent = `Rekindle unavailable — the ${activeChallenge(state)?.name} challenge is in progress (finish or abandon it first)`;
       } else {
         rkButton.textContent = canRekindle(state)
-          ? `Rekindle the Light (+${fmt(gain)} Embers)`
+          ? `Rekindle the Light (+${fmt(gain)} ${gain === 1 ? "Ember" : "Embers"})`
           : "Rekindle the Light (earn 5,000 lifetime Lumen for your first Ember)";
       }
     }
