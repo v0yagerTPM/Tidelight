@@ -30,7 +30,7 @@ export function snapshotAway(state: GameState): AwaySnapshot {
   const left = state.lastSeen;
   return {
     lures: mothsUnlocked(state) ? lureStatus(state, left).held : null,
-    cocoonReady: state.cocoon !== null && cocoonReady(state, left),
+    cocoonReady: cocoonReady(state, left),
     bottleReady: state.expedition !== null && expeditionReady(state, left),
   };
 }
@@ -83,7 +83,7 @@ export function awayReport(
   const leftAt = now - offline.awaySeconds * 1000;
   const unlocked = mothsUnlocked(state);
   const luresHeld = unlocked ? lureStatus(state, now).held : 0;
-  const cocoon = state.cocoon !== null && cocoonReady(state, now);
+  const cocoon = cocoonReady(state, now);
   const bottle = state.expedition !== null && expeditionReady(state, now);
   return {
     awaySeconds: offline.awaySeconds,

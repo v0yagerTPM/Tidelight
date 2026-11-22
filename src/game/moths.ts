@@ -35,7 +35,9 @@ import type { GameState, Moth } from "./types";
 // CEILING, hatch glow climbs slowly, Prismatic breeds true only 60% of the
 // time, and a cocoon takes 30–75 minutes. A keeper who breeds well reaches
 // a first Prismatic after ~12 hours of cocoons and three at glow 100 after
-// ~95 (see docs/SPRINTS.md). Moths from before the rebalance keep their
+// ~95 (see docs/SPRINTS.md) — hours of one cocoon at a time; with the
+// nests (two cocoons at once, up to four) the chase is two to four times
+// shorter. Moths from before the rebalance keep their
 // glow even above the new ceilings ("old light").
 //
 // All randomness takes an `rng: () => number` (see rng.ts): game code
@@ -421,7 +423,35 @@ export function expandRoost(state: GameState): boolean {
 // ── Breeding ─────────────────────────────────────────────────────────────────
 
 export function isCocoonParent(state: GameState, mothId: string): boolean {
-  return state.cocoon !== null && state.cocoon.parentIds.includes(mothId);
+  return state.cocoons.some((c) => c.parentIds.includes(mothId));
+}
+
+// ── Nests: cocoons at once ───────────────────────────────────────────────────
+// Every keeper's roost has two nests, so two cocoons spin at once; a bigger
+// roost makes room for more (a third at 3 roost expansions, a fourth at 6).
+// One cocoon at a time made breeding the slowest thing on the Shore: a pair
+// at a time toward a glow-100 Prismatic, with the rest of the roost idle
+// (a player asked for more hatches).
+export const BASE_NESTS = 2;
+/** Roost expansions for each further nest… */
+export const EXPANSIONS_PER_NEST = 3;
+/** …up to this many. */
+export const MAX_NESTS = 4;
+
+/** How many cocoons can spin at once. */
+export function nestCount(state: GameState): number {
+  return Math.min(MAX_NESTS, BASE_NESTS + Math.floor(state.roostExpansions / EXPANSIONS_PER_NEST));
+}
+
+/** Roost expansions until the next nest, or null at the most there can be. */
+export function expansionsToNextNest(state: GameState): number | null {
+  if (nestCount(state) >= MAX_NESTS) return null;
+  return EXPANSIONS_PER_NEST - (state.roostExpansions % EXPANSIONS_PER_NEST);
+}
+
+/** Whether a nest is free for a new cocoon. */
+export function nestFree(state: GameState): boolean {
+  return state.cocoons.length < nestCount(state);
 }
 
 /**
@@ -438,32 +468,40 @@ export function cocoonDurationMs(parentA: Moth, parentB: Moth, state?: GameState
 }
 
 /**
- * Start a cocoon from two distinct moths. Only one cocoon at a time; it
+ * Start a cocoon from two distinct moths, in a free nest (nestCount). It
  * takes cocoonDurationMs() of real time (timestamp-based, so it progresses
- * while away). Parents are NOT consumed. Hatching — not starting — needs a
- * free slot.
+ * while away). Parents are NOT consumed, but each sits in one cocoon at a
+ * time. Hatching — not starting — needs a free slot in the roost.
  */
 export function startBreeding(state: GameState, parentAId: string, parentBId: string, now: number = Date.now()): boolean {
-  if (state.cocoon !== null) return false;
+  if (!nestFree(state)) return false;
   if (parentAId === parentBId) return false;
+  if (isCocoonParent(state, parentAId) || isCocoonParent(state, parentBId)) return false; // already spinning
   if (!mothById(state, parentAId) || !mothById(state, parentBId)) return false;
   if (postOf(state, parentAId) !== null || postOf(state, parentBId) !== null) return false; // on watch
   if (isAtSea(state, parentAId) || isAtSea(state, parentBId)) return false; // riding a bottle
   const a = mothById(state, parentAId)!;
   const b = mothById(state, parentBId)!;
   const duration = cocoonDurationMs(a, b, state);
-  state.cocoon = { parentIds: [parentAId, parentBId], readyAt: now + duration };
+  state.cocoons.push({ parentIds: [parentAId, parentBId], readyAt: now + duration });
   addLog(state, `${a.name} and ${b.name} spin a cocoon together in the warm dark under the lamp. ${Math.round(duration / 60_000)} minutes, give or take a dream.`);
   return true;
 }
 
+/** Whether any cocoon is ready to hatch. */
 export function cocoonReady(state: GameState, now: number = Date.now()): boolean {
-  return state.cocoon !== null && now >= state.cocoon.readyAt;
+  return state.cocoons.some((c) => now >= c.readyAt);
+}
+
+/** How many cocoons are ready to hatch. */
+export function readyCocoonCount(state: GameState, now: number = Date.now()): number {
+  return state.cocoons.filter((c) => now >= c.readyAt).length;
 }
 
 /**
- * Hatch the cocoon into a child moth. Fails (null) when there is no
- * cocoon, it isn't ready, a parent has vanished, or the roost is full.
+ * Hatch a cocoon into a child moth: the one at `index`, or else the first
+ * that is ready. Fails (null) when there is no such cocoon, it isn't
+ * ready, a parent has vanished, or the roost is full.
  * Inheritance: the child's pattern starts from a parent's tier — weighted
  * toward the higher-tier parent (65%). A Prismatic start stays Prismatic
  * 60% of the time and otherwise falls to Starlit; any other tier shifts up
@@ -472,8 +510,9 @@ export function cocoonReady(state: GameState, now: number = Date.now()): boolean
  * the result is held to the child's pattern ceiling. Generation is
  * max(parents) + 1. Parents are kept.
  */
-export function hatchCocoon(state: GameState, rng: () => number, now: number = Date.now()): Moth | null {
-  const cocoon = state.cocoon;
+export function hatchCocoon(state: GameState, rng: () => number, now: number = Date.now(), index?: number): Moth | null {
+  const at = index ?? state.cocoons.findIndex((c) => now >= c.readyAt);
+  const cocoon = at >= 0 ? state.cocoons[at] : undefined;
   if (!cocoon || now < cocoon.readyAt) return null;
   if (state.moths.length >= mothCapacity(state)) return null;
   const parentA = mothById(state, cocoon.parentIds[0]);
@@ -530,7 +569,7 @@ export function hatchCocoon(state: GameState, rng: () => number, now: number = D
     if (traits[0]) child.trait = traits[0];
     if (traits[1]) child.trait2 = traits[1];
   }
-  state.cocoon = null;
+  state.cocoons.splice(at, 1);
   state.moths.push(child);
   addLog(state, `The cocoon opens: ${child.name}, ${patternById(child.pattern).name.toLowerCase()}-winged, generation ${child.generation}, glowing at ${child.glow}${traitPhrase(child)}. ${parentA.name} and ${parentB.name} look insufferably proud.`);
   if (stormborn && !hollowborn) addLog(state, `${child.name} opened in the storm, and the storm stayed in its wings: a Tidelit moth, bright when the sea is rough and dim when it is still.`);

@@ -109,7 +109,13 @@ import { FILL_BEAM_SHARE, bottleneckAtDemand, efficiencyAtDemand, feedNode, feed
 import { affordableIn, formatDuration, formatNumber, withArticle } from "./game/format";
 import {
   attractMoth,
+  BASE_NESTS,
+  EXPANSIONS_PER_NEST,
+  MAX_NESTS,
   cocoonReady,
+  expansionsToNextNest,
+  nestCount,
+  readyCocoonCount,
   dutyGlowTotal,
   dutyMoths,
   expandRoost,
@@ -278,7 +284,8 @@ function welcomeBack(gain: Decimal, creditedSeconds: number, awaySeconds: number
   // Welcome back, in full: the Shore keeps its own time while you're gone.
   if (awaySeconds > 60) {
     const shoreNotes: string[] = [];
-    if (state.cocoon && cocoonReady(state)) shoreNotes.push("the cocoon is ready to hatch");
+    const ready = readyCocoonCount(state);
+    if (ready > 0) shoreNotes.push(ready === 1 ? "a cocoon is ready to hatch" : `${ready} cocoons are ready to hatch`);
     if (state.expedition && expeditionReady(state)) shoreNotes.push("a bottle has washed back onto the glass");
     if (shoreNotes.length > 0) {
       addLog(state, `While you were away: ${shoreNotes.join(", and ")} — see the Shore.`);
@@ -1072,16 +1079,16 @@ interface ShoreRefs {
   scentedBtn: HTMLButtonElement | null;
   roostBtn: HTMLButtonElement | null;
   roostNote: HTMLElement | null;
-  cocoonNote: HTMLElement | null;
-  cocoonBar: HTMLElement | null;
-  hatchBtn: HTMLButtonElement | null;
+  /** One row per cocoon spinning, by its place in state.cocoons. */
+  cocoonRows: { index: number; note: HTMLElement | null; bar: HTMLElement | null; btn: HTMLButtonElement | null }[];
+  hatchAllBtn: HTMLButtonElement | null;
   expeditionNote: HTMLElement | null;
   claimBtn: HTMLButtonElement | null;
   sendBtns: { routeId: string; btn: HTMLButtonElement; note: HTMLElement | null }[];
 }
 let shoreRefs: ShoreRefs = {
   attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
-  cocoonNote: null, cocoonBar: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
+  cocoonRows: [], hatchAllBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
 };
 
 /** ", Seeker" / ", Seeker, Fertile" for a moth's select option; "" with no trait. */
@@ -1100,7 +1107,8 @@ function shoreKey(): string {
     state.almanac.length,
     selectedMoth,
     state.moths.map((m) => `${m.trait ?? ""}+${m.trait2 ?? ""}`).join(","),
-    state.cocoon ? `${state.cocoon.parentIds.join("+")}@${state.cocoon.readyAt}` : "-",
+    state.cocoons.map((c) => `${c.parentIds.join("+")}@${c.readyAt}`).join(",") || "-",
+    nestCount(state),
     state.expedition ? `${state.expedition.routeId}@${state.expedition.returnsAt}:${state.expedition.riderId ?? ""}` : "-",
     state.relics.join(","),
     state.bottleRoute ?? "-",
@@ -1111,7 +1119,7 @@ function shoreKey(): string {
 function rebuildShore(): void {
   shoreRefs = {
     attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
-    cocoonNote: null, cocoonBar: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
+    cocoonRows: [], hatchAllBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
   };
 
   // ── Moth Garden ──
@@ -1405,64 +1413,90 @@ function mothDetail(onDuty: Set<string>): HTMLElement {
 function buildBreeding(host: HTMLElement): void {
   const breed = document.createElement("div");
   breed.className = "card side-card";
-  const home = state.moths.filter((m) => postOf(state, m.id) === null && !isAtSea(state, m.id));
-  if (state.cocoon) {
-    const a = mothById(state, state.cocoon.parentIds[0]);
-    const b = mothById(state, state.cocoon.parentIds[1]);
-    breed.innerHTML = `
-      <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} The Cocoon</span></div>
-      <p class="muted side-line">${a?.name ?? "?"} × ${b?.name ?? "?"}</p>
-      <div class="progress"><div class="progress-bar cocoon-bar"></div></div>
-      <div class="side-row"><span class="muted cocoon-note"></span><button class="buy cocoon-hatch">Hatch</button></div>`;
-    shoreRefs.cocoonNote = breed.querySelector(".cocoon-note");
-    shoreRefs.cocoonBar = breed.querySelector(".cocoon-bar");
-    shoreRefs.hatchBtn = breed.querySelector(".cocoon-hatch");
-    shoreRefs.hatchBtn?.addEventListener("click", () => {
-      const child = hatchCocoon(state, Math.random);
-      if (child) {
-        selectedMoth = child.id;
-        mothChanged(true);
-      }
-    });
-  } else if (home.length >= 2) {
+  // Moths free to breed: at home, not on watch, not already in a cocoon.
+  const home = state.moths.filter((m) => postOf(state, m.id) === null && !isAtSea(state, m.id) && !isCocoonParent(state, m.id));
+  const nests = nestCount(state);
+  const next = expansionsToNextNest(state);
+  const nestNote = next === null ? "" : ` A bigger roost makes room for another: ${next} more expansion${next === 1 ? "" : "s"}.`;
+  let html = `
+    <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} Breeding</span></div>
+    <p class="muted side-line nest-line">${state.cocoons.length} of ${nests} nests spinning.${nestNote}</p>`;
+  state.cocoons.forEach((c, i) => {
+    const a = mothById(state, c.parentIds[0]);
+    const b = mothById(state, c.parentIds[1]);
+    html += `
+      <div class="nest" data-nest="${i}">
+        <p class="muted side-line">${a?.name ?? "?"} × ${b?.name ?? "?"}</p>
+        <div class="progress"><div class="progress-bar cocoon-bar"></div></div>
+        <div class="side-row"><span class="muted cocoon-note"></span><button class="buy cocoon-hatch">Hatch</button></div>
+      </div>`;
+  });
+  if (state.cocoons.length > 1) html += `<div class="side-row nest-all"><span></span><button class="buy hatch-all hidden">Hatch all</button></div>`;
+  const free = state.cocoons.length < nests;
+  if (free && home.length >= 2) {
     if (!home.some((m) => m.id === breedParentA)) breedParentA = home[0].id;
     if (!home.some((m) => m.id === breedParentB) || breedParentB === breedParentA) {
       breedParentB = home.find((m) => m.id !== breedParentA)?.id ?? "";
     }
     const options = home.map((m) => `<option value="${m.id}">${m.name} (${patternById(m.pattern).name}, ${m.glow}${traitList(m)})</option>`).join("");
-    breed.innerHTML = `
-      <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} Breeding</span></div>
-      <select class="breed-select breed-a" aria-label="First parent">${options}</select>
-      <select class="breed-select breed-b" aria-label="Second parent">${options}</select>
-      <div class="side-row"><span class="muted breed-time"></span><button class="buy breed-start">Spin a cocoon</button></div>`;
-    const selA = breed.querySelector<HTMLSelectElement>(".breed-a");
-    const selB = breed.querySelector<HTMLSelectElement>(".breed-b");
-    const timeNote = breed.querySelector<HTMLElement>(".breed-time");
-    const showTime = () => {
-      const a = mothById(state, breedParentA);
-      const b = mothById(state, breedParentB);
-      if (timeNote) timeNote.textContent = a && b && a !== b ? formatDuration(cocoonDurationMs(a, b, state) / 1000) : "pick two moths";
-    };
-    if (selA) {
-      selA.value = breedParentA;
-      selA.addEventListener("change", () => { breedParentA = selA.value; showTime(); });
-    }
-    if (selB) {
-      selB.value = breedParentB;
-      selB.addEventListener("change", () => { breedParentB = selB.value; showTime(); });
-    }
-    showTime();
-    breed.querySelector(".breed-start")?.addEventListener("click", () => {
-      if (startBreeding(state, breedParentA, breedParentB)) {
-        sound.buy();
-        mothChanged();
+    html += `
+      <div class="nest nest-new">
+        <select class="breed-select breed-a" aria-label="First parent">${options}</select>
+        <select class="breed-select breed-b" aria-label="Second parent">${options}</select>
+        <div class="side-row"><span class="muted breed-time"></span><button class="buy breed-start">Spin a cocoon</button></div>
+      </div>`;
+  } else if (free) {
+    html += `<p class="muted side-line">${state.cocoons.length > 0 ? "Another cocoon needs two more moths at home." : "Breeding needs two moths at home in the roost."}</p>`;
+  }
+  breed.innerHTML = html;
+  breed.querySelectorAll<HTMLElement>(".nest[data-nest]").forEach((el) => {
+    const index = Number(el.dataset.nest);
+    const btn = el.querySelector<HTMLButtonElement>(".cocoon-hatch");
+    shoreRefs.cocoonRows.push({ index, note: el.querySelector(".cocoon-note"), bar: el.querySelector(".cocoon-bar"), btn });
+    btn?.addEventListener("click", () => {
+      const child = hatchCocoon(state, Math.random, Date.now(), index);
+      if (child) {
+        selectedMoth = child.id;
+        mothChanged(true);
       }
     });
-  } else {
-    breed.innerHTML = `
-      <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} Breeding</span></div>
-      <p class="muted side-line">Breeding needs two moths at home in the roost.</p>`;
+  });
+  shoreRefs.hatchAllBtn = breed.querySelector<HTMLButtonElement>(".hatch-all");
+  shoreRefs.hatchAllBtn?.addEventListener("click", () => {
+    let last: Moth | null = null;
+    for (let guard = 0; guard < MAX_NESTS; guard++) {
+      const child = hatchCocoon(state, Math.random);
+      if (!child) break;
+      last = child;
+    }
+    if (last) {
+      selectedMoth = last.id;
+      mothChanged(true);
+    }
+  });
+  const selA = breed.querySelector<HTMLSelectElement>(".breed-a");
+  const selB = breed.querySelector<HTMLSelectElement>(".breed-b");
+  const timeNote = breed.querySelector<HTMLElement>(".breed-time");
+  const showTime = () => {
+    const a = mothById(state, breedParentA);
+    const b = mothById(state, breedParentB);
+    if (timeNote) timeNote.textContent = a && b && a !== b ? formatDuration(cocoonDurationMs(a, b, state) / 1000) : "pick two moths";
+  };
+  if (selA) {
+    selA.value = breedParentA;
+    selA.addEventListener("change", () => { breedParentA = selA.value; showTime(); });
   }
+  if (selB) {
+    selB.value = breedParentB;
+    selB.addEventListener("change", () => { breedParentB = selB.value; showTime(); });
+  }
+  if (timeNote) showTime();
+  breed.querySelector(".breed-start")?.addEventListener("click", () => {
+    if (startBreeding(state, breedParentA, breedParentB)) {
+      sound.buy();
+      mothChanged();
+    }
+  });
   breed.querySelector(".side-title")?.appendChild(infoButton("How breeding works", breedingPages));
   host.appendChild(breed);
 }
@@ -1513,6 +1547,7 @@ function breedingPages(): SplashPage[] {
     html: `
       <ul>
         <li>Two moths at home spin a <strong>cocoon</strong>; both parents stay. It takes 30 minutes for Plain parents up to 75 for Prismatic (84 for Hollow), less with a <strong>Fertile</strong> parent, and keeps going while you're away.</li>
+        <li>The roost has <strong>${BASE_NESTS} nests</strong>, so ${BASE_NESTS} cocoons can spin at once, each from its own pair. A bigger roost makes room for more: one more nest every ${EXPANSIONS_PER_NEST} roost expansions, up to ${MAX_NESTS}.</li>
         <li>The child usually takes the <strong>rarer</strong> parent's wings, sometimes shifting a tier. Prismatic is unstable: two Prismatics give a Prismatic 3 times in 5.</li>
         <li>Its <strong>glow</strong> is about the parents' average (now and then a bright jump), never above its own pattern's ceiling.</li>
         <li>It may inherit a parent's <strong>trait</strong> (half the time) or, rarely, a new one.</li>
@@ -1582,7 +1617,7 @@ function updateShoreView(now: number): void {
     offeringLine.classList.toggle("hidden", !waymark);
   }
   // Dots on the Shore's pane buttons: something is waiting there.
-  document.querySelector("#garden-dot")?.classList.toggle("hidden", !(state.cocoon && cocoonReady(state, now)));
+  document.querySelector("#garden-dot")?.classList.toggle("hidden", !cocoonReady(state, now));
   document.querySelector("#sea-dot")?.classList.toggle("hidden", !(state.expedition && expeditionReady(state, now)));
   if (shoreRefs.attractBtn && shoreRefs.attractNote) {
     const lures = lureStatus(state, now);
@@ -1632,24 +1667,35 @@ function updateShoreView(now: number): void {
     );
     shoreRefs.roostNote.textContent = affordable ? `room for ${mothCapacity(state) + 2}` : "";
   }
-  if (state.cocoon && shoreRefs.cocoonNote) {
-    const ready = cocoonReady(state, now);
-    const full = state.moths.length >= mothCapacity(state);
-    shoreRefs.cocoonNote.textContent = ready
-      ? full
-        ? "Ready, but the roost is full"
-        : "Ready to hatch"
-      : `Hatches in ${formatDuration((state.cocoon.readyAt - now) / 1000)}`;
-    if (shoreRefs.cocoonBar) {
-      const a = mothById(state, state.cocoon.parentIds[0]);
-      const b = mothById(state, state.cocoon.parentIds[1]);
+  const full = state.moths.length >= mothCapacity(state);
+  for (const row of shoreRefs.cocoonRows) {
+    const cocoon = state.cocoons[row.index];
+    if (!cocoon) continue;
+    const ready = now >= cocoon.readyAt;
+    if (row.note) {
+      row.note.textContent = ready
+        ? full
+          ? "Ready, but the roost is full"
+          : "Ready to hatch"
+        : `Hatches in ${formatDuration((cocoon.readyAt - now) / 1000)}`;
+    }
+    if (row.bar) {
+      const a = mothById(state, cocoon.parentIds[0]);
+      const b = mothById(state, cocoon.parentIds[1]);
       const span = a && b ? cocoonDurationMs(a, b, state) : 1;
-      shoreRefs.cocoonBar.style.width = `${Math.max(0, Math.min(100, (1 - (state.cocoon.readyAt - now) / span) * 100)).toFixed(1)}%`;
+      row.bar.style.width = `${Math.max(0, Math.min(100, (1 - (cocoon.readyAt - now) / span) * 100)).toFixed(1)}%`;
     }
-    if (shoreRefs.hatchBtn) {
-      shoreRefs.hatchBtn.disabled = !ready || full;
-      shoreRefs.hatchBtn.classList.toggle("affordable", ready && !full);
+    if (row.btn) {
+      row.btn.disabled = !ready || full;
+      row.btn.classList.toggle("affordable", ready && !full);
     }
+  }
+  if (shoreRefs.hatchAllBtn) {
+    const n = readyCocoonCount(state, now);
+    shoreRefs.hatchAllBtn.classList.toggle("hidden", n < 2);
+    shoreRefs.hatchAllBtn.disabled = full;
+    const label = `Hatch all ${n}`;
+    if (shoreRefs.hatchAllBtn.textContent !== label) shoreRefs.hatchAllBtn.textContent = label;
   }
   if (state.expedition && shoreRefs.expeditionNote) {
     const ready = expeditionReady(state, now);
@@ -2515,7 +2561,7 @@ function showAwayCard(r: AwayReport): void {
   }
   if (r.stewardLevels > 0) news.push(`<li>${GLYPHS.gear} Your Chain Steward tended the chain: ${r.stewardLevels} level${r.stewardLevels === 1 ? "" : "s"} of supplies and Beam.</li>`);
   const shoreNews: string[] = [];
-  if (r.cocoonNew) shoreNews.push(`<li>${GLYPHS.cocoon} The cocoon is ready to hatch.</li>`);
+  if (r.cocoonNew) shoreNews.push(`<li>${GLYPHS.cocoon} ${state.cocoons.length > 1 ? "Cocoons are" : "A cocoon is"} ready to hatch.</li>`);
   if (r.bottleNew) shoreNews.push(`<li>${GLYPHS.bottle} A bottle has washed back onto the glass.</li>`);
   if ((r.luresGained ?? 0) > 0) {
     const full = r.luresHeld >= r.lureBank ? "your lure bank is full" : `${r.luresHeld} of ${r.lureBank} held`;

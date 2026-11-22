@@ -1309,3 +1309,7 @@ body { font-variant-numeric: tabular-nums; }
 .crew-note { font-size: 0.78rem; color: var(--muted); }
 .crew-note:empty { display: none; }
 @media (prefers-reduced-motion: reduce) { .hearth.rekindled { animation: none; } }
+
+/* Breeding nests (moths.nestCount): one block per cocoon, then the pair for the next. */
+.nest + .nest, .nest-all + .nest, .nest-new { border-top: 1px dashed var(--edge-soft); margin-top: 8px; padding-top: 8px; }
+.nest .side-line { margin: 0 0 4px; }

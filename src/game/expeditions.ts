@@ -170,7 +170,7 @@ export function sendExpedition(state: GameState, routeId: string, now: number = 
   const route = routeById(routeId);
   if (!route) return false;
   const rider = riderId ? state.moths.find((m) => m.id === riderId) : undefined;
-  if (riderId && (!rider || state.cocoon?.parentIds.includes(riderId))) return false;
+  if (riderId && (!rider || state.cocoons.some((c) => c.parentIds.includes(riderId)))) return false;
   const cost = new Decimal(route.cost);
   if (state.lumen.lt(cost)) return false;
   state.lumen = state.lumen.sub(cost);

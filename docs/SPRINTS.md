@@ -1574,3 +1574,32 @@ keeper's last step is level with the others rather than longer.
 
 - [x] Tests: `tests/farShelf.test.ts`; the Kindling, Glass Charts, release
       and save-version tests are updated.
+
+## ✅ Post-launch — Nests: more cocoons at once
+
+The designer asked for more moth hatches. One cocoon at a time made
+breeding the slowest thing on the Shore: one pair toward a glow-100
+Prismatic, the rest of the roost idle.
+
+- [x] **Nests** (`moths.nestCount`): two cocoons spin at once from the
+      start, one more every 3 roost expansions, up to 4. Each pair is its
+      own; a moth sits in one cocoon at a time. `hatchCocoon` hatches the
+      one asked for, or the first that's ready.
+- [x] **Save v17**: `cocoons` (a list) replaces `cocoon`. A v16 save's
+      cocoon becomes the first nest's; a moth listed in two cocoons keeps
+      only the first.
+- [x] **The breeding panel** lists every cocoon with its own bar and Hatch
+      button, "Hatch all" when two or more are ready, "n of m nests
+      spinning" and how many expansions to the next nest, and the pair for
+      the next cocoon while a nest is free (moths already spinning aren't
+      offered). The meadow hangs a cocoon on the branch for each nest in
+      use; the Shore's dot, the welcome-back card and the info page count
+      them all.
+- [x] Pacing: none of the bots breed, so the sim is unchanged. The engaged
+      bot assumes duty glow climbs over 40 hours; with two to four nests
+      a breeder gets there sooner.
+- [x] Tests: `tests/nests.test.ts` (5); the cocoon tests in `away`,
+      `scene` and `sprint4` and the save-version tests are updated.
+      Checked in the browser with a real phone save (7 expansions, so 4
+      nests): three cocoons spinning from the panel, the meadow showing
+      all three.

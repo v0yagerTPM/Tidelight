@@ -259,7 +259,7 @@ describe("lantern moths — breeding", () => {
     expect(child!.pattern).toBe("crescent");
     expect(child!.glow).toBe(49); // average 50, regression −1
     expect(child!.generation).toBe(3);
-    expect(state.cocoon).toBeNull();
+    expect(state.cocoons).toEqual([]);
     expect(state.moths.map((m) => m.id)).toEqual(["a", "b", child!.id]);
   });
 
@@ -351,7 +351,7 @@ describe("lantern moths — breeding", () => {
     const state = parents();
     expect(startBreeding(state, "a", "a", 0)).toBe(false);
     expect(startBreeding(state, "a", "ghost", 0)).toBe(false);
-    expect(state.cocoon).toBeNull();
+    expect(state.cocoons).toEqual([]);
   });
 });
 
@@ -644,11 +644,11 @@ describe("permanence & save migration (v4 → v5)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v4Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(16);
+    expect(restored?.version).toBe(17);
     expect(restored?.moths).toEqual([]);
     expect(restored?.mothDuty).toEqual([]);
     expect(restored?.roostExpansions).toBe(0);
-    expect(restored?.cocoon).toBeNull();
+    expect(restored?.cocoons).toEqual([]);
     expect(restored?.expedition).toBeNull();
     expect(restored?.relics).toEqual([]);
     expect(restored?.storyFragmentIndex).toBe(0);
@@ -663,26 +663,26 @@ describe("permanence & save migration (v4 → v5)", () => {
     state.relics = ["tide-chart"];
     state.storyFragmentIndex = 3;
     state.expedition = { routeId: "coastal", startedAt: 100, returnsAt: 200 };
-    state.cocoon = { parentIds: ["m1", "m2"], readyAt: 999 };
+    state.cocoons = [{ parentIds: ["m1", "m2"], readyAt: 999 }];
     const saved = serializeState(state);
-    expect(saved.version).toBe(16);
+    expect(saved.version).toBe(17);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.moths).toEqual(state.moths);
     expect(restored?.mothDuty).toEqual(["m1"]);
     expect(restored?.relics).toEqual(["tide-chart"]);
     expect(restored?.storyFragmentIndex).toBe(3);
     expect(restored?.expedition).toEqual({ routeId: "coastal", startedAt: 100, returnsAt: 200 });
-    expect(restored?.cocoon).toEqual({ parentIds: ["m1", "m2"], readyAt: 999 });
+    expect(restored?.cocoons).toEqual([{ parentIds: ["m1", "m2"], readyAt: 999 }]);
 
     // Junk duty ids are dropped; a cocoon missing a parent is dropped:
     const junk = {
       ...saved,
       mothDuty: ["m1", "ghost", 7],
-      cocoon: { parentIds: ["m1", "ghost"], readyAt: 999 },
+      cocoons: [{ parentIds: ["m1", "ghost"], readyAt: 999 }],
     };
     const cleaned = deserializeState(junk);
     expect(cleaned?.mothDuty).toEqual(["m1"]);
-    expect(cleaned?.cocoon).toBeNull();
+    expect(cleaned?.cocoons).toEqual([]);
   });
 });
 

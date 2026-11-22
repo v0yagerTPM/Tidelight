@@ -97,8 +97,8 @@ export interface GameState {
   mothDuty: string[];
   /** Roost expansions bought (each adds 2 collection capacity). */
   roostExpansions: number;
-  /** The breeding cocoon in progress, or null. */
-  cocoon: Cocoon | null;
+  /** Cocoons spinning, one per nest in use (moths.nestCount; v17, was a single cocoon). */
+  cocoons: Cocoon[];
   /** Moth lures ready to spend (0–3); see moths.ts. */
   mothLures: number;
   /** Unix ms the lure regrow clock counts from (meaningless with a full bank). */
@@ -189,7 +189,10 @@ export interface SavedState {
   moths: Moth[];
   mothDuty: string[];
   roostExpansions: number;
-  cocoon: Cocoon | null;
+  /** Before v17: the single cocoon. */
+  cocoon?: Cocoon | null;
+  /** v17: every cocoon spinning. */
+  cocoons?: Cocoon[];
   mothLures: number;
   mothLureAnchor: number;
   mothLureRushes: number;

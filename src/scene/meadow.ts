@@ -99,7 +99,15 @@ export class MeadowRenderer extends AnimatedCanvas {
     ctx.quadraticCurveTo(treeX + W * 0.06, H * 0.15, branchEnd.x, branchEnd.y);
     ctx.stroke();
     ctx.lineCap = "butt";
-    if (m.cocoon) this.drawCocoon(m.cocoon, t, branchEnd.x - W * 0.025, branchEnd.y - 4);
+    // One cocoon per nest in use, hung along the branch from its tip inward.
+    const branchAt = (u: number) => ({
+      x: (1 - u) * (1 - u) * (treeX + 1) + 2 * (1 - u) * u * (treeX + W * 0.06) + u * u * branchEnd.x,
+      y: (1 - u) * (1 - u) * (H * 0.24) + 2 * (1 - u) * u * (H * 0.15) + u * u * branchEnd.y,
+    });
+    m.cocoons.forEach((c, i) => {
+      const p = branchAt(0.82 - i * 0.2);
+      this.drawCocoon(c, t + i * 1.7, p.x, p.y - 2);
+    });
 
     // The lantern post where duty moths keep watch.
     const lanternX = W * 0.36;
@@ -160,7 +168,7 @@ export class MeadowRenderer extends AnimatedCanvas {
     return (1 - u) * (1 - u) * y0 + 2 * (1 - u) * u * y1 + u * u * y2;
   }
 
-  private drawCocoon(c: NonNullable<MeadowModel["cocoon"]>, t: number, x: number, y: number): void {
+  private drawCocoon(c: MeadowModel["cocoons"][number], t: number, x: number, y: number): void {
     const ctx = this.ctx;
     ctx.strokeStyle = "rgba(233,230,220,0.5)";
     ctx.lineWidth = 1;

@@ -135,18 +135,18 @@ describe("meadow model", () => {
       { id: "c", name: "Cob", pattern: "spotted", glow: 30, generation: 1 },
     ];
     state.mothDuty = ["a"];
-    state.cocoon = { parentIds: ["b", "c"], readyAt: NOW + 33 * 60_000 }; // halfway: a Starlit parent makes it 66 min
+    state.cocoons = [{ parentIds: ["b", "c"], readyAt: NOW + 33 * 60_000 }]; // halfway: a Starlit parent makes it 66 min
     state.expedition = { routeId: "crossing", startedAt: NOW - 1_000, returnsAt: NOW + 3_000 };
     const m = buildMeadowModel(state, NOW);
     expect(m.unlocked).toBe(true);
     expect(m.moths.map((x) => [x.id, x.duty, x.inCocoon])).toEqual([["a", true, false], ["b", false, true], ["c", false, true]]);
-    expect(m.cocoon).toEqual({ progress: 0.5, ready: false });
+    expect(m.cocoons).toEqual([{ progress: 0.5, ready: false }]);
     expect(m.bottle).toEqual({ progress: 0.25, reach: 1, ready: false });
     expect(buildMeadowModel(state, NOW + 5_000).bottle?.ready).toBe(true);
   });
 
   it("an empty roost before the first Lantern Moth is asleep", () => {
     const m = buildMeadowModel(createInitialState(), NOW);
-    expect(m).toEqual({ unlocked: false, moths: [], cocoon: null, bottle: null });
+    expect(m).toEqual({ unlocked: false, moths: [], cocoons: [], bottle: null });
   });
 });

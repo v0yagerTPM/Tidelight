@@ -181,6 +181,9 @@ a hearth whose fire grows with the Embers you'd bank.
   cocoon) and the child inherits their wings — usually the rarer
   parent's pattern, about the average of their glows, and a little
   chaos. Prismatic wings are unstable. A perfect roster is a long chase.
+  The roost has **nests**: two cocoons spin at once from the start, each
+  from its own pair, and a bigger roost makes room for more (a third at 3
+  roost expansions, a fourth at 6). Hatch them one by one, or all at once.
   Some moths carry a **trait** (Lamp-loyal, Night-flier, Chain-tender,
   Seeker, Fertile, Tidewise) that children can inherit, and every lit
   lighthouse has a **moth post**: a posted moth adds +(glow × 0.2)% to

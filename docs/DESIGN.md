@@ -41,7 +41,9 @@ hit the wall → **Rekindle** → relight faster and further.
 3. **Lantern-moth breeding** — individual moths with inherited wing
    patterns; up to three on duty brighten the thrown beam (+glow × 0.1%
    each), after the chain, and a moth posted at a lighthouse strengthens
-   its supply board.
+   its supply board. Two cocoons spin at once (the roost's **nests**), up
+   to four with a bigger roost (one more every 3 expansions), so breeding
+   works the roost rather than one pair at a time.
 4. **Bottle expeditions** — bottles sent out return with Lumen caches
    (with Glass Charts, a returned bottle is claimed and set out again on
    its standing route, even while away, inside the offline cap),
