@@ -77,7 +77,7 @@ export function summarize(sc: AlmanacScenario, runs: AlmanacRun[]) {
     perKey,
     progress,
     daysToCount,
-    perRun: { lures: mean((r) => r.lures), scented: mean((r) => r.scented), hatches: mean((r) => r.hatches), releases: mean((r) => r.releases), bottles: mean((r) => r.bottles), stormHolds: mean((r) => r.stormHolds) },
+    perRun: { lures: mean((r) => r.lures), scented: mean((r) => r.scented), hatches: mean((r) => r.hatches), releases: mean((r) => r.releases), releaseActions: mean((r) => r.releaseActions), autoReleases: mean((r) => r.autoReleases ?? 0), bottles: mean((r) => r.bottles), stormHolds: mean((r) => r.stormHolds) },
   };
 }
 

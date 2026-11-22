@@ -137,7 +137,12 @@ export const RIDER_RELIC_PER_GLOW = 0.001;
 /** A Seeker riding a bottle adds this on top. */
 export const SEEKER_RIDER_RELIC_BONUS = 0.1;
 /** On the Deep Glass Crossing, a rider without a trait comes home with one this often. */
-export const CROSSING_TRAIT_CHANCE = 0.1;
+/**
+ * A traitless rider on the Deep Glass Crossing comes home with a trait this
+ * often. It was 1 in 10, and the Almanac analysis found riders filled under
+ * one page in a whole chase: 2 in 5 makes the six-hour voyage worth a moth.
+ */
+export const CROSSING_TRAIT_CHANCE = 0.4;
 
 /** The moth riding the bottle at sea, if any. */
 export function riderOf(state: GameState): Moth | null {

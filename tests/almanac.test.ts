@@ -221,19 +221,19 @@ describe("moths riding bottles", () => {
     expect(sendExpedition(state, "drift", 0, "b")).toBe(false);
   });
 
-  it("on the Crossing, a traitless rider comes home with a trait 1 time in 10", () => {
+  it("on the Crossing, a traitless rider comes home with a trait 2 times in 5", () => {
     const trip = (riderId: string, rolls: number[]) => {
       const state = sea();
       sendExpedition(state, "crossing", 0, riderId);
       const claim = claimExpedition(state, stubRng(rolls), 360 * 60_000)!;
       return { state, claim };
     };
-    // rolls: relic (0.999 = none), trait (0.05 < 0.1), which trait (0 → Lamp-loyal)
-    const changed = trip("b", [0.999, 0.05, 0]);
+    // rolls: relic (0.999 = none), trait (0.39 < 0.4), which trait (0 → Lamp-loyal)
+    const changed = trip("b", [0.999, 0.39, 0]);
     expect(changed.claim.riderTrait).toBe("lamp-loyal");
     expect(changed.state.moths[1].trait).toBe("lamp-loyal");
     expect(changed.state.almanac).toContain("plain:lamp-loyal");
-    expect(trip("b", [0.999, 0.1, 0]).claim.riderTrait).toBeNull();
+    expect(trip("b", [0.999, 0.4, 0]).claim.riderTrait).toBeNull();
     expect(trip("a", [0.999, 0.01, 0]).state.moths[0].trait).toBe("seeker"); // already has one
   });
 

@@ -233,7 +233,7 @@ describe("save migration (v2 → v4)", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v2Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(17); // migrated forward (v6 in Sprint 5)
+    expect(restored?.version).toBe(18); // migrated forward (v6 in Sprint 5)
     expect(restored?.litLighthouses).toEqual([FIRST_LIGHT_ID]);
     expect(restored?.chainBoards[FIRST_LIGHT_ID]).toEqual({ wick: 1, oil: 1, lens: 1, beam: 0 });
     expect(restored?.upgrades).toEqual(["click-1"]);
@@ -245,7 +245,7 @@ describe("save migration (v2 → v4)", () => {
     expect(relightGullRock(state)).toBe(true);
     state.chainBoards[GULL_ROCK_ID].wick = 4;
     const saved = serializeState(state);
-    expect(saved.version).toBe(17);
+    expect(saved.version).toBe(18);
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored?.litLighthouses).toEqual([FIRST_LIGHT_ID, GULL_ROCK_ID]);
     expect(restored?.chainBoards[GULL_ROCK_ID].wick).toBe(4);

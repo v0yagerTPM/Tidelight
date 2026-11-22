@@ -113,6 +113,11 @@ import {
   EXPANSIONS_PER_NEST,
   MAX_NESTS,
   cocoonReady,
+  releaseSpares,
+  setStormWait,
+  spareMoths,
+  stormHatchAt,
+  tendCocoons,
   expansionsToNextNest,
   nestCount,
   readyCocoonCount,
@@ -301,6 +306,8 @@ welcomeBack(offline.gain, offline.creditedSeconds, offline.awaySeconds);
 const bootStewardLevels = tendChain(state, offline.gain, bootNow);
 // Glass Charts: the bottles that came home while you were away set out again.
 tendBottles(state, Math.random, bootNow);
+// Cocoons waiting for a Stormfront that came while you were away have opened in it.
+tendCocoons(state, Math.random, bootNow);
 if (bootStewardLevels > 0) {
   addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${bootStewardLevels} level${bootStewardLevels === 1 ? "" : "s"}.`);
 }
@@ -1082,13 +1089,14 @@ interface ShoreRefs {
   /** One row per cocoon spinning, by its place in state.cocoons. */
   cocoonRows: { index: number; note: HTMLElement | null; bar: HTMLElement | null; btn: HTMLButtonElement | null }[];
   hatchAllBtn: HTMLButtonElement | null;
+  sparesBtn: HTMLButtonElement | null;
   expeditionNote: HTMLElement | null;
   claimBtn: HTMLButtonElement | null;
   sendBtns: { routeId: string; btn: HTMLButtonElement; note: HTMLElement | null }[];
 }
 let shoreRefs: ShoreRefs = {
   attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
-  cocoonRows: [], hatchAllBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
+  cocoonRows: [], hatchAllBtn: null, sparesBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
 };
 
 /** ", Seeker" / ", Seeker, Fertile" for a moth's select option; "" with no trait. */
@@ -1119,7 +1127,7 @@ function shoreKey(): string {
 function rebuildShore(): void {
   shoreRefs = {
     attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
-    cocoonRows: [], hatchAllBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
+    cocoonRows: [], hatchAllBtn: null, sparesBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
   };
 
   // ── Moth Garden ──
@@ -1185,7 +1193,7 @@ function rebuildShore(): void {
       pick.className = "card";
       pick.innerHTML = `
         <div class="gen-name">${GLYPHS.moth} A rider for the bottle</div>
-        <p class="muted">A moth can ride along: relic chance + glow ÷ 10 points (a Seeker adds 10 more). It leaves duty and its post for the trip. On the Deep Glass Crossing, a moth without a trait comes home with one 1 time in 10.</p>
+        <p class="muted">A moth can ride along: relic chance + glow ÷ 10 points (a Seeker adds 10 more). It leaves duty and its post for the trip. On the Deep Glass Crossing, a moth without a trait comes home with one 2 times in 5.</p>
         <select class="breed-select rider-select"><option value="">No rider</option>${riders
           .map((m) => `<option value="${m.id}">${m.name} (glow ${m.glow}${traitList(m)})</option>`)
           .join("")}</select>`;
@@ -1285,6 +1293,8 @@ function buildRoostBar(host: HTMLElement): void {
       <button class="buy moth-scented">Scented lure</button>
       <button class="buy moth-roost">Expand</button>
       <button class="buy almanac-open">${GLYPHS.book} Almanac ${state.almanac.length}/${ALMANAC_SIZE}</button>
+      <button class="buy moth-spares hidden">Release spares</button>
+      <button class="buy moth-autospare" aria-pressed="false">Let spares go: Off</button>
     </div>
     <div class="gen-note muted moth-attract-note"></div>
     <span class="moth-roost-note hidden"></span>`;
@@ -1312,6 +1322,34 @@ function buildRoostBar(host: HTMLElement): void {
     if (expandRoost(state)) mothChanged();
   });
   bar.querySelector(".almanac-open")?.addEventListener("click", openAlmanac);
+  // Let spares go on arrival (state.autoReleaseSpares).
+  const auto = bar.querySelector<HTMLButtonElement>(".moth-autospare");
+  if (auto) {
+    const show = () => {
+      auto.textContent = `Let spares go: ${state.autoReleaseSpares ? "On" : "Off"}`;
+      auto.setAttribute("aria-pressed", String(state.autoReleaseSpares));
+      auto.classList.toggle("active", state.autoReleaseSpares);
+    };
+    show();
+    setTip(auto, "On: a lured moth that fills no new Almanac page and isn't brighter than your best of its wings flies straight back out, leaving its Wing Scales. Your roost keeps room for the moths that matter.");
+    auto.addEventListener("click", () => {
+      state.autoReleaseSpares = !state.autoReleaseSpares;
+      show();
+      saveState(state);
+    });
+  }
+  // Every spare at once (moths.spareMoths): two taps, since a release can't be undone.
+  const spares = bar.querySelector<HTMLButtonElement>(".moth-spares");
+  if (spares) {
+    shoreRefs.sparesBtn = spares;
+    setTip(spares, "Release every moth that isn't on duty, posted, spinning, at sea, one of the two brightest of its wing pattern, or the brightest of its Almanac page. They leave Wing Scales.");
+    armTwoStep(spares, () => `Release ${spareMoths(state).length}? Tap again`, () => {
+      if (releaseSpares(state).count > 0) {
+        selectedMoth = "";
+        mothChanged();
+      }
+    });
+  }
   host.appendChild(bar);
 }
 
@@ -1424,11 +1462,14 @@ function buildBreeding(host: HTMLElement): void {
   state.cocoons.forEach((c, i) => {
     const a = mothById(state, c.parentIds[0]);
     const b = mothById(state, c.parentIds[1]);
+    // A pair that could hatch Starlit or Prismatic wings can wait for a Stormfront (moths.tendCocoons).
+    const canStorm = Math.max(patternById(a?.pattern ?? "plain").tier, patternById(b?.pattern ?? "plain").tier) >= 3;
     html += `
       <div class="nest" data-nest="${i}">
         <p class="muted side-line">${a?.name ?? "?"} × ${b?.name ?? "?"}</p>
         <div class="progress"><div class="progress-bar cocoon-bar"></div></div>
         <div class="side-row"><span class="muted cocoon-note"></span><button class="buy cocoon-hatch">Hatch</button></div>
+        ${canStorm ? `<label class="storm-wait"><input type="checkbox" class="storm-wait-box" id="storm-wait-${i}"${c.stormWait ? " checked" : ""}> Open in the next Stormfront, by itself</label>` : ""}
       </div>`;
   });
   if (state.cocoons.length > 1) html += `<div class="side-row nest-all"><span></span><button class="buy hatch-all hidden">Hatch all</button></div>`;
@@ -1453,6 +1494,15 @@ function buildBreeding(host: HTMLElement): void {
     const index = Number(el.dataset.nest);
     const btn = el.querySelector<HTMLButtonElement>(".cocoon-hatch");
     shoreRefs.cocoonRows.push({ index, note: el.querySelector(".cocoon-note"), bar: el.querySelector(".cocoon-bar"), btn });
+    const wait = el.querySelector<HTMLInputElement>(".storm-wait-box");
+    if (wait) {
+      setTip(wait.parentElement as HTMLElement, "A Starlit or Prismatic hatchling that opens in a Stormfront is Tidelit 5% of the time. Ticked, this cocoon waits once it's ready and opens by itself in the next Stormfront, even while you're away. Hatch still opens it now.");
+      wait.addEventListener("change", () => {
+        setStormWait(state, index, wait.checked);
+        saveState(state);
+        renderDynamic();
+      });
+    }
     btn?.addEventListener("click", () => {
       const child = hatchCocoon(state, Math.random, Date.now(), index);
       if (child) {
@@ -1547,11 +1597,12 @@ function breedingPages(): SplashPage[] {
     html: `
       <ul>
         <li>Two moths at home spin a <strong>cocoon</strong>; both parents stay. It takes 30 minutes for Plain parents up to 75 for Prismatic (84 for Hollow), less with a <strong>Fertile</strong> parent, and keeps going while you're away.</li>
-        <li>The roost has <strong>${BASE_NESTS} nests</strong>, so ${BASE_NESTS} cocoons can spin at once, each from its own pair. A bigger roost makes room for more: one more nest every ${EXPANSIONS_PER_NEST} roost expansions, up to ${MAX_NESTS}.</li>
+        <li>The roost has <strong>${BASE_NESTS} nests</strong>, so ${BASE_NESTS} cocoons can spin at once, each from its own pair. A bigger roost makes room for more: one more nest every ${EXPANSIONS_PER_NEST} roost expansions, up to ${MAX_NESTS}, and the Almanac's A Fifth Nest adds one more.</li>
         <li>The child usually takes the <strong>rarer</strong> parent's wings, sometimes shifting a tier. Prismatic is unstable: two Prismatics give a Prismatic 3 times in 5.</li>
         <li>Its <strong>glow</strong> is about the parents' average (now and then a bright jump), never above its own pattern's ceiling.</li>
         <li>It may inherit a parent's <strong>trait</strong> (half the time) or, rarely, a new one.</li>
-        <li>A Starlit or Prismatic cocoon that opens in a <strong>Stormfront</strong> is sometimes Tidelit. After the ending, two glow-100 Prismatics may hatch a <strong>Hollow</strong> moth.</li>
+        <li>A Starlit or Prismatic cocoon that opens in a <strong>Stormfront</strong> is sometimes Tidelit (5%). Tick <strong>Open in the next Stormfront</strong> on a cocoon and it waits for one by itself, even while you're away.</li>
+        <li>After the ending, two glow-100 Prismatics may hatch a <strong>Hollow</strong> moth (2% a cocoon). It carries up to two of its parents' traits, so its Almanac pages follow theirs: a Hollow with a trait needs a parent with that trait, and a Hollow with <strong>no trait</strong> needs two parents with no trait at all.</li>
       </ul>`,
   }];
 }
@@ -1591,7 +1642,8 @@ function openAlmanac(): void {
       html: `
         <p>A page for every wing and trait. A page fills the first time you hold such a moth, and stays filled. Release moths for Wing Scales: ${SCENTED_LURE_SCALES} buy a scented lure, which always brings a moth with a trait.</p>
         <div class="almanac-scroll"><table class="almanac"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>
-        <ul class="almanac-rewards">${rewards}</ul>`,
+        <ul class="almanac-rewards">${rewards}</ul>
+        <p class="muted">Hollow wings come only after the ending, from two glow-100 Prismatics (2% a cocoon), and carry up to two of their parents' traits: a Hollow page with a trait needs a parent with it, and Hollow with no trait needs two parents with no trait at all. Tidelit wings come from Starlit or Prismatic cocoons that open in a Stormfront.</p>`,
     }],
     { kind: "almanac", finishLabel: "Close" },
   );
@@ -1668,16 +1720,29 @@ function updateShoreView(now: number): void {
     shoreRefs.roostNote.textContent = affordable ? `room for ${mothCapacity(state) + 2}` : "";
   }
   const full = state.moths.length >= mothCapacity(state);
+  if (shoreRefs.sparesBtn) {
+    const n = spareMoths(state).length;
+    shoreRefs.sparesBtn.classList.toggle("hidden", n === 0);
+    // Leave the two-step confirm's own text alone while it is armed.
+    const label = `Release spares (${n})`;
+    if (!shoreRefs.sparesBtn.textContent?.endsWith("Tap again") && shoreRefs.sparesBtn.textContent !== label) shoreRefs.sparesBtn.textContent = label;
+  }
   for (const row of shoreRefs.cocoonRows) {
     const cocoon = state.cocoons[row.index];
     if (!cocoon) continue;
     const ready = now >= cocoon.readyAt;
     if (row.note) {
-      row.note.textContent = ready
-        ? full
-          ? "Ready, but the roost is full"
-          : "Ready to hatch"
-        : `Hatches in ${formatDuration((cocoon.readyAt - now) / 1000)}`;
+      const stormAt = stormHatchAt(state, row.index);
+      row.note.textContent =
+        stormAt !== null
+          ? full && ready
+            ? "Waiting for a Stormfront, but the roost is full"
+            : `Opens in a Stormfront in ${formatDuration(Math.max(0, stormAt - now) / 1000)}`
+          : ready
+            ? full
+              ? "Ready, but the roost is full"
+              : "Ready to hatch"
+            : `Hatches in ${formatDuration((cocoon.readyAt - now) / 1000)}`;
     }
     if (row.bar) {
       const a = mothById(state, cocoon.parentIds[0]);
@@ -3466,10 +3531,12 @@ function gameTick(): void {
     autoLearn(state);
     autoHire(state, now);
     tendBottles(state, Math.random, now);
+    tendCocoons(state, Math.random, now);
   }
   if (result.mode === "offline") {
     welcomeBack(result.gain, result.creditedSeconds, result.elapsedSeconds);
     tendBottles(state, Math.random, now);
+    tendCocoons(state, Math.random, now);
     if (fed > 0) addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${fed} level${fed === 1 ? "" : "s"}.`);
   }
   // The guide's next page, when its part of the game first matters, if

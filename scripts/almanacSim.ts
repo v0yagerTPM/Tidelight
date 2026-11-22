@@ -24,6 +24,10 @@ import {
   patternById,
   releaseMoth,
   scentedAttractMoth,
+  spareMoths,
+  setStormWait,
+  stormHatchAt,
+  tendCocoons,
   startBreeding,
   attractMoth,
 } from "../src/game/moths";
@@ -68,7 +72,12 @@ export interface AlmanacRun {
   scented: number;
   hatches: number;
   releases: number;
+  /** Release taps: a bulk release of the spares counts once a visit. */
+  releaseActions: number;
+  /** Moths let go on arrival (state.autoReleaseSpares): no tap at all. */
+  autoReleases: number;
   bottles: number;
+  /** Cocoons the keeper set to wait for a Stormfront. */
   stormHolds: number;
 }
 
@@ -97,14 +106,26 @@ function keepValue(state: GameState, moth: Moth, missing: Set<string>): number {
   return v;
 }
 
+/** Per visit: whether the keeper has pressed Release spares yet. */
+const visit = { spareTapped: false };
+
 function makeRoom(state: GameState, missing: Set<string>, run: AlmanacRun): boolean {
   if (state.moths.length < mothCapacity(state)) return true;
+  // The keeper releases the moth worth least to the chase. Counting taps: a
+  // spare (moths.spareMoths) goes with one Release spares tap a visit; any
+  // other release is a tap of its own.
   const atSea = state.expedition?.riderId;
   const candidates = state.moths.filter((m) => !isCocoonParent(state, m.id) && m.id !== atSea);
   if (candidates.length === 0) return false;
   candidates.sort((a, b) => keepValue(state, a, missing) - keepValue(state, b, missing));
-  if (releaseMoth(state, candidates[0].id) === null) return false;
+  const spare = spareMoths(state).some((m) => m.id === candidates[0].id);
+  if (releaseMoth(state, candidates[0].id, false) === null) return false;
   run.releases++;
+  if (!spare) run.releaseActions++;
+  else if (!visit.spareTapped) {
+    visit.spareTapped = true;
+    run.releaseActions++;
+  }
   return true;
 }
 
@@ -165,13 +186,8 @@ function bestPair(state: GameState, missing: Set<string>, storm: boolean): [Moth
   return best;
 }
 
-/** Whether a ready cocoon is worth holding for a Stormfront (a Tidelit page it could fill is missing). */
-function holdForStorm(state: GameState, index: number, missing: Set<string>, now: number): boolean {
-  if (tideAt(now).def.id === "storm") return false;
-  const c = state.cocoons[index];
-  const [a, b] = c.parentIds.map((id) => state.moths.find((m) => m.id === id));
-  if (!a || !b) return false;
-  if (now - c.readyAt > 10 * HOUR) return false; // a cycle (10 h) always holds a storm; don't wait forever
+/** Whether a pair's cocoon should wait for a Stormfront (a Tidelit page it could fill is missing). */
+function worthAStorm(state: GameState, a: Moth, b: Moth, missing: Set<string>): boolean {
   return childOutcomes(a, b, { storm: true, endingSeen: state.endingSeen }).some((o) => o.pattern === "tidelit" && o.keys.some((k) => missing.has(k)));
 }
 
@@ -188,8 +204,12 @@ export function simulateAlmanac(sc: AlmanacScenario, seed: number): AlmanacRun {
   if (sc.mothLantern) state.emberPerks.push("moth-lantern");
   state.kindlings = { "quick-lures": sc.quickLures, "spinning-silk": sc.spinningSilk };
   state.mothLureAnchor = start;
+  // The keeper chooses its own releases (it turns its roost over by what each
+  // moth is worth to the chase), so "Let spares go" stays off: on, it threw
+  // away trait carriers the keeper would have bred from, and the chase slowed.
+  state.autoReleaseSpares = false;
 
-  const run: AlmanacRun = { daysToComplete: null, daysAtCount: [0], filledAt: {}, sourceOf: {}, lures: 0, scented: 0, hatches: 0, releases: 0, bottles: 0, stormHolds: 0 };
+  const run: AlmanacRun = { daysToComplete: null, daysAtCount: [0], filledAt: {}, sourceOf: {}, lures: 0, scented: 0, hatches: 0, releases: 0, releaseActions: 0, autoReleases: 0, bottles: 0, stormHolds: 0 };
   const note = (source: Source, now: number) => {
     for (const k of state.almanac) {
       if (run.filledAt[k] !== undefined) continue;
@@ -205,15 +225,19 @@ export function simulateAlmanac(sc: AlmanacScenario, seed: number): AlmanacRun {
     const hourOfDay = ((now - start) / HOUR + 8) % 24;
     if (sc.wakingHours < 24 && (hourOfDay < 8 || hourOfDay >= 8 + sc.wakingHours)) continue;
     let missing = missingSet();
-    const storm = tideAt(now).def.id === "storm";
+    visit.spareTapped = false;
 
-    // 1. Ready cocoons: hatch, unless a Stormfront could make one Tidelit.
+    // 1. Cocoons set to wait for a Stormfront opened by themselves when one came
+    //    (moths.tendCocoons, as the game does live and on return); then the
+    //    keeper hatches the other ready ones.
+    if (state.cocoons.some((_, i) => (stormHatchAt(state, i) ?? Infinity) <= now)) makeRoom(state, missing, run);
+    for (const child of tendCocoons(state, rng, now)) {
+      run.hatches++;
+      note(child.pattern === "hollow" ? "hollow" : child.pattern === "tidelit" ? "tidelit" : "bred", now);
+      missing = missingSet();
+    }
     for (let i = state.cocoons.length - 1; i >= 0; i--) {
-      if (now < state.cocoons[i].readyAt) continue;
-      if (holdForStorm(state, i, missing, now)) {
-        run.stormHolds++;
-        continue;
-      }
+      if (now < state.cocoons[i].readyAt || state.cocoons[i].stormWait) continue;
       if (!makeRoom(state, missing, run)) break;
       const child = hatchCocoon(state, rng, now, i);
       if (child) {
@@ -238,21 +262,30 @@ export function simulateAlmanac(sc: AlmanacScenario, seed: number): AlmanacRun {
     }
     // 3. Lures, then scented lures, making room as needed.
     while (lureStatus(state, now).held > 0 && makeRoom(state, missing, run)) {
-      if (!attractMoth(state, rng, now)) break;
+      const moth = attractMoth(state, rng, now);
+      if (!moth) break;
       run.lures++;
+      if (!state.moths.includes(moth)) run.autoReleases++;
       note("lure", now);
       missing = missingSet();
     }
     while (state.wingScales >= SCENTED_LURE_SCALES && makeRoom(state, missing, run)) {
-      if (!scentedAttractMoth(state, rng)) break;
+      const moth = scentedAttractMoth(state, rng);
+      if (!moth) break;
       run.scented++;
+      if (!state.moths.includes(moth)) run.autoReleases++;
       note("scented", now);
       missing = missingSet();
     }
     // 4. Fill every free nest with the best pair for the pages still missing.
     while (nestFree(state)) {
-      const pair = bestPair(state, missing, storm);
+      const pair = bestPair(state, missing, true);
       if (!pair || !startBreeding(state, pair[0].id, pair[1].id, now)) break;
+      // A pair that could hatch a missing Tidelit page waits for a Stormfront.
+      if (worthAStorm(state, pair[0], pair[1], missing)) {
+        setStormWait(state, state.cocoons.length - 1, true);
+        run.stormHolds++;
+      }
     }
     if (state.almanac.length >= ALMANAC_SIZE) {
       run.daysToComplete = (now - start) / DAY;

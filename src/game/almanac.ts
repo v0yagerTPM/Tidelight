@@ -52,7 +52,7 @@ export function recordAlmanac(state: GameState, moth: Moth): boolean {
   return filled;
 }
 
-export type AlmanacRewardId = "deep-bank" | "fourth-duty" | "quick-cocoons" | "swift-lures" | "lamp-halo" | "hollow-pages";
+export type AlmanacRewardId = "deep-bank" | "fourth-duty" | "quick-cocoons" | "swift-lures" | "fifth-nest" | "lamp-halo" | "hollow-pages";
 
 export interface AlmanacReward {
   id: AlmanacRewardId;
@@ -67,6 +67,9 @@ export const ALMANAC_REWARDS: readonly AlmanacReward[] = [
   { id: "fourth-duty",   entries: 12,           name: "A Fourth Wing",  effect: "A fourth moth can stand duty." },
   { id: "quick-cocoons", entries: 24,           name: "Warm Silk",      effect: "Cocoons take 15% less time." },
   { id: "swift-lures",   entries: 36,           name: "Sweet Oil",      effect: "A lure regrows every 15 minutes." },
+  // Between 36 and 49 the chase ran longest with nothing to earn (the
+  // Almanac analysis, scripts/almanac.ts): a reward that speeds the rest.
+  { id: "fifth-nest",    entries: 42,           name: "A Fifth Nest",   effect: "One more cocoon can spin at once." },
   { id: "lamp-halo",     entries: 49,           name: "Every Living Wing", effect: "The lamp wears a halo the colour of your brightest moth." },
   { id: "hollow-pages",  entries: ALMANAC_SIZE, name: "The Hollow Pages",  effect: "A fifth moth can stand duty." },
 ];

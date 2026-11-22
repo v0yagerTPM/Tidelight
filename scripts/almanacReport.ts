@@ -72,6 +72,8 @@ write(
     scented_lures: round(s.perRun.scented, 0),
     hatches: round(s.perRun.hatches, 0),
     releases: round(s.perRun.releases, 0),
+    release_taps: round(s.perRun.releaseActions ?? s.perRun.releases, 0),
+    let_go_on_arrival: round(s.perRun.autoReleases ?? 0, 0),
     bottles: round(s.perRun.bottles, 0),
     storm_holds: round(s.perRun.stormHolds, 0),
   })),
