@@ -1603,3 +1603,40 @@ Prismatic, the rest of the roost idle.
       Checked in the browser with a real phone save (7 expansions, so 4
       nests): three cocoons spinning from the panel, the meadow showing
       all three.
+
+## ✅ Post-launch — NG+ performance pass
+
+The designer felt the game getting laggy again in a Next Keeping. Measured
+on NG+ saves built from a real phone save (a Next Keeping begun, then the
+shop bot playing 0.5, 3 and 8 hours on), in Chromium at a 4× CPU slowdown
+and 2× pixel density, 6 seconds a tab:
+
+- The 10-a-second refresh (`renderDynamic`) cost ~12 ms a call at that
+  speed, the same on every tab, because it refreshed every view whichever
+  was open; a third of it was the helper rows' "+X Lumen/s for the next
+  hire" (`thrownGain`, a full recount of the light, nine times).
+- The Light tab fell to ~37 fps: the scene's canvas drawing at 2× pixels.
+
+Fixes:
+- [x] **Each view refreshes only while its tab is open** (the supply strip
+      and helper rows on the Light view, the chain board and coast on the
+      Lighthouses view, the Shore, the Upgrades list). Opening a tab
+      refreshes it at once, as before.
+- [x] **The next hire's real gain is counted only for a hire that can
+      happen now**, and the rows share one reading of the Lumen/s. The
+      refresh reads the Lumen/s and the chain once and passes them on.
+- [x] **Scenes pace themselves** (`scene/canvas.ts`): while the gaps
+      between frames average over 22 ms a scene draws every other frame
+      (30 fps), and tries full speed again every 10 seconds.
+
+| Tab (NG+ 8h save) | CPU busy per 6 s, before → after | Refresh cost, before → after |
+|---|---|---|
+| Light | 1485 → ~1300 ms | 637 → ~500 ms |
+| Upgrades | 869 → ~300 ms | 710 → ~200 ms |
+| Lighthouses | 1379 → ~840 ms | 582 → 223 ms |
+| Shore | 1418 → ~680 ms | 671 → ~215 ms |
+| Rekindle | 909 → ~320 ms | 752 → ~180 ms |
+
+The Light tab's remaining cost is mostly canvas drawing (headless Chromium
+draws in software, so a phone's GPU should do better), which the pacing
+now absorbs. Checked in the browser: every tab still updates on opening.

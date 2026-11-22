@@ -203,14 +203,14 @@ export function productionPerSecond(state: GameState, now?: number): Decimal {
 // review). The rows show what reaches the thrown beam instead.
 
 /** Final Lumen/s per unit of helper output: everything after the helpers themselves. */
-export function thrownFactor(state: GameState, now?: number): Decimal {
+export function thrownFactor(state: GameState, now?: number, rate?: Decimal): Decimal {
   let raw = new Decimal(0);
   for (const def of GENERATORS) raw = raw.add(generatorProduction(state, def));
   if (raw.lte(0)) {
     // Nobody hired yet: the factor a first helper would see.
     return lighthouseMultiplier(state).mul(beamMultiplier(state)).mul(lampMultiplier(state)).mul(tideProductionMultiplier(state, now));
   }
-  return productionPerSecond(state, now).div(raw);
+  return (rate ?? productionPerSecond(state, now)).div(raw);
 }
 
 /** A helper type's share of the final Lumen/s (the rows sum to the header). */
@@ -224,10 +224,11 @@ export function thrownProduction(state: GameState, def: GeneratorDef, now?: numb
  * less than the helpers' own output times today's factor when the chain is
  * short). Never negative: a starved chain still passes a quarter of demand.
  */
-export function thrownGain(state: GameState, def: GeneratorDef, count: number, now?: number): Decimal {
+export function thrownGain(state: GameState, def: GeneratorDef, count: number, now?: number, before?: Decimal): Decimal {
   if (count <= 0) return new Decimal(0);
   const owned = state.generators[def.id] ?? 0;
-  const before = productionPerSecond(state, now);
+  // `before`: today's Lumen/s, when the caller already has it (the helper rows share one).
+  before ??= productionPerSecond(state, now);
   state.generators[def.id] = owned + count;
   const after = productionPerSecond(state, now);
   if (owned === 0) delete state.generators[def.id];

@@ -2821,9 +2821,8 @@ function pulseSupply(): void {
 /** Below this beam efficiency the supply strip warns that the beam is starving. */
 const STARVING_EFFICIENCY = 0.5;
 
-function updateSupplyStrip(now: number): void {
+function updateSupplyStrip(now: number, chain = chainStatus(state, now)): void {
   if (!supplyStrip) return;
-  const chain = chainStatus(state, now);
   supplyStrip.classList.toggle("hidden", !chain.unlocked);
   // Phones: the strip folds to one line (title, efficiency, Fill, Show)
   // while the beam is well fed, so the helpers sit nearer the fold. It
@@ -2951,9 +2950,12 @@ function updateSupplyStrip(now: number): void {
 
 function renderDynamic(): void {
   const nowMs = Date.now();
+  // Read once a refresh and shared below: recounting the light is the costliest thing here.
+  const rateNow = productionPerSecond(state, nowMs);
+  const chainNow = chainStatus(state, nowMs);
   if (hud.lumen) hud.lumen.textContent = fmt(state.lumen);
   if (hud.rate) {
-    const helpers = productionPerSecond(state, nowMs);
+    const helpers = rateNow;
     const flashes = flashRate.rate(nowMs);
     hud.rate.textContent = `${fmt(helpers.add(flashes))}/s`;
     hud.rate.classList.toggle("with-flashes", flashes.gt(0));
@@ -2997,109 +2999,123 @@ function renderDynamic(): void {
   }
 
   // The supply strip under the scene.
-  updateSupplyStrip(nowMs);
+  // Each view refreshes only while it is open; opening a tab refreshes it at once (activateTab).
+  if (activeTab === "light") {
+    updateSupplyStrip(nowMs, chainNow);
+  }
 
   // Lighthouses view: rebuild on structure change, refresh in place after.
-  const key2 = lighthouseStructureKey();
-  if (key2 !== lhStructureKey) {
-    lhStructureKey = key2;
-    rebuildLighthouses();
-  }
-  updateChainView();
-  updateCoastPins();
-
-  // Buy toggle: reflect the persisted setting.
-  for (const btn of toggleBtns) {
-    const raw = btn.dataset.amount;
-    const value: BuyAmount = raw === "max" ? "max" : (Number(raw) as BuyAmount);
-    btn.classList.toggle("active", state.buyAmount === value);
-  }
-
-  const revealUpTo = highestTierOwned() + 1;
-  genRows.forEach((row, i) => row.row.classList.toggle("hidden", i > revealUpTo));
-  const nextHidden = GENERATORS[revealUpTo + 1];
-  genTeaser.classList.toggle("hidden", !nextHidden);
-  if (nextHidden && genTeaserText) {
-    const waiting = generatorLockedBy(state, GENERATORS[revealUpTo].id);
-    genTeaserText.textContent = waiting
-      ? `Relight ${chainLighthouseById(waiting).name} and new helpers will answer the light.`
-      : `Hire ${withArticle(GENERATORS[revealUpTo].name)} and you'll see what else answers the light.`;
-  }
-  const chainNow = chainStatus(state, nowMs);
-  // Once a frame: what reaches the thrown beam per unit of helper output.
-  const thrown = thrownFactor(state, nowMs);
-  for (const row of genRows) {
-    const owned = state.generators[row.def.id] ?? 0;
-    row.ring.style.strokeDashoffset = String(100 - milestoneProgress(owned) * 100);
-    row.row.classList.toggle("owned", owned > 0);
-    const quote = buyQuote(state, row.def, state.buyAmount);
-    row.owned.textContent = owned > 0 ? `× ${owned}` : "";
-    // What reaches the thrown beam (engine.thrownProduction): the rows sum to the header.
-    row.prod.textContent =
-      owned > 0
-        ? `${fmt(generatorProduction(state, row.def).mul(thrown))} Lumen/s`
-        : `${fmt(productionForOwned(state, row.def, 1).mul(thrown))} Lumen/s each`;
-    const gain = quote.count > 0 ? thrownGain(state, row.def, quote.count, nowMs) : new Decimal(0);
-    setTip(row.milestone, milestoneHint(owned));
-    // First Light Only challenge: tiers 4+ are blocked outright.
-    const blockedByChallenge = !canBuyGenerator(state, row.def.id);
-    const waitingOn = generatorLockedBy(state, row.def.id);
-    row.row.classList.toggle("waiting", waitingOn !== null);
-    row.buy.disabled = !quote.affordable || blockedByChallenge;
-    row.buy.classList.toggle("affordable", quote.affordable && !blockedByChallenge);
-    const count = state.buyAmount === "max" ? Math.max(1, quote.count) : state.buyAmount;
-    setTip(
-      row.buy,
-      `Hire ${count} ${row.def.name}${count === 1 ? "" : row.def.name.endsWith("s") ? "" : "s"} for ${fmt(quote.cost)} Lumen` +
-        (gain.gt(0) ? `: +${fmt(gain)} Lumen/s, after the supply chain, the Beam and the lamp.` : ".") +
-        (owned > 0 ? ` You have ${owned}.` : ""),
-    );
-    // The price rides on the button: one line less on every row.
-    row.buy.textContent =
-      state.buyAmount === "max"
-        ? quote.count > 0
-          ? `Buy ×${quote.count} · ${fmt(quote.cost)}`
-          : `Buy · ${fmt(quote.cost)}`
-        : `Buy ×${state.buyAmount} · ${fmt(quote.cost)}`;
-    // What this purchase does to the supply chain. The warning takes the
-    // note's line (one line, always there) so rows never grow or shrink.
-    let warn = "";
-    let warnTip = "";
-    if (chainNow.unlocked && !waitingOn && quote.affordable && quote.productionGain.gt(0)) {
-      const extra = quote.productionGain.mul(lighthouseMultiplier(state));
-      const after = efficiencyAtDemand(state, extra, nowMs);
-      // Only a real drop earns the row's warning line: the supply strip's
-      // status line already says where the chain stands, and a warning on
-      // every row ("63% → 62%") read as noise (design review).
-      if (chainNow.efficiency - after >= ROW_WARN_DROP) {
-        const node = bottleneckAtDemand(state, extra, nowMs);
-        warn = `⚠\uFE0E beam ${pct(chainNow.efficiency)} → ${pct(after)}${node ? ` · feed ${CHAIN_NODES[node].name}` : ""}`;
-        warnTip =
-          `These helpers would add +${fmt(gain)} Lumen/s and ${fmt(extra)}/s of demand on the supply chain. ${node ? `${CHAIN_NODES[node].name} couldn't keep up, ` : ""}so the beam would drop to ${pct(after)} efficiency. Feed it from the supply strip above${stewardActive(state) ? ", or let the Chain Steward catch up" : ""}.`;
-      }
+  // The Lighthouses view.
+  if (activeTab === "lighthouses") {
+    const key2 = lighthouseStructureKey();
+    if (key2 !== lhStructureKey) {
+      lhStructureKey = key2;
+      rebuildLighthouses();
     }
-    row.note.classList.toggle("gen-warn", warn !== "");
-    setTip(row.note, warnTip);
-    if (warn) {
-      row.note.textContent = warn;
-    } else if (waitingOn) {
-      row.note.textContent = `Answers the light of ${chainLighthouseById(waitingOn).name} — relight it to hire`;
-    } else if (blockedByChallenge) {
-      row.note.textContent = "Blocked — First Light Only challenge";
-    } else if (quote.affordable) {
-      row.note.textContent = gain.gt(0) ? `+${fmt(gain)} Lumen/s` : "";
-    } else {
-      const tta = timeToAffordCost(state, quote.cost);
-      row.note.textContent = Number.isFinite(tta) ? affordableIn(tta) : "earn Lumen by flashing";
+    updateChainView();
+    updateCoastPins();
+  }
+
+  // The helper rows (the Light view).
+  if (activeTab === "light") {
+    // Buy toggle: reflect the persisted setting.
+    for (const btn of toggleBtns) {
+      const raw = btn.dataset.amount;
+      const value: BuyAmount = raw === "max" ? "max" : (Number(raw) as BuyAmount);
+      btn.classList.toggle("active", state.buyAmount === value);
+    }
+
+    const revealUpTo = highestTierOwned() + 1;
+    genRows.forEach((row, i) => row.row.classList.toggle("hidden", i > revealUpTo));
+    const nextHidden = GENERATORS[revealUpTo + 1];
+    genTeaser.classList.toggle("hidden", !nextHidden);
+    if (nextHidden && genTeaserText) {
+      const waiting = generatorLockedBy(state, GENERATORS[revealUpTo].id);
+      genTeaserText.textContent = waiting
+        ? `Relight ${chainLighthouseById(waiting).name} and new helpers will answer the light.`
+        : `Hire ${withArticle(GENERATORS[revealUpTo].name)} and you'll see what else answers the light.`;
+    }
+    // Once a frame: what reaches the thrown beam per unit of helper output.
+    const thrown = thrownFactor(state, nowMs, rateNow);
+    for (const row of genRows) {
+      const owned = state.generators[row.def.id] ?? 0;
+      row.ring.style.strokeDashoffset = String(100 - milestoneProgress(owned) * 100);
+      row.row.classList.toggle("owned", owned > 0);
+      const quote = buyQuote(state, row.def, state.buyAmount);
+      row.owned.textContent = owned > 0 ? `× ${owned}` : "";
+      // What reaches the thrown beam (engine.thrownProduction): the rows sum to the header.
+      row.prod.textContent =
+        owned > 0
+          ? `${fmt(generatorProduction(state, row.def).mul(thrown))} Lumen/s`
+          : `${fmt(productionForOwned(state, row.def, 1).mul(thrown))} Lumen/s each`;
+      // The real gain is a full recount of the light, so only for a hire that can happen now
+      // (performance pass: nine of these every refresh were a third of its cost).
+      const gain = quote.affordable && quote.count > 0 ? thrownGain(state, row.def, quote.count, nowMs, rateNow) : new Decimal(0);
+      setTip(row.milestone, milestoneHint(owned));
+      // First Light Only challenge: tiers 4+ are blocked outright.
+      const blockedByChallenge = !canBuyGenerator(state, row.def.id);
+      const waitingOn = generatorLockedBy(state, row.def.id);
+      row.row.classList.toggle("waiting", waitingOn !== null);
+      row.buy.disabled = !quote.affordable || blockedByChallenge;
+      row.buy.classList.toggle("affordable", quote.affordable && !blockedByChallenge);
+      const count = state.buyAmount === "max" ? Math.max(1, quote.count) : state.buyAmount;
+      setTip(
+        row.buy,
+        `Hire ${count} ${row.def.name}${count === 1 ? "" : row.def.name.endsWith("s") ? "" : "s"} for ${fmt(quote.cost)} Lumen` +
+          (gain.gt(0) ? `: +${fmt(gain)} Lumen/s, after the supply chain, the Beam and the lamp.` : ".") +
+          (owned > 0 ? ` You have ${owned}.` : ""),
+      );
+      // The price rides on the button: one line less on every row.
+      row.buy.textContent =
+        state.buyAmount === "max"
+          ? quote.count > 0
+            ? `Buy ×${quote.count} · ${fmt(quote.cost)}`
+            : `Buy · ${fmt(quote.cost)}`
+          : `Buy ×${state.buyAmount} · ${fmt(quote.cost)}`;
+      // What this purchase does to the supply chain. The warning takes the
+      // note's line (one line, always there) so rows never grow or shrink.
+      let warn = "";
+      let warnTip = "";
+      if (chainNow.unlocked && !waitingOn && quote.affordable && quote.productionGain.gt(0)) {
+        const extra = quote.productionGain.mul(lighthouseMultiplier(state));
+        const after = efficiencyAtDemand(state, extra, nowMs);
+        // Only a real drop earns the row's warning line: the supply strip's
+        // status line already says where the chain stands, and a warning on
+        // every row ("63% → 62%") read as noise (design review).
+        if (chainNow.efficiency - after >= ROW_WARN_DROP) {
+          const node = bottleneckAtDemand(state, extra, nowMs);
+          warn = `⚠\uFE0E beam ${pct(chainNow.efficiency)} → ${pct(after)}${node ? ` · feed ${CHAIN_NODES[node].name}` : ""}`;
+          warnTip =
+            `These helpers would add +${fmt(gain)} Lumen/s and ${fmt(extra)}/s of demand on the supply chain. ${node ? `${CHAIN_NODES[node].name} couldn't keep up, ` : ""}so the beam would drop to ${pct(after)} efficiency. Feed it from the supply strip above${stewardActive(state) ? ", or let the Chain Steward catch up" : ""}.`;
+        }
+      }
+      row.note.classList.toggle("gen-warn", warn !== "");
+      setTip(row.note, warnTip);
+      if (warn) {
+        row.note.textContent = warn;
+      } else if (waitingOn) {
+        row.note.textContent = `Answers the light of ${chainLighthouseById(waitingOn).name} — relight it to hire`;
+      } else if (blockedByChallenge) {
+        row.note.textContent = "Blocked — First Light Only challenge";
+      } else if (quote.affordable) {
+        row.note.textContent = gain.gt(0) ? `+${fmt(gain)} Lumen/s` : "";
+      } else {
+        const tta = timeToAffordCost(state, quote.cost);
+        row.note.textContent = Number.isFinite(tta) ? affordableIn(tta) : "earn Lumen by flashing";
+      }
     }
   }
 
   // Upgrades view: rebuild on structure change, refresh affordability in place.
-  const key = upgradesStructureKey();
-  if (key !== upgradeStructureKey) {
-    upgradeStructureKey = key;
-    rebuildUpgrades();
+  // The Upgrades view.
+  if (activeTab === "upgrades") {
+    const key = upgradesStructureKey();
+    if (key !== upgradeStructureKey) {
+      upgradeStructureKey = key;
+      rebuildUpgrades();
+    }
   }
+
   // Automation switches where they matter, once their lighthouse is lit.
   for (const [id, unlocked, key, label] of [
     ["#qm-switch", quartermasterUnlocked, "autoLearn", "The Quartermaster (with Gull Rock) learns any upgrade that costs no more than a quarter of your Lumen, cheapest first."],
@@ -3117,46 +3133,53 @@ function renderDynamic(): void {
     btn.setAttribute("aria-pressed", String(on));
     setTip(btn, `${label} ${on ? "Tap to switch it off." : "Off: tap to switch it back on."}`);
   }
-  // A switched-on Lamp Crew that can't hire says why (automation.lampCrewIdleReason).
-  if (crewNote) {
-    const reason = lampCrewIdleReason(state, nowMs);
-    const text = reason === "chain" ? "waiting on the chain" : reason === "budget" ? "saving up" : "";
-    if (crewNote.textContent !== text) crewNote.textContent = text;
-    setTip(
-      crewNote,
-      reason === "chain"
-        ? "Every helper it could afford would drop the beam below 90% (or below where it is now). Feed the chain, or let the Steward, and the crew gets back to hiring."
-        : reason === "budget"
-          ? "It hires with a tenth of your Lumen, and nothing costs that little yet."
-          : "",
-    );
+  // The Lamp Crew's note sits beside the helper rows.
+  if (activeTab === "light") {
+    // A switched-on Lamp Crew that can't hire says why (automation.lampCrewIdleReason).
+    if (crewNote) {
+      const reason = lampCrewIdleReason(state, nowMs);
+      const text = reason === "chain" ? "waiting on the chain" : reason === "budget" ? "saving up" : "";
+      if (crewNote.textContent !== text) crewNote.textContent = text;
+      setTip(
+        crewNote,
+        reason === "chain"
+          ? "Every helper it could afford would drop the beam below 90% (or below where it is now). Feed the chain, or let the Steward, and the crew gets back to hiring."
+          : reason === "budget"
+            ? "It hires with a tenth of your Lumen, and nothing costs that little yet."
+            : "",
+      );
+    }
   }
-  if (learnAllBtn) {
-    // How many fit, cheapest first (the rows are already sorted by cost).
-    let budget = state.lumen;
-    let n = 0;
+
+  // The Upgrades view's buttons and progress bars.
+  if (activeTab === "upgrades") {
+    if (learnAllBtn) {
+      // How many fit, cheapest first (the rows are already sorted by cost).
+      let budget = state.lumen;
+      let n = 0;
+      for (const row of availableUpgradeRows) {
+        if (budget.lt(row.def.cost)) break;
+        budget = budget.sub(row.def.cost);
+        n++;
+      }
+      learnAllBtn.disabled = n < 2;
+      learnAllBtn.classList.toggle("affordable", n >= 2);
+      learnAllBtn.textContent = n >= 2 ? `Learn all affordable (${n})` : "Learn all affordable";
+    }
     for (const row of availableUpgradeRows) {
-      if (budget.lt(row.def.cost)) break;
-      budget = budget.sub(row.def.cost);
-      n++;
+      const affordable = state.lumen.gte(row.def.cost);
+      row.buy.disabled = !affordable;
+      row.buy.classList.toggle("affordable", affordable);
+      if (affordable) {
+        row.note.textContent = "";
+      } else {
+        const tta = timeToAffordCost(state, new Decimal(row.def.cost));
+        row.note.textContent = Number.isFinite(tta) ? capitalize(affordableIn(tta)) : "";
+      }
     }
-    learnAllBtn.disabled = n < 2;
-    learnAllBtn.classList.toggle("affordable", n >= 2);
-    learnAllBtn.textContent = n >= 2 ? `Learn all affordable (${n})` : "Learn all affordable";
-  }
-  for (const row of availableUpgradeRows) {
-    const affordable = state.lumen.gte(row.def.cost);
-    row.buy.disabled = !affordable;
-    row.buy.classList.toggle("affordable", affordable);
-    if (affordable) {
-      row.note.textContent = "";
-    } else {
-      const tta = timeToAffordCost(state, new Decimal(row.def.cost));
-      row.note.textContent = Number.isFinite(tta) ? capitalize(affordableIn(tta)) : "";
+    for (const row of lockedUpgradeRows) {
+      row.bar.style.width = `${Math.round(unlockProgress(state, row.def) * 100)}%`;
     }
-  }
-  for (const row of lockedUpgradeRows) {
-    row.bar.style.width = `${Math.round(unlockProgress(state, row.def) * 100)}%`;
   }
 
   // Rekindle view
@@ -3312,12 +3335,15 @@ function renderDynamic(): void {
   }
 
   // The Shore: rebuild on structure change, refresh costs/countdowns in place.
-  const sKey = shoreKey();
-  if (sKey !== shoreStructureKey) {
-    shoreStructureKey = sKey;
-    rebuildShore();
+  // The Shore.
+  if (activeTab === "shore") {
+    const sKey = shoreKey();
+    if (sKey !== shoreStructureKey) {
+      shoreStructureKey = sKey;
+      rebuildShore();
+    }
+    updateShoreView(nowMs);
   }
-  updateShoreView(nowMs);
 
   // Challenges: rebuild on active/completed change, refresh progress in place.
   const chKey = challengesStructureKey();
