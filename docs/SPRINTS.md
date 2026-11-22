@@ -1873,4 +1873,17 @@ drifted. Fixed:
 - [x] **Bottles say what they bring**: "brings ~9.43e30 Lumen" (the real
       cache, refreshed in place), not "cache at least 500 Lumen".
 - [x] **Never "affordable in 0s"** under a greyed button: waits round up.
+- [x] **Rekindle in three panes**: The Hearth, Ember Shop (with a dot when
+      "Kindle all under 1%" has something to kindle), Challenges, like the
+      Shore. Kept and Lost fold long name lists behind a count ("Upgrades
+      (70)", "Ember perks (14)"); an opened list stays open while the numbers
+      tick. Kindled perks and fully kindled Kindlings are a strip of chips above
+      the cards still to kindle. On the designer's phone save the room was
+      ~9,000px; the panes are now 1,436, 3,020 and 1,341.
+- [x] **Finished rooms arrive**: with every lesson learned, Upgrades says "All
+      72 lessons learned … The keeper's book is full for this run", hides its
+      empty sections, and folds the 72 chips behind "Show all 72 lessons".
+      With every relic home, a bottle route says what it brings now: "~1.37e31
+      Lumen · half again 46% of the time, now every relic is home" (the relic
+      chance is the chance of the sea's bonus).
 

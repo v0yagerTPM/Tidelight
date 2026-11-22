@@ -244,6 +244,16 @@ function storyLogTitle(message: string): string {
   return dash >= 0 ? rest.slice(0, dash) : rest;
 }
 
+/**
+ * A list of names for Rekindle's Kept and Lost: up to three inline; more fold
+ * behind a count ("Upgrades (70)") that opens to the names. The lists named
+ * ~70 upgrades and 14 perks in full (design review 5).
+ */
+function namedList(label: string, names: string[]): string {
+  if (names.length <= 3) return `${label}: ${names.join(", ")}`;
+  return `<details class="named-list"><summary>${label} (${names.length})</summary>${names.join(", ")}</details>`;
+}
+
 /** A hire that adds less than this share of your light is shown quietly (the Light view). */
 const MINOR_BUY_SHARE = 0.001;
 /** When the tab dots were last worked out (once a second is plenty). */
@@ -447,7 +457,7 @@ ${[
     <section id="view-upgrades" class="view">
       <h2>Upgrades ${infoTip("One-time lessons for the light. Most are forgotten when you Rekindle; the ones marked ♾\uFE0E are keeper knowledge and are kept.", "About upgrades")}</h2>
       <p class="muted"><span id="upgrades-summary"></span></p>
-      <div class="section-head">
+      <div class="section-head" id="upgrades-ready-head">
         <h3 class="section-title">Ready to learn</h3>
         <div class="section-actions">
           <span class="auto-switch hidden" id="qm-switch">
@@ -458,9 +468,9 @@ ${[
         </div>
       </div>
       <div id="upgrades-available" class="lesson-grid"></div>
-      <h3 class="section-title">Not yet discovered</h3>
+      <h3 class="section-title" id="upgrades-locked-title">Not yet discovered</h3>
       <div id="upgrades-locked" class="lesson-grid locked-grid"></div>
-      <h3 class="section-title">Learned</h3>
+      <h3 class="section-title" id="upgrades-learned-title">Learned</h3>
       <div id="upgrades-purchased" class="lesson-shelf"></div>
     </section>
 
@@ -505,7 +515,15 @@ ${[
     </section>
 
     <section id="view-rekindle" class="view">
+      <div class="shore-head">
       <h2>Rekindle ${infoTip("Let the light gutter out and light it again, stronger. Embers are banked from this run's lifetime Lumen: √(lifetime ÷ 5,000). Each Ember you hold adds +2% to all production.", "About Rekindling")}</h2>
+        <div class="buy-toggle shore-panes rk-panes" role="tablist" aria-label="Rekindle">
+          <button class="toggle-btn active" data-rkpane="hearth" role="tab" aria-selected="true">The Hearth</button>
+          <button class="toggle-btn" data-rkpane="shop" role="tab" aria-selected="false">Ember Shop<span class="pane-dot hidden" id="shop-dot"></span></button>
+          <button class="toggle-btn" data-rkpane="trials" role="tab" aria-selected="false">Challenges</button>
+        </div>
+      </div>
+      <div class="shore-pane active" id="rkpane-hearth">
       <div class="card hearth" id="rk-hearth">
         <div class="hearth-top">
           <div class="hearth-art">${HEARTH_ART}<span class="hearth-spark"></span><span class="hearth-spark"></span><span class="hearth-spark"></span></div>
@@ -533,16 +551,21 @@ ${[
         <button id="rk-button" class="danger">Rekindle the Light</button>
         <p class="muted rk-flare" id="rk-flare" aria-live="polite"></p>
       </div>
+      </div>
 
+      <div class="shore-pane" id="rkpane-shop">
       <h3 class="section-title">Ember Shop ${infoTip("Spend held Embers on permanent perks. Every Ember spent lowers your held-Ember production bonus: that's the trade.", "About the Ember Shop")}</h3>
       <div class="shop-head">
         <p class="muted"><span id="shop-held"></span></p>
         <button class="buy" id="kindle-all" disabled>Kindle all under 1%</button>
       </div>
       <div id="ember-shop" class="ember-shop"></div>
+      </div>
 
+      <div class="shore-pane" id="rkpane-trials">
       <h3 class="section-title">Challenges ${infoTip("Opt-in rule-changing runs. Starting one resets your run like a Rekindle, but grants no Embers, and your held Embers rest (no production bonus) until it ends. Reach the goal to bank a permanent reward; the run then continues. Abandoning resets the run with no reward.", "About challenges")}</h3>
       <div id="challenges" class="trial-list"></div>
+      </div>
     </section>
 
     <section id="view-log" class="view">
@@ -787,9 +810,18 @@ function rebuildUpgrades(): void {
     (a, b) => unlockProgress(state, b) - unlockProgress(state, a),
   );
 
+  // Every lesson learned: the room says so, and folds its shelf away. It used
+  // to open on "Ready to learn: nothing" and "Not yet discovered: every
+  // lesson has surfaced" above a wall of 72 chips (design review 5).
+  const finished = available.length === 0 && locked.length === 0 && learned.length > 0;
+  for (const id of ["#upgrades-ready-head", "#upgrades-available", "#upgrades-locked-title", "#upgrades-locked", "#upgrades-learned-title"]) {
+    document.querySelector(id)?.classList.toggle("hidden", finished);
+  }
   if (upgradesSummary) {
     const kept = learned.filter((u) => u.permanent).length;
-    upgradesSummary.textContent = `${learned.length} of ${UPGRADES.length} lessons learned${kept ? ` · ${kept} kept through every Rekindle` : ""}.`;
+    upgradesSummary.textContent = finished
+      ? `All ${UPGRADES.length} lessons learned${kept ? ` · ${kept} kept through every Rekindle` : ""}. The keeper's book is full for this run.`
+      : `${learned.length} of ${UPGRADES.length} lessons learned${kept ? ` · ${kept} kept through every Rekindle` : ""}.`;
   }
 
   for (const def of available) {
@@ -853,13 +885,21 @@ function rebuildUpgrades(): void {
     }
   }
 
-  // Learned: a compact shelf; the effect is in each chip's tooltip.
+  // Learned: a compact shelf; the effect is in each chip's tooltip. Folded away once the book is full.
+  let shelfHost: HTMLElement | null = upgradeContainers.purchased;
+  if (finished && upgradeContainers.purchased) {
+    const book = document.createElement("details");
+    book.className = "lesson-book";
+    book.innerHTML = `<summary>Show all ${learned.length} lessons</summary><div class="lesson-shelf"></div>`;
+    upgradeContainers.purchased.appendChild(book);
+    shelfHost = book.querySelector<HTMLElement>(".lesson-shelf");
+  }
   for (const def of learned) {
     const chip = document.createElement("div");
     chip.className = `lesson-chip${def.permanent ? " permanent" : ""}`;
     chip.title = def.effect;
     chip.innerHTML = `<span class="lesson-chip-icon">${lessonIcon(def)}</span><span class="lesson-chip-name">${def.name}</span><span class="lesson-chip-mark">${def.permanent ? "♾\uFE0E" : "✓"}</span>`;
-    upgradeContainers.purchased?.appendChild(chip);
+    shelfHost?.appendChild(chip);
   }
   if (upgradeContainers.purchased && learned.length === 0) {
     upgradeContainers.purchased.innerHTML = `<p class="muted">No lessons learned yet.</p>`;
@@ -906,14 +946,27 @@ function rebuildEmberShop(): void {
   shopRows = [];
   if (!shopContainer) return;
   shopContainer.innerHTML = "";
+  // A shelf: its kindled perks as a compact strip of chips (one-time perks
+  // you own needn't take a full card each), then the cards still to kindle.
   const shelf = (title: string, note: string): HTMLDivElement => {
     const head = document.createElement("h4");
     head.className = "shelf-title";
     head.innerHTML = `${title} ${infoTip(note, `About ${title}`)}`;
+    const strip = document.createElement("div");
+    strip.className = "kindled-strip hidden";
     const grid = document.createElement("div");
     grid.className = "perk-grid";
-    shopContainer.append(head, grid);
+    shopContainer.append(head, strip, grid);
     return grid;
+  };
+  const place = (grid: HTMLDivElement, card: HTMLElement) => {
+    if (!card.classList.contains("perk-chip")) {
+      grid.appendChild(card);
+      return;
+    }
+    const strip = grid.previousElementSibling as HTMLElement | null;
+    strip?.classList.remove("hidden");
+    strip?.appendChild(card);
   };
   const addRow = (card: HTMLElement, cost: () => number, onBuy: () => boolean) => {
     const buy = card.querySelector<HTMLButtonElement>(".buy");
@@ -931,6 +984,13 @@ function rebuildEmberShop(): void {
 
   const perkCard = (def: EmberPerkDef): HTMLElement => {
     const owned = state.emberPerks.includes(def.id);
+    if (owned) {
+      const chip = document.createElement("span");
+      chip.className = "perk-chip";
+      chip.innerHTML = `<span class="perk-chip-icon">${PERK_ICONS[def.id] ?? UNKNOWN_ICON}</span>${def.name} <span class="learned">✓</span>`;
+      setTip(chip, `${def.name}: ${def.effect} Kindled, permanent.`);
+      return chip;
+    }
     const open = perkOpen(state, def);
     const card = document.createElement("article");
     card.className = `perk${owned ? " owned" : ""}${open ? "" : " shut"}`;
@@ -952,12 +1012,21 @@ function rebuildEmberShop(): void {
   };
 
   const keeper = shelf("Keeper's perks", "One-time perks, kept forever.");
-  for (const def of EMBER_PERKS.filter((p) => p.shelf === "keeper")) keeper.appendChild(perkCard(def));
+  for (const def of EMBER_PERKS.filter((p) => p.shelf === "keeper")) place(keeper, perkCard(def));
 
   const kindlings = shelf("Kindlings", "Repeatable perks: every level adds the same again, and the next costs more. There's always one more to kindle.");
   for (const def of KINDLINGS) {
     const level = kindlingLevel(state, def.id);
     const maxed = def.maxLevel !== undefined && level >= def.maxLevel;
+    if (maxed) {
+      // Fully kindled: a chip in the strip, like an owned perk.
+      const chip = document.createElement("span");
+      chip.className = "perk-chip";
+      chip.innerHTML = `<span class="perk-chip-icon">${KINDLING_ICONS[def.id] ?? UNKNOWN_ICON}</span>${def.name} ${level}/${def.maxLevel} <span class="learned">✓</span>`;
+      setTip(chip, `${def.name}: ${def.perLevel} per level. ${kindlingTotal(def, level)}. Fully kindled.`);
+      place(kindlings, chip);
+      continue;
+    }
     const card = document.createElement("article");
     card.className = `perk kindling${level > 0 ? " owned" : ""}`;
     card.innerHTML = `
@@ -978,10 +1047,10 @@ function rebuildEmberShop(): void {
   }
 
   const late = shelf("Late perks", "One-time perks for a keeper deep in the game, priced ten times apart.");
-  for (const def of EMBER_PERKS.filter((p) => p.shelf === "late")) late.appendChild(perkCard(def));
+  for (const def of EMBER_PERKS.filter((p) => p.shelf === "late")) place(late, perkCard(def));
 
   const far = shelf("The far shelf", "Opens when Siren's Rest burns, for the long crossing to The Hollow Light: a quicker start to every run, and more from the moths on duty.");
-  for (const def of EMBER_PERKS.filter((p) => p.shelf === "far")) far.appendChild(perkCard(def));
+  for (const def of EMBER_PERKS.filter((p) => p.shelf === "far")) place(far, perkCard(def));
 }
 // The automation switches: beside Learn all affordable (the Quartermaster,
 // with Gull Rock) and beside the buy amounts (the Lamp Crew, with
@@ -1092,6 +1161,19 @@ for (const btn of shorePaneButtons) {
       b.classList.toggle("active", on);
       b.setAttribute("aria-selected", String(on));
       document.querySelector(`#pane-${b.dataset.pane}`)?.classList.toggle("active", on);
+    }
+  });
+}
+// Rekindle's three panes: the hearth, the Ember Shop, the challenges. One
+// long column of all three was ~9,000px on a phone (design review 5).
+const rkPaneButtons = [...document.querySelectorAll<HTMLButtonElement>(".rk-panes [data-rkpane]")];
+for (const btn of rkPaneButtons) {
+  btn.addEventListener("click", () => {
+    for (const b of rkPaneButtons) {
+      const on = b === btn;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", String(on));
+      document.querySelector(`#rkpane-${b.dataset.rkpane}`)?.classList.toggle("active", on);
     }
   });
 }
@@ -1238,13 +1320,19 @@ function rebuildShore(): void {
     }
     const routes = document.createElement("div");
     routes.className = "card-list";
+    // Once every relic is home, a route's relic chance is the chance of the sea's bonus instead (expeditions.claimExpedition).
+    const allRelicsHome = state.relics.length >= RELICS.length;
     for (const route of EXPEDITION_ROUTES) {
       const card = document.createElement("div");
       card.className = "card";
       card.innerHTML = `
         <div class="gen-name">${route.name}</div>
         <p class="muted">${route.flavor}</p>
-        <p class="muted">${formatDuration(voyageMs(state, route) / 1000)} · relic chance <span class="route-chance">${Math.round(relicChanceFor(state, route, state.expedition ? riderOf(state) : chosenRider()) * 100)}%</span> · brings <span class="route-cache">~${fmt(expeditionCache(state, route))}</span> Lumen</p>
+        <p class="muted">${formatDuration(voyageMs(state, route) / 1000)} · ${
+          allRelicsHome
+            ? `brings <span class="route-cache">~${fmt(expeditionCache(state, route))}</span> Lumen · half again <span class="route-chance">${Math.round(relicChanceFor(state, route, state.expedition ? riderOf(state) : chosenRider()) * 100)}%</span> of the time, now every relic is home`
+            : `relic chance <span class="route-chance">${Math.round(relicChanceFor(state, route, state.expedition ? riderOf(state) : chosenRider()) * 100)}%</span> · brings <span class="route-cache">~${fmt(expeditionCache(state, route))}</span> Lumen`
+        }</p>
         <button class="buy route-send">Send a bottle — ${fmt(route.cost)} Lumen</button>
         <span class="gen-note muted route-note"></span>`;
       const btn = card.querySelector<HTMLButtonElement>(".route-send");
@@ -3614,27 +3702,27 @@ function renderDynamic(full = true): void {
     const lost: string[] = ["Current Lumen", "All generators", "This run's lifetime"];
     const keptUps = state.upgrades.filter((id) => isPermanentUpgrade(id)).map((id) => upgradeById(id).name);
     const lostUps = state.upgrades.filter((id) => !isPermanentUpgrade(id)).map((id) => upgradeById(id).name);
-    if (keptUps.length > 0) kept.push(`Keeper knowledge: ${keptUps.join(", ")}`);
-    if (lostUps.length > 0) lost.push(`Upgrades: ${lostUps.join(", ")}`);
+    if (keptUps.length > 0) kept.push(namedList("Keeper knowledge", keptUps));
+    if (lostUps.length > 0) lost.push(namedList("Upgrades", lostUps));
     if (state.emberPerks.length > 0) {
       const names = state.emberPerks.map((id) => EMBER_PERKS.find((p) => p.id === id)?.name ?? id);
-      kept.push(`Ember perks: ${names.join(", ")}`);
+      kept.push(namedList("Ember perks", names));
     }
     if (state.moths.length > 0) {
       kept.push(`Lantern moths: all ${state.moths.length} — the collection, duty roster and roost are permanent`);
     }
     if (state.relics.length > 0) {
       const names = state.relics.map((id) => RELICS.find((r) => r.id === id)?.name ?? id);
-      kept.push(`Relics: ${names.join(", ")}`);
+      kept.push(namedList("Relics", names));
     }
     if (state.completedChallenges.length > 0) {
       const names = state.completedChallenges.map((id) => challengeById(id).rewardName);
-      kept.push(`Challenge rewards: ${names.join(", ")}`);
+      kept.push(namedList("Challenge rewards", names));
     }
     const litNames = state.litLighthouses
       .filter((id) => id !== FIRST_LIGHT_ID)
       .map((id) => chainLighthouseById(id).name);
-    if (litNames.length > 0) kept.push(`Lighthouses stay lit: ${litNames.join(", ")} (and First Light, always)`);
+    if (litNames.length > 0) kept.push(namedList("Lighthouses stay lit", [...litNames, "First Light, always"]));
     if (state.ngPlusCount > 0) {
       kept.push(`Legacy of ${state.ngPlusCount} Keeping${state.ngPlusCount === 1 ? "" : "s"}: production ×${legacyMultiplier(state).toFixed(2)}`);
     }
@@ -3644,8 +3732,15 @@ function renderDynamic(full = true): void {
       return board && CHAIN_NODE_IDS.some((n) => board[n] !== start[n]);
     });
     if (boardsProgressed) lost.push("Chain node levels (every board resets to its starting levels)");
-    hud.rkKept.innerHTML = kept.map((item) => `<li>${item}</li>`).join("");
-    hud.rkLost.innerHTML = lost.map((item) => `<li>${item}</li>`).join("");
+    // Rewritten only when it changes, and a list you opened stays open.
+    for (const [ul, items] of [[hud.rkKept, kept], [hud.rkLost, lost]] as const) {
+      const html = items.map((item) => `<li>${item}</li>`).join("");
+      if (ul.dataset.html === html) continue;
+      const open = new Set([...ul.querySelectorAll("details[open] > summary")].map((s) => s.textContent));
+      ul.dataset.html = html;
+      ul.innerHTML = html;
+      for (const s of ul.querySelectorAll("details > summary")) if (open.has(s.textContent)) (s.parentElement as HTMLDetailsElement).open = true;
+    }
   }
   if (rkButton) {
     rkButton.disabled = !canRekindle(state);
@@ -3671,6 +3766,8 @@ function renderDynamic(full = true): void {
     const label = count > 0 ? `Kindle all under 1% (${count})` : "Kindle all under 1%";
     if (kindleAllBtn.textContent !== label) kindleAllBtn.textContent = label;
     kindleAllBtn.disabled = count === 0;
+    // The Ember Shop's pane wears a dot when something there is nearly free.
+    document.querySelector("#shop-dot")?.classList.toggle("hidden", count === 0);
     kindleAllBtn.classList.toggle("affordable", count > 0);
     setTip(
       kindleAllBtn,
