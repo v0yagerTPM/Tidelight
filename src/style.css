@@ -1409,3 +1409,19 @@ body { font-variant-numeric: tabular-nums; }
 .gen.best-buy { border-color: var(--lamp-deep); box-shadow: inset 3px 0 0 var(--lamp); }
 .gen.minor-buy .buy.affordable { background: var(--glass-2); color: var(--lamp-soft); box-shadow: none; border: 1px solid var(--edge-soft); }
 .gen.minor-buy .gen-note { opacity: 0.7; }
+
+/* Rekindle's panes share the Shore's look (.shore-head, .shore-panes). */
+.rk-panes .toggle-btn { white-space: nowrap; }
+@media (max-width: 560px) { .rk-panes { width: 100%; } .rk-panes .toggle-btn { flex: 1 1 auto; padding: 4px 8px; } }
+/* Long lists in Kept and Lost fold behind a count. */
+.named-list summary { cursor: pointer; color: var(--text); }
+.named-list[open] summary { margin-bottom: 2px; }
+/* Kindled perks: a compact strip of chips above the cards still to kindle. */
+.kindled-strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.perk-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border: 1px solid var(--edge-soft); border-radius: 999px; font-size: 0.8rem; background: rgba(10, 20, 36, 0.45); }
+.perk-chip-icon { display: inline-flex; width: 22px; height: 22px; }
+.perk-chip-icon svg { width: 100%; height: 100%; }
+.perk-chip .learned { font-size: 0.75rem; }
+/* The keeper's book, full: its lessons folded away. */
+.lesson-book { width: 100%; }
+.lesson-book summary { cursor: pointer; color: var(--lamp-soft); margin-bottom: 8px; }
