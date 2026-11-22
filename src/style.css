@@ -844,10 +844,28 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 
 /* ── Wing Almanac ─────────────────────────────────── */
 .almanac-scroll { overflow-x: auto; margin-top: 8px; }
-.almanac { border-collapse: collapse; font-size: 0.78rem; min-width: 560px; width: 100%; }
-.almanac th { font-weight: 500; color: var(--muted); padding: 4px 6px; text-align: center; white-space: nowrap; }
+.almanac { border-collapse: collapse; font-size: 0.78rem; width: 100%; table-layout: fixed; }
+.almanac thead th:first-child, .almanac tbody th { width: 6.2rem; }
+.almanac th { font-weight: 500; color: var(--muted); padding: 4px 2px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .almanac tbody th { text-align: left; color: var(--lamp-soft); font-family: var(--display); font-size: 0.92rem; }
-.almanac td { text-align: center; padding: 4px; border: 1px solid var(--edge-soft); }
+.almanac td { text-align: center; padding: 0; border: 1px solid var(--edge-soft); }
+.almanac .th-short { display: none; }
+/* Every page is a button: tap it to see how it fills (almanacRoutes). */
+.almanac-cell { display: block; width: 100%; min-height: 30px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.almanac-cell:hover, .almanac-cell:focus-visible { background: rgba(255, 214, 140, 0.12); outline: none; }
+.almanac-cell.selected { box-shadow: inset 0 0 0 2px var(--lamp); }
+.almanac-route { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--edge-soft); border-radius: 10px; background: rgba(10, 20, 36, 0.45); font-size: 0.84rem; min-height: 3.2em; }
+.almanac-route p { margin: 2px 0; }
+.almanac-route ul { margin: 4px 0 0; padding-left: 1.1em; display: grid; gap: 3px; }
+.route-title { font-family: var(--display); color: var(--lamp-soft); font-size: 0.98rem; }
+@media (max-width: 600px) {
+  .almanac { font-size: 0.7rem; }
+  .almanac .th-long { display: none; }
+  .almanac .th-short { display: inline; }
+  .almanac thead th:first-child, .almanac tbody th { width: 4.6rem; }
+  .almanac tbody th { font-size: 0.8rem; }
+  .almanac-cell { min-height: 28px; }
+}
 .almanac td.almanac-has { background: rgba(255, 196, 99, 0.12); }
 .almanac td.almanac-missing { color: var(--edge); }
 .almanac-rewards { list-style: none; padding: 0; margin: 10px 0 0; font-size: 0.86rem; display: grid; gap: 4px; }
@@ -1268,25 +1286,16 @@ body { font-variant-numeric: tabular-nums; }
 #generators .gen-buy .buy { width: 100%; }
 #generators .gen-note { min-height: 1.25em; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #generators .gen-note.gen-warn { color: var(--coral); cursor: help; }
-.roost-actions button.buy { min-width: 11.5rem; }
-.roost-actions button.almanac-open { min-width: 0; }
 @media (max-width: 560px) {
   #generators .gen-buy { width: auto; }
   #generators .gen-buy .buy { width: auto; flex: 1 1 auto; }
   #generators .gen-note { flex: 1 1 100%; }
-  .roost-actions { justify-content: stretch; }
-  .roost-actions button.buy { min-width: 0; flex: 1 1 45%; }
 }
 /* Chain node cards: the "→ Level 47 · +2.41K/s support" note may wrap; keep room for two lines. */
 .node .gen-note { min-height: 2.6em; line-height: 1.3; }
 .node .node-detail { min-height: 2.6em; }
 /* The "⚠ BOTTLENECK" flag moves between nodes as the chain is fed: every card keeps its line. */
 .node .node-flag { min-height: 2.6em; line-height: 1.3; }
-/* The roost's stats keep a readable width beside its buttons. */
-.roost-bar { grid-template-columns: minmax(12rem, 1fr) auto; }
-.roost-actions { flex-wrap: nowrap; }
-.roost-actions button.buy { min-width: 9.5rem; }
-@media (max-width: 760px) { .roost-bar { grid-template-columns: 1fr; } .roost-actions { flex-wrap: wrap; } }
 
 /* ── The Crossing (The Hollow Light's card) ────────── */
 .crossing { margin: 10px 0 0; padding: 10px 12px; border: 1px solid var(--edge-soft); border-radius: 10px; background: rgba(10, 20, 36, 0.45); }
@@ -1363,12 +1372,23 @@ body { font-variant-numeric: tabular-nums; }
 /* A cocoon's wait for a Stormfront (moths.tendCocoons). */
 .storm-wait { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--muted); margin-top: 4px; cursor: pointer; }
 .storm-wait input { accent-color: var(--lamp); }
-/* Six roost buttons since Release spares and Let spares go: the actions take
-   the wider column and wrap inside it instead of running off the card. */
+/* The roost bar: two groups of buttons, lures and the Almanac, then the
+   roost itself, with "Let spares go" a small switch beneath (it is a
+   setting, not an action). Six peer buttons had grown there (design review). */
 .roost-bar { grid-template-columns: minmax(0, 1fr); }
-.roost-actions { justify-content: flex-start; min-width: 0; flex-wrap: wrap; }
-.roost-actions button.buy { flex: 0 0 auto; }
-.roost-actions button.moth-spares, .roost-actions button.moth-autospare { min-width: 0; }
-@media (max-width: 560px) {
-  .roost-actions button.buy { flex: 1 1 45%; }
+.roost-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.roost-group { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.roost-actions button.buy { flex: 0 0 auto; min-width: 0; }
+.auto-spare { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); cursor: pointer; width: fit-content; }
+.auto-spare input { accent-color: var(--lamp); }
+/* The roster's wing groups. */
+.roster-group { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; margin: 4px 2px 0; font-family: var(--display); color: var(--lamp-soft); font-size: 0.92rem; }
+.roster-group .muted { font-family: var(--body); font-size: 0.74rem; }
+@media (max-width: 760px) {
+  .roost-actions { align-items: stretch; }
+  .roost-group button.buy { flex: 1 1 auto; white-space: nowrap; }
 }
+
+/* The suggested pair for an empty nest (breedingOdds.suggestPair). */
+.breed-suggest { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.8rem; }
+.breed-suggest .buy { flex: 0 0 auto; min-height: 30px; padding: 2px 10px; font-size: 0.8rem; }

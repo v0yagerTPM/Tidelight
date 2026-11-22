@@ -107,7 +107,8 @@ import { guidePageAlone, guidePageUnnumbered, tutorialPages } from "./ui/tutoria
 import { infoTip, initTips, setTip, tipAttr } from "./ui/tips";
 import { FILL_BEAM_SHARE, bottleneckAtDemand, efficiencyAtDemand, feedNode, feedQuote, fillChain, stewardActive, stewardPurseCapSeconds, stewardUnlocked, tendChain } from "./game/supply";
 import { affordableIn, formatDuration, formatNumber, withArticle } from "./game/format";
-import { pairForecast } from "./game/breedingOdds";
+import { pairForecast, suggestPair } from "./game/breedingOdds";
+import { pageRoute } from "./game/almanacRoutes";
 import {
   attractMoth,
   dutyUpgrade,
@@ -1082,6 +1083,8 @@ const relicShelf = document.querySelector<HTMLDivElement>("#relic-shelf");
 let shoreStructureKey: string | null = null;
 let breedParentA = "";
 let breedParentB = "";
+/** The keeper chose the pair by hand; until then (and after each cocoon) the empty nest offers the suggested pair. */
+let breedChosen = false;
 /** The moth chosen to ride the next bottle ("" = none). */
 let bottleRider = "";
 
@@ -1296,16 +1299,20 @@ function buildRoostBar(host: HTMLElement): void {
       <span class="muted moth-roost-line"></span>
     </div>
     <div class="roost-actions">
-      <button class="buy moth-attract">Attract</button>
-      <button class="buy moth-scented">Scented lure</button>
-      <button class="buy moth-roost">Expand</button>
-      <button class="buy almanac-open">${GLYPHS.book} Almanac ${state.almanac.length}/${ALMANAC_SIZE}</button>
-      <button class="buy moth-spares hidden">Release spares</button>
-      <button class="buy moth-autospare" aria-pressed="false">Let spares go: Off</button>
-      <button class="buy moth-bestduty hidden">Brightest on duty</button>
+      <div class="roost-group" role="group" aria-label="Lures and the Almanac">
+        <button class="buy moth-attract">Attract</button>
+        <button class="buy moth-scented">Scented lure</button>
+        <button class="buy almanac-open">${GLYPHS.book} Almanac ${state.almanac.length}/${ALMANAC_SIZE}</button>
+      </div>
+      <div class="roost-group" role="group" aria-label="The roost">
+        <button class="buy moth-roost">Expand</button>
+        <button class="buy moth-spares">Release spares</button>
+        <button class="buy moth-bestduty hidden">Brightest on duty</button>
+      </div>
     </div>
     <div class="gen-note muted moth-attract-note"></div>
     <div class="gen-note moth-duty-note hidden"></div>
+    <label class="auto-spare"><input type="checkbox" class="moth-autospare"> Let spares go as they arrive</label>
     <span class="moth-roost-note hidden"></span>`;
   shoreRefs.attractBtn = bar.querySelector(".moth-attract");
   shoreRefs.attractNote = bar.querySelector(".moth-attract-note");
@@ -1341,18 +1348,13 @@ function buildRoostBar(host: HTMLElement): void {
     });
   }
   // Let spares go on arrival (state.autoReleaseSpares).
-  const auto = bar.querySelector<HTMLButtonElement>(".moth-autospare");
+  // A setting, not an action: a small switch under the buttons.
+  const auto = bar.querySelector<HTMLInputElement>(".moth-autospare");
   if (auto) {
-    const show = () => {
-      auto.textContent = `Let spares go: ${state.autoReleaseSpares ? "On" : "Off"}`;
-      auto.setAttribute("aria-pressed", String(state.autoReleaseSpares));
-      auto.classList.toggle("active", state.autoReleaseSpares);
-    };
-    show();
-    setTip(auto, "On: a lured moth that fills no new Almanac page and isn't brighter than your best of its wings flies straight back out, leaving its Wing Scales. Your roost keeps room for the moths that matter.");
-    auto.addEventListener("click", () => {
-      state.autoReleaseSpares = !state.autoReleaseSpares;
-      show();
+    auto.checked = state.autoReleaseSpares;
+    setTip(auto.parentElement as HTMLElement, "Ticked: a lured moth that fills no new Almanac page and isn't brighter than your best of its wings flies straight back out, leaving its Wing Scales. Your roost keeps room for the moths that matter.");
+    auto.addEventListener("change", () => {
+      state.autoReleaseSpares = auto.checked;
       saveState(state);
     });
   }
@@ -1378,8 +1380,21 @@ function buildRoster(host: HTMLElement): void {
   if (state.moths.length === 0) {
     roster.innerHTML = `<p class="muted">No moths yet. Attract one — the first always remembers the way.</p>`;
   }
-  for (const moth of state.moths) {
+  // Grouped by wings, rarest first (Hollow, Tidelit, Prismatic … Plain), brightest first within:
+  // twenty tiles in arrival order made "my Lamp-loyal Starlit" a scan of everything (design review).
+  const rank = (m: Moth) => ALMANAC_PATTERNS.length - ALMANAC_PATTERNS.indexOf(m.pattern);
+  const sorted = [...state.moths].sort((a, b) => rank(a) - rank(b) || b.glow - a.glow);
+  let group = "";
+  for (const moth of sorted) {
     const pattern = patternById(moth.pattern);
+    if (moth.pattern !== group) {
+      group = moth.pattern;
+      const count = sorted.filter((m) => m.pattern === group).length;
+      const head = document.createElement("div");
+      head.className = "roster-group";
+      head.innerHTML = `${wingDot(pattern.swatch, "")} ${pattern.name} <span class="muted">· ${count} · glow to ${pattern.glowCeiling}</span>`;
+      roster.appendChild(head);
+    }
     const post = postOf(state, moth.id);
     const status = onDuty.has(moth.id)
       ? `<span class="tile-status duty" title="On duty">on duty</span>`
@@ -1508,10 +1523,25 @@ function buildBreeding(host: HTMLElement): void {
   if (free && home.length >= 2 && !room) {
     html += `<p class="muted side-line">A cocoon keeps a place in the roost for its hatchling, and the roost has none to spare: release a moth or expand the roost.</p>`;
   } else if (free && home.length >= 2) {
+    // The pair likeliest to fill a page you're missing (breedingOdds.suggestPair), chosen for you until you choose.
+    const suggestion = suggestPair(state, home);
+    if (suggestion && (!breedChosen || !home.some((m) => m.id === breedParentA) || !home.some((m) => m.id === breedParentB))) {
+      breedParentA = suggestion.a.id;
+      breedParentB = suggestion.b.id;
+      breedChosen = false;
+    }
     if (!home.some((m) => m.id === breedParentA)) breedParentA = home[0].id;
     if (!home.some((m) => m.id === breedParentB) || breedParentB === breedParentA) {
       breedParentB = home.find((m) => m.id !== breedParentA)?.id ?? "";
     }
+    const why = !suggestion
+      ? ""
+      : suggestion.newPage > 0
+        ? `${pct(suggestion.newPage)} a page you're missing${suggestion.storm ? " (it will wait to open in a Stormfront)" : ""}`
+        : "no pair can fill a missing page; this one breeds toward the brightest, rarest wings";
+    html += suggestion
+      ? `<div class="breed-suggest" data-a="${suggestion.a.id}" data-b="${suggestion.b.id}" data-storm="${suggestion.storm ? "1" : "0"}"><span class="muted"><span class="fc-star">✦</span> Suggested: <strong>${suggestion.a.name} × ${suggestion.b.name}</strong>, ${why}.</span><button type="button" class="buy breed-best hidden">Best pair</button></div>`
+      : "";
     const options = home.map((m) => `<option value="${m.id}">${m.name} (${patternById(m.pattern).name}, ${m.glow}${traitList(m)})</option>`).join("");
     html += `
       <div class="nest nest-new">
@@ -1574,17 +1604,39 @@ function buildBreeding(host: HTMLElement): void {
     if (timeNote) timeNote.textContent = a && b && a !== b ? formatDuration(cocoonDurationMs(a, b, state) / 1000) : "pick two moths";
     if (forecast) forecast.innerHTML = a && b && a !== b ? forecastHtml(a, b, false) : "";
   };
+  // "Best pair" puts the suggestion back after you've picked another.
+  const suggest = breed.querySelector<HTMLElement>(".breed-suggest");
+  const bestBtn = breed.querySelector<HTMLButtonElement>(".breed-best");
+  const showBest = () => {
+    const same = suggest && [breedParentA, breedParentB].sort().join() === [suggest.dataset.a, suggest.dataset.b].sort().join();
+    bestBtn?.classList.toggle("hidden", !!same);
+  };
   if (selA) {
     selA.value = breedParentA;
-    selA.addEventListener("change", () => { breedParentA = selA.value; showTime(); });
+    selA.addEventListener("change", () => { breedParentA = selA.value; breedChosen = true; showTime(); showBest(); });
   }
   if (selB) {
     selB.value = breedParentB;
-    selB.addEventListener("change", () => { breedParentB = selB.value; showTime(); });
+    selB.addEventListener("change", () => { breedParentB = selB.value; breedChosen = true; showTime(); showBest(); });
   }
+  bestBtn?.addEventListener("click", () => {
+    if (!suggest?.dataset.a || !suggest.dataset.b) return;
+    breedParentA = suggest.dataset.a;
+    breedParentB = suggest.dataset.b;
+    breedChosen = false;
+    if (selA) selA.value = breedParentA;
+    if (selB) selB.value = breedParentB;
+    showTime();
+    showBest();
+  });
   if (timeNote) showTime();
+  showBest();
   breed.querySelector(".breed-start")?.addEventListener("click", () => {
     if (startBreeding(state, breedParentA, breedParentB)) {
+      // The suggested pair does best opening in a Stormfront: set it to wait for one (untick to hatch sooner).
+      const pair = [breedParentA, breedParentB].sort().join();
+      if (suggest?.dataset.storm === "1" && pair === [suggest.dataset.a, suggest.dataset.b].sort().join()) setStormWait(state, state.cocoons.length - 1, true);
+      breedChosen = false; // the next empty nest offers its own suggestion
       sound.buy();
       mothChanged();
     }
@@ -1640,7 +1692,7 @@ function breedingPages(): SplashPage[] {
       <ul>
         <li>Two moths at home spin a <strong>cocoon</strong>; both parents stay, and can stand duty while they spin. The cocoon keeps a place in the roost for its hatchling, so it can always hatch: lures can't fill that place. It takes 30 minutes for Plain parents up to 75 for Prismatic (84 for Hollow), less with a <strong>Fertile</strong> parent, and keeps going while you're away.</li>
         <li>The roost has <strong>${BASE_NESTS} nests</strong>, so ${BASE_NESTS} cocoons can spin at once, each from its own pair. A bigger roost makes room for more: one more nest every ${EXPANSIONS_PER_NEST} roost expansions, up to ${MAX_NESTS}, and the Almanac's A Fifth Nest adds one more.</li>
-        <li>The child usually takes the <strong>rarer</strong> parent's wings, sometimes shifting a tier. Prismatic is unstable: two Prismatics give a Prismatic 3 times in 5. Under each pair, the garden shows the odds of its wings, and a <strong>★</strong> for every Almanac page it could fill that you're missing.</li>
+        <li>The child usually takes the <strong>rarer</strong> parent's wings, sometimes shifting a tier. Prismatic is unstable: two Prismatics give a Prismatic 3 times in 5. Under each pair, the garden shows the odds of its wings, and a <strong>★</strong> for every Almanac page it could fill that you're missing. An empty nest starts with the <strong>suggested pair</strong>: the one likeliest to fill a page you're missing (or, with none left, the brightest, rarest wings); <strong>Best pair</strong> brings it back after you choose another. Tap any page in the Almanac to see how to fill it.</li>
         <li>Its <strong>glow</strong> is about the parents' average (now and then a bright jump), never above its own pattern's ceiling.</li>
         <li>It may inherit a parent's <strong>trait</strong> (half the time) or, rarely, a new one.</li>
         <li>A Starlit or Prismatic cocoon that opens in a <strong>Stormfront</strong> is sometimes Tidelit (5%). Tick <strong>Open in the next Stormfront</strong> on a cocoon and it waits for one by itself, even while you're away.</li>
@@ -1724,15 +1776,37 @@ function celebrateHatches(list: AwayHatch[]): void {
   }
 }
 
+/** Short column names, so the whole Almanac fits a phone. */
+const ALMANAC_SHORT: Record<string, string> = { none: "None", "lamp-loyal": "Lamp", "night-flier": "Night", "chain-tender": "Chain", seeker: "Seek", fertile: "Fert", tidewise: "Tide" };
+
+/** What the Almanac says about a page you tap: who holds it, or how to fill it (almanacRoutes.pageRoute). */
+function almanacRouteHtml(key: string): string {
+  const r = pageRoute(state, key);
+  const title = `<div class="route-title">${wingDot(patternById(key.split(":")[0]).swatch, "")} ${pageName(key)}${r.filled ? ` <span class="perm">filled</span>` : ""}</div>`;
+  if (r.filled) {
+    const held = r.holders.length > 0 ? `You hold ${r.holders.map((m) => m.name).join(", ")}.` : "No moth of it roosts with you now; the page stays filled.";
+    return `${title}<p>${held}</p>`;
+  }
+  const pair = r.bestPair
+    ? `<li><strong>Your best pair now:</strong> ${r.bestPair.a.name} × ${r.bestPair.b.name}, ${pct(r.bestPair.p)} a cocoon${r.bestPair.storm ? " if it opens in a Stormfront" : ""}.</li>`
+    : "";
+  const spinning = r.spinning.map((s) => `<li><strong>Spinning now:</strong> ${s.a.name} × ${s.b.name}, ${pct(s.p)}.</li>`).join("");
+  return `${title}<ul>${r.ways.map((w) => `<li>${w}</li>`).join("")}${spinning}${pair}</ul>`;
+}
+
 function openAlmanac(): void {
   const columns = [null, ...MOTH_TRAITS];
-  const head = columns.map((t) => `<th title="${t ? t.effect : "Moths without a trait"}">${t ? t.name : "No trait"}</th>`).join("");
+  const head = columns
+    .map((t) => `<th title="${t ? `${t.name}: ${t.effect}` : "Moths without a trait"}"><span class="th-long">${t ? t.name : "No trait"}</span><span class="th-short" aria-hidden="true">${ALMANAC_SHORT[t?.id ?? "none"]}</span></th>`)
+    .join("");
   const body = ALMANAC_PATTERNS.map((pid) => {
     const p = patternById(pid);
     const cells = columns
       .map((t) => {
         const has = almanacHas(state, pid, t?.id);
-        return `<td class="${has ? "almanac-has" : "almanac-missing"}" title="${p.name}, ${t ? t.name : "no trait"}${has ? "" : " — not yet"}">${has ? wingDot(p.swatch, p.name) : "·"}</td>`;
+        const key = `${pid}:${t?.id ?? "none"}`;
+        const label = `${p.name}, ${t ? t.name : "no trait"}${has ? "" : ", not yet: how to fill it"}`;
+        return `<td class="${has ? "almanac-has" : "almanac-missing"}"><button type="button" class="almanac-cell" data-almanac-key="${key}" aria-label="${label}" title="${label}">${has ? wingDot(p.swatch, p.name) : "·"}</button></td>`;
       })
       .join("");
     return `<tr><th scope="row">${p.name}</th>${cells}</tr>`;
@@ -1748,6 +1822,7 @@ function openAlmanac(): void {
       html: `
         <p>A page for every wing and trait. A page fills the first time you hold such a moth, and stays filled. Release moths for Wing Scales: ${SCENTED_LURE_SCALES} buy a scented lure, which always brings a moth with a trait.</p>
         <div class="almanac-scroll"><table class="almanac"><thead><tr><th></th>${head}</tr></thead><tbody>${body}</tbody></table></div>
+        <div class="almanac-route" aria-live="polite"><p class="muted">Tap a page to see how to fill it, with the moths you hold.</p></div>
         <ul class="almanac-rewards">${rewards}</ul>
         <p class="muted">Hollow wings come only after the ending, from two glow-100 Prismatics (2% a cocoon), and carry up to two of their parents' traits: a Hollow page with a trait needs a parent with it, and Hollow with no trait needs two parents with no trait at all. Tidelit wings come from Starlit or Prismatic cocoons that open in a Stormfront.</p>`,
     }],
@@ -1808,7 +1883,8 @@ function updateShoreView(now: number): void {
     const next = lures.nextInMs === null ? "the lure bank is full" : `next lure in ${formatDuration(lures.nextInMs / 1000)}`;
     if (full) {
       const kept = keptPlaces(state);
-      shoreRefs.attractNote.textContent = `the roost is full${kept > 0 ? ` (${kept} place${kept === 1 ? " is" : "s are"} kept for hatchlings)` : ""} — expand it or release a moth · ${next}`;
+      const why = spareMoths(state).length === 0 ? " No spares: every moth is working, spinning, or the best of its wings or a page." : "";
+      shoreRefs.attractNote.textContent = `the roost is full${kept > 0 ? ` (${kept} place${kept === 1 ? " is" : "s are"} kept for hatchlings)` : ""} — expand it or release a moth · ${next}.${why}`;
     } else if (!ready) {
       shoreRefs.attractNote.textContent = `${next}, even while you're away${lures.rushes > 0 ? " · each rush triples the next until a lure regrows" : ""}`;
     } else {
@@ -1842,7 +1918,7 @@ function updateShoreView(now: number): void {
   }
   if (shoreRefs.sparesBtn) {
     const n = spareMoths(state).length;
-    shoreRefs.sparesBtn.classList.toggle("hidden", n === 0);
+    shoreRefs.sparesBtn.disabled = n === 0;
     // Leave the two-step confirm's own text alone while it is armed.
     const label = `Release spares (${n})`;
     if (!shoreRefs.sparesBtn.textContent?.endsWith("Tap again") && shoreRefs.sparesBtn.textContent !== label) shoreRefs.sparesBtn.textContent = label;
@@ -2784,6 +2860,17 @@ function showAwayCard(r: AwayReport): void {
     { kind: "away", finishLabel: "Back to the light" },
   );
 }
+// The Almanac's pages: tap one to see how to fill it.
+document.addEventListener("click", (e) => {
+  const cell = (e.target as Element | null)?.closest<HTMLElement>("[data-almanac-key]");
+  const key = cell?.dataset.almanacKey;
+  if (!cell || !key) return;
+  const route = cell.closest(".splash")?.querySelector<HTMLElement>(".almanac-route");
+  if (!route) return;
+  cell.closest("table")?.querySelectorAll(".almanac-cell.selected").forEach((c) => c.classList.remove("selected"));
+  cell.classList.add("selected");
+  route.innerHTML = almanacRouteHtml(key);
+});
 // The card's "Go to the Shore" closes it and opens the Shore tab.
 document.addEventListener("click", (e) => {
   const go = (e.target as Element | null)?.closest<HTMLElement>("[data-away-go]");

@@ -1829,3 +1829,27 @@ included, posts left alone), kept places (a full roost can't start a
 cocoon; lures can't take the place; a storm-waiting cocoon always opens), and
 the away card's storm hatches.
 
+Then the rest of the review, and a request:
+
+- [x] **The Almanac is a map** (`src/game/almanacRoutes.ts`): every page is a
+      button. A filled page names the moths that hold it; a missing one says
+      how to fill it with what you hold: the lure and scented-lure odds, a
+      traitless moth of that pattern to send on the Deep Glass Crossing, the
+      cocoons already spinning that could fill it, and your best pair now
+      (exact odds). Tidelit and Hollow pages explain the storm and the
+      glow-100 Prismatics. On a phone the whole grid fits (short trait names).
+- [x] **The roster is grouped by wings**, rarest first (Hollow, Tidelit,
+      Prismatic … Plain), brightest first within, under small headers with
+      the count and the glow ceiling.
+- [x] **The roost bar in two rows**: lures and the Almanac, then the roost
+      (Expand, Release spares, Brightest on duty). "Let spares go" is a small
+      switch beneath. Release spares stays (greyed at none), and a full roost
+      with no spares says why.
+- [x] **The suggested pair** (`breedingOdds.suggestPair`, asked for by the
+      designer): an empty nest starts with the pair likeliest to fill a page
+      you're missing; with none left, the pair breeding toward the rarest,
+      brightest wings. "Best pair" brings it back after you choose another.
+      When the pair does best opening in a Stormfront, its cocoon is set to
+      wait for one (untick to hatch sooner). Tests: the suggestion, the
+      storm, the fallback, and the page routes.
+
