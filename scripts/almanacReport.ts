@@ -119,7 +119,7 @@ write(
 );
 
 // Days to each Almanac reward (6, 12, 24, 36, 49 pages) and to the full book.
-const REWARDS: Record<number, string> = { 6: "A Deeper Bank", 12: "A Fourth Wing", 24: "Warm Silk", 36: "Sweet Oil", 49: "Every Living Wing", 56: "The Hollow Pages" };
+const REWARDS: Record<number, string> = { 6: "A Deeper Bank", 12: "A Fourth Wing", 24: "Warm Silk", 36: "Sweet Oil", 42: "A Fifth Nest", 49: "Every Living Wing", 56: "The Hollow Pages" };
 write(
   "milestones",
   summaries.flatMap((s) =>
@@ -150,3 +150,37 @@ write(
     .flatMap((b: { a: string; child: Record<string, number> }) => Object.entries(b.child).map(([child, p]) => ({ parents: `${b.a} × ${b.a}`, child, p: round(p, 4) }))),
   oddsMeta,
 );
+
+// Before and after a change: BEFORE=<dir of an earlier run's summaries>.
+if (process.env.BEFORE) {
+  const before = new Map(
+    readdirSync(process.env.BEFORE)
+      .filter((f) => f.endsWith(".json") && f !== "odds.json")
+      .map((f) => JSON.parse(readFileSync(`${process.env.BEFORE}/${f}`, "utf8")) as Summary)
+      .map((s) => [s.scenario.id, s] as const),
+  );
+  write(
+    "comparison",
+    summaries
+      .filter((s) => before.has(s.scenario.id))
+      .map((s) => {
+        const b = before.get(s.scenario.id)!;
+        return {
+          scenario: s.scenario.id,
+          before_median: round(b.days.median, 1),
+          before_p10: round(b.days.p10, 1),
+          before_p90: round(b.days.p90, 1),
+          before_finished: b.completed,
+          before_runs: b.runs,
+          after_median: round(s.days.median, 1),
+          after_p10: round(s.days.p10, 1),
+          after_p90: round(s.days.p90, 1),
+          after_finished: s.completed,
+          after_runs: s.runs,
+          before_release_taps: round(b.perRun.releaseActions ?? b.perRun.releases, 0),
+          after_release_taps: round(s.perRun.releaseActions ?? s.perRun.releases, 0),
+        };
+      }),
+    simMeta,
+  );
+}

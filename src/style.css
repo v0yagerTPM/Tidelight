@@ -1317,3 +1317,12 @@ body { font-variant-numeric: tabular-nums; }
 /* A cocoon's wait for a Stormfront (moths.tendCocoons). */
 .storm-wait { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--muted); margin-top: 4px; cursor: pointer; }
 .storm-wait input { accent-color: var(--lamp); }
+/* Six roost buttons since Release spares and Let spares go: the actions take
+   the wider column and wrap inside it instead of running off the card. */
+.roost-bar { grid-template-columns: minmax(0, 1fr); }
+.roost-actions { justify-content: flex-start; min-width: 0; flex-wrap: wrap; }
+.roost-actions button.buy { flex: 0 0 auto; }
+.roost-actions button.moth-spares, .roost-actions button.moth-autospare { min-width: 0; }
+@media (max-width: 560px) {
+  .roost-actions button.buy { flex: 1 1 45%; }
+}

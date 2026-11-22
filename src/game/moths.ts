@@ -447,10 +447,17 @@ export const EXPANSIONS_PER_NEST = 3;
 /** …up to this many. */
 export const MAX_NESTS = 4;
 
-/** How many cocoons can spin at once (A Fifth Nest adds one past MAX_NESTS). */
+/**
+ * How many cocoons can spin at once (A Fifth Nest adds one past MAX_NESTS),
+ * but never so many that their parents fill the roost: a cocoon needs room
+ * to hatch, and a cocoon's parents can't be released, so one moth always
+ * stays free. (A 6-moth roost with A Fifth Nest could put all six in three
+ * cocoons, and then nothing could ever hatch: the Almanac analysis found it.)
+ */
 export function nestCount(state: GameState): number {
   const fromRoost = Math.min(MAX_NESTS, BASE_NESTS + Math.floor(state.roostExpansions / EXPANSIONS_PER_NEST));
-  return fromRoost + (hasAlmanacReward(state, "fifth-nest") ? 1 : 0);
+  const nests = fromRoost + (hasAlmanacReward(state, "fifth-nest") ? 1 : 0);
+  return Math.min(nests, Math.floor((mothCapacity(state) - 1) / 2));
 }
 
 /** Roost expansions until the next nest, or null at the most a roost can give. */

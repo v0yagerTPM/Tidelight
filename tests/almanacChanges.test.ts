@@ -145,3 +145,17 @@ describe("letting spares go on arrival", () => {
     expect(off.moths).toContain(attractMoth(off, mulberry32(9), 1));
   });
 });
+
+describe("nests never fill the roost", () => {
+  it("a 6-moth roost keeps two nests even with A Fifth Nest, so one moth is always free to make room", () => {
+    const state = roost(Array.from({ length: 6 }, (_, i) => m(`m${i}`, "plain", 10)));
+    state.roostExpansions = 0;
+    state.almanac = Array.from({ length: 42 }, (_, i) => `k${i}`);
+    expect(nestCount(state)).toBe(2);
+    expect(startBreeding(state, "m0", "m1", 0)).toBe(true);
+    expect(startBreeding(state, "m2", "m3", 0)).toBe(true);
+    expect(startBreeding(state, "m4", "m5", 0)).toBe(false);
+    state.roostExpansions = 1; // 8 moths: room for a third
+    expect(nestCount(state)).toBe(3);
+  });
+});
