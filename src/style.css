@@ -1425,3 +1425,23 @@ body { font-variant-numeric: tabular-nums; }
 /* The keeper's book, full: its lessons folded away. */
 .lesson-book { width: 100%; }
 .lesson-book summary { cursor: pointer; color: var(--lamp-soft); margin-bottom: 8px; }
+
+/* When a feed or a lesson beats every hire (bestBuy.otherBuys): one line, its own button, the page's one gold edge. */
+.buy-advice { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; padding: 8px 12px; border: 1px solid var(--lamp-deep); border-radius: 12px; box-shadow: inset 3px 0 0 var(--lamp); background: rgba(10, 20, 36, 0.55); font-size: 0.86rem; color: var(--lamp-soft); }
+.buy-advice .buy { flex: 0 0 auto; min-height: 34px; padding: 4px 12px; font-size: 0.84rem; white-space: nowrap; }
+@media (max-width: 560px) { .buy-advice { flex-wrap: wrap; } .buy-advice .buy { flex: 1 1 100%; } }
+
+/* The Log's story: each act folds; the latest heard starts open. */
+.story-act { margin-bottom: 8px; }
+.story-act > summary { cursor: pointer; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 6px 0; list-style-position: inside; }
+.story-act > summary .section-title { display: inline; margin: 0; }
+.story-act > summary .muted { font-size: 0.82rem; }
+
+/* The empty garden: the invitation and Attract, nothing else yet. */
+.roost-bar.first-moth .moth-scented, .roost-bar.first-moth .almanac-open, .roost-bar.first-moth .moth-roost,
+.roost-bar.few-moths .moth-spares, .roost-bar.few-moths .auto-spare { display: none; }
+.first-moth-call { grid-column: 1 / -1; margin: 0; padding: 10px 4px; color: var(--lamp-soft); font-size: 0.92rem; line-height: 1.5; }
+.story-act > summary { list-style: none; }
+.story-act > summary::-webkit-details-marker { display: none; }
+.story-act > summary::before { content: "▸"; color: var(--lamp-soft); font-size: 0.9rem; width: 1em; }
+.story-act[open] > summary::before { content: "▾"; }
