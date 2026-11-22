@@ -1684,3 +1684,53 @@ Fixes:
 
 The plain bot's ending is unchanged (29.9h). Tests: `hasUpgrade`'s set
 follows pushes, pops, a swapped id and a new list.
+
+## ✅ Post-launch — What it takes to fill the Wing Almanac
+
+The designer asked for an analysis program for the breeding odds and the
+lure mechanics: what it really takes to finish the Almanac, with graphs.
+
+- [x] **Exact odds** (`scripts/breedingOdds.ts`): a cocoon's child pattern,
+      trait, Tidelit (a Starlit or Prismatic cocoon opening in a Stormfront)
+      and Hollow (two glow-100 Prismatics after the ending) odds, worked out
+      from the rules. `tests/breedingOdds.test.ts` samples the game's own
+      `hatchCocoon` 40,000 times per case and checks they agree.
+- [x] **A keeper who chases the book** (`scripts/almanacSim.ts`). At each
+      check-in it hatches ready cocoons (holding a Starlit or Prismatic one
+      for a Stormfront, up to 10 hours, while a Tidelit page is missing),
+      sends a traitless moth on the Deep Glass Crossing for a trait, spends
+      every lure and every 8 Wing Scales on a scented lure, releases the
+      moth worth least when the roost is full, and fills every nest with the
+      pair most likely to hatch a missing page. After the ending it breeds
+      each Hollow page's family up to glow 100: a traitless line for Hollow
+      with no trait, a carrier of the trait for the others. (Breeding only
+      the brightest Prismatics stalled on Hollow with no trait in 5% of
+      runs.)
+- [x] **Runs per keeper** (`scripts/almanac.ts`, `npm run almanac`) and row
+      files for the report (`scripts/almanacReport.ts`). Results:
+
+      | Keeper (16 waking hours a day) | Finished | Median days | 10th–90th |
+      |---|---|---|---|
+      | Late game, every 10 min | 60 of 60 | 9.8 | 7.2–17.6 |
+      | Late game, every 30 min | 40 of 40 | 19.4 | 11.6–32.2 |
+      | Late game, every hour | 60 of 60 | 43.9 | 30.0–70.2 |
+      | Late game, every 2 h | 40 of 40 | 97.9 | 63.0–181.2 |
+      | Late game, every 4 h | 57 of 60 in a year | 176.5 | 118.3–272.5 |
+      | Fresh, every 10 min | 40 of 40 | 76.7 | 56.2–118.6 |
+      | Fresh, every hour | 40 of 40 | 148.3 | 100.3–225.5 |
+
+      Late game: 7 roost expansions (20 moths, 4 nests), Moth Lantern, Quick
+      Lures and Spinning Silk at 20. Fresh: a 6-moth roost, 2 nests, none.
+- What the numbers say:
+  - The first 40 pages come in hours; the book is decided by its last
+    dozen. For a devoted keeper those are the Hollow pages (~8 days) and
+    the Tidelit pages with a trait (2.6–4.3 days).
+  - How often the keeper looks in matters more than anything the Ember
+    shop sells: Tidelit pages need a cocoon opened during a Stormfront (3
+    of every 20 half-hours), so a keeper who looks in every 4 hours rarely
+    catches one, and some never finish in a year.
+  - A given Prismatic trait page from wild moths is 1 in 4,800 lures; bred,
+    it takes about a day.
+  - Possible follow-ups (not done): let a ready cocoon wait for the next
+    Stormfront by itself, so the Tidelit pages don't demand being present;
+    or raise the Hollow chance for a keeper who has filled the rest.

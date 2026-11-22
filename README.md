@@ -240,6 +240,15 @@ a hearth whose fire grows with the Embers you'd bank.
   hours of play, plus time away, before the re-pace. For every one of
   them the last step, from the Last Lantern to the tower, is the
   longest.
+- The Wing Almanac has its own analysis (`npm run almanac`): a keeper
+  bot plays the Shore with the game's own functions and chases every
+  missing page, many times per kind of keeper, and the exact breeding and
+  lure odds are worked out from the rules. A late-game keeper who looks in
+  every 10 minutes fills all 56 pages in a median of ~10 days; hourly,
+  ~44; every 4 hours, ~177. Without Ember-shop help and with a 6-moth
+  roost, ~77 and ~148. The last pages are Hollow wings (two glow-100
+  Prismatics, 2% a cocoon) and Tidelit wings with a trait (a cocoon must
+  open in a Stormfront).
 
 ## Run it
 
@@ -248,6 +257,8 @@ npm install
 npm run dev        # Vite dev server
 npm test           # Vitest suite
 npm run build      # typecheck + production build to dist/
+npm run sim        # the balance bot, start to ending
+npm run almanac    # the Wing Almanac simulation, into out/almanac
 ```
 
 ## Controls
