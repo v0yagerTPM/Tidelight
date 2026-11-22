@@ -88,7 +88,7 @@ import {
   timeToAffordCost,
 } from "./game/engine";
 import { FlashRate } from "./game/clickRate";
-import { awayReport, shouldShowAway, snapshotAway, type AwayReport } from "./game/away";
+import { awayReport, shouldShowAway, snapshotAway, type AwayHatch, type AwayReport } from "./game/away";
 import { createRecoveryEstimator, type RecoveryEstimator } from "./game/estimate";
 import {
   EXPEDITION_ROUTES,
@@ -107,8 +107,13 @@ import { guidePageAlone, guidePageUnnumbered, tutorialPages } from "./ui/tutoria
 import { infoTip, initTips, setTip, tipAttr } from "./ui/tips";
 import { FILL_BEAM_SHARE, bottleneckAtDemand, efficiencyAtDemand, feedNode, feedQuote, fillChain, stewardActive, stewardPurseCapSeconds, stewardUnlocked, tendChain } from "./game/supply";
 import { affordableIn, formatDuration, formatNumber, withArticle } from "./game/format";
+import { pairForecast } from "./game/breedingOdds";
 import {
   attractMoth,
+  dutyUpgrade,
+  keptPlaces,
+  openPlaces,
+  setBrightestDuty,
   BASE_NESTS,
   EXPANSIONS_PER_NEST,
   MAX_NESTS,
@@ -146,8 +151,8 @@ import {
   postMoth,
   recallMoth,
 } from "./game/moths";
-import { DUTY_GLOW_BONUS, MOTH_TRAITS, dutyBonusOf, isAtSea, postBonusOf, postOf, postedMoth, riderOf, traitsOf } from "./game/mothTraits";
-import { ALMANAC_PATTERNS, ALMANAC_REWARDS, ALMANAC_SIZE, almanacHas, dutySlots, lureBankSize } from "./game/almanac";
+import { DUTY_GLOW_BONUS, MOTH_TRAITS, dutyBonusOf, dutyGlowOf, isAtSea, postBonusOf, postOf, postedMoth, riderOf, traitById, traitsOf } from "./game/mothTraits";
+import { ALMANAC_PATTERNS, ALMANAC_REWARDS, ALMANAC_SIZE, almanacHas, almanacKeysOf, dutySlots, lureBankSize } from "./game/almanac";
 import { legacyMultiplier, startNgPlus } from "./game/ngplus";
 import { offeringMet } from "./game/offerings";
 import { canRekindle, rekindle, rekindleGain } from "./game/prestige";
@@ -307,7 +312,7 @@ const bootStewardLevels = tendChain(state, offline.gain, bootNow);
 // Glass Charts: the bottles that came home while you were away set out again.
 tendBottles(state, Math.random, bootNow);
 // Cocoons waiting for a Stormfront that came while you were away have opened in it.
-tendCocoons(state, Math.random, bootNow);
+const bootHatched = tendCocoonsNoting(bootNow);
 if (bootStewardLevels > 0) {
   addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${bootStewardLevels} level${bootStewardLevels === 1 ? "" : "s"}.`);
 }
@@ -317,7 +322,7 @@ const bootBeats = checkStory(state);
 saveState(state);
 /** The welcome-back card for this visit (opened once the page is built). */
 const bootAway: AwayReport | null = loadedSave
-  ? awayReport(state, offline, awayBefore, bootNow, { stewardLevels: bootStewardLevels, storyTitles: bootBeats.map((b) => b.title) })
+  ? awayReport(state, offline, awayBefore, bootNow, { stewardLevels: bootStewardLevels, storyTitles: bootBeats.map((b) => b.title), hatched: bootHatched })
   : null;
 
 // ── Static shell: persistent header + tab menu (separate views, no long page)
@@ -1090,13 +1095,15 @@ interface ShoreRefs {
   cocoonRows: { index: number; note: HTMLElement | null; bar: HTMLElement | null; btn: HTMLButtonElement | null }[];
   hatchAllBtn: HTMLButtonElement | null;
   sparesBtn: HTMLButtonElement | null;
+  bestDutyBtn: HTMLButtonElement | null;
+  dutyNote: HTMLElement | null;
   expeditionNote: HTMLElement | null;
   claimBtn: HTMLButtonElement | null;
   sendBtns: { routeId: string; btn: HTMLButtonElement; note: HTMLElement | null }[];
 }
 let shoreRefs: ShoreRefs = {
   attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
-  cocoonRows: [], hatchAllBtn: null, sparesBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
+  cocoonRows: [], hatchAllBtn: null, sparesBtn: null, bestDutyBtn: null, dutyNote: null, expeditionNote: null, claimBtn: null, sendBtns: [],
 };
 
 /** ", Seeker" / ", Seeker, Fertile" for a moth's select option; "" with no trait. */
@@ -1115,7 +1122,7 @@ function shoreKey(): string {
     state.almanac.length,
     selectedMoth,
     state.moths.map((m) => `${m.trait ?? ""}+${m.trait2 ?? ""}`).join(","),
-    state.cocoons.map((c) => `${c.parentIds.join("+")}@${c.readyAt}`).join(",") || "-",
+    state.cocoons.map((c) => `${c.parentIds.join("+")}@${c.readyAt}${c.stormWait ? "S" : ""}`).join(",") || "-",
     nestCount(state),
     state.expedition ? `${state.expedition.routeId}@${state.expedition.returnsAt}:${state.expedition.riderId ?? ""}` : "-",
     state.relics.join(","),
@@ -1127,7 +1134,7 @@ function shoreKey(): string {
 function rebuildShore(): void {
   shoreRefs = {
     attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
-    cocoonRows: [], hatchAllBtn: null, sparesBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
+    cocoonRows: [], hatchAllBtn: null, sparesBtn: null, bestDutyBtn: null, dutyNote: null, expeditionNote: null, claimBtn: null, sendBtns: [],
   };
 
   // ── Moth Garden ──
@@ -1295,8 +1302,10 @@ function buildRoostBar(host: HTMLElement): void {
       <button class="buy almanac-open">${GLYPHS.book} Almanac ${state.almanac.length}/${ALMANAC_SIZE}</button>
       <button class="buy moth-spares hidden">Release spares</button>
       <button class="buy moth-autospare" aria-pressed="false">Let spares go: Off</button>
+      <button class="buy moth-bestduty hidden">Brightest on duty</button>
     </div>
     <div class="gen-note muted moth-attract-note"></div>
+    <div class="gen-note moth-duty-note hidden"></div>
     <span class="moth-roost-note hidden"></span>`;
   shoreRefs.attractBtn = bar.querySelector(".moth-attract");
   shoreRefs.attractNote = bar.querySelector(".moth-attract-note");
@@ -1322,6 +1331,15 @@ function buildRoostBar(host: HTMLElement): void {
     if (expandRoost(state)) mothChanged();
   });
   bar.querySelector(".almanac-open")?.addEventListener("click", openAlmanac);
+  // The brightest moths on duty (moths.setBrightestDuty), when that would light the lamp more.
+  shoreRefs.bestDutyBtn = bar.querySelector<HTMLButtonElement>(".moth-bestduty");
+  shoreRefs.dutyNote = bar.querySelector<HTMLElement>(".moth-duty-note");
+  if (shoreRefs.bestDutyBtn) {
+    setTip(shoreRefs.bestDutyBtn, "Put your brightest moths on duty (a Lamp-loyal one counts ×1.5). Moths in a cocoon can stand duty while they spin; posted moths stay at their posts.");
+    shoreRefs.bestDutyBtn.addEventListener("click", () => {
+      if (setBrightestDuty(state)) mothChanged(true);
+    });
+  }
   // Let spares go on arrival (state.autoReleaseSpares).
   const auto = bar.querySelector<HTMLButtonElement>(".moth-autospare");
   if (auto) {
@@ -1417,9 +1435,15 @@ function mothDetail(onDuty: Set<string>): HTMLElement {
       ? `keeping watch at ${chainLighthouseById(post).name}: +${(postBonusOf(moth) * 100).toFixed(1)}% support there`
       : atSea
         ? "riding a bottle"
-        : `at home in the roost (would give +${(dutyBonusOf(moth) * 100).toFixed(1)}% on duty)`;
+        : inCocoon
+          ? `spinning a cocoon (it can stand duty while it spins: +${(dutyBonusOf(moth) * 100).toFixed(1)}%)`
+          : `at home in the roost (would give +${(dutyBonusOf(moth) * 100).toFixed(1)}% on duty)`;
   const scales = releaseScales(moth);
+  // On a phone the selected moth opens as a sheet over the roster, by the thumb.
+  card.classList.add("has-moth");
+  card.setAttribute("aria-label", `${moth.name}'s details`);
   card.innerHTML = `
+    <button type="button" class="sheet-close" aria-label="Close ${moth.name}'s details">✕</button>
     <div class="detail-head">
       <span class="moth-swatch big" style="background:${pattern.swatch}"></span>
       <div>
@@ -1436,6 +1460,10 @@ function mothDetail(onDuty: Set<string>): HTMLElement {
   card.querySelector(".moth-duty")?.addEventListener("click", () => {
     if (toggleDuty(state, moth.id)) mothChanged();
   });
+  card.querySelector(".sheet-close")?.addEventListener("click", () => {
+    selectedMoth = "";
+    renderDynamic();
+  });
   const releaseBtn = card.querySelector<HTMLButtonElement>(".moth-release");
   if (releaseBtn && !atSea && !inCocoon) {
     armTwoStep(releaseBtn, `Are you sure? ${moth.name} won't come back`, () => {
@@ -1450,7 +1478,7 @@ function mothDetail(onDuty: Set<string>): HTMLElement {
 
 function buildBreeding(host: HTMLElement): void {
   const breed = document.createElement("div");
-  breed.className = "card side-card";
+  breed.className = "card side-card breed-card";
   // Moths free to breed: at home, not on watch, not already in a cocoon.
   const home = state.moths.filter((m) => postOf(state, m.id) === null && !isAtSea(state, m.id) && !isCocoonParent(state, m.id));
   const nests = nestCount(state);
@@ -1467,6 +1495,7 @@ function buildBreeding(host: HTMLElement): void {
     html += `
       <div class="nest" data-nest="${i}">
         <p class="muted side-line">${a?.name ?? "?"} × ${b?.name ?? "?"}</p>
+        ${a && b ? forecastHtml(a, b, c.stormWait === true) : ""}
         <div class="progress"><div class="progress-bar cocoon-bar"></div></div>
         <div class="side-row"><span class="muted cocoon-note"></span><button class="buy cocoon-hatch">Hatch</button></div>
         ${canStorm ? `<label class="storm-wait"><input type="checkbox" class="storm-wait-box" id="storm-wait-${i}"${c.stormWait ? " checked" : ""}> Open in the next Stormfront, by itself</label>` : ""}
@@ -1474,7 +1503,11 @@ function buildBreeding(host: HTMLElement): void {
   });
   if (state.cocoons.length > 1) html += `<div class="side-row nest-all"><span></span><button class="buy hatch-all hidden">Hatch all</button></div>`;
   const free = state.cocoons.length < nests;
-  if (free && home.length >= 2) {
+  // A cocoon keeps a place for its hatchling (moths.openPlaces).
+  const room = openPlaces(state) >= 1;
+  if (free && home.length >= 2 && !room) {
+    html += `<p class="muted side-line">A cocoon keeps a place in the roost for its hatchling, and the roost has none to spare: release a moth or expand the roost.</p>`;
+  } else if (free && home.length >= 2) {
     if (!home.some((m) => m.id === breedParentA)) breedParentA = home[0].id;
     if (!home.some((m) => m.id === breedParentB) || breedParentB === breedParentA) {
       breedParentB = home.find((m) => m.id !== breedParentA)?.id ?? "";
@@ -1484,6 +1517,7 @@ function buildBreeding(host: HTMLElement): void {
       <div class="nest nest-new">
         <select class="breed-select breed-a" aria-label="First parent">${options}</select>
         <select class="breed-select breed-b" aria-label="Second parent">${options}</select>
+        <div class="breed-forecast"></div>
         <div class="side-row"><span class="muted breed-time"></span><button class="buy breed-start">Spin a cocoon</button></div>
       </div>`;
   } else if (free) {
@@ -1504,33 +1538,41 @@ function buildBreeding(host: HTMLElement): void {
       });
     }
     btn?.addEventListener("click", () => {
+      const had = new Set(state.almanac);
       const child = hatchCocoon(state, Math.random, Date.now(), index);
       if (child) {
         selectedMoth = child.id;
         mothChanged(true);
+        celebrateHatches([{ moth: child, newPages: almanacKeysOf(child).filter((k) => !had.has(k)) }]);
       }
     });
   });
   shoreRefs.hatchAllBtn = breed.querySelector<HTMLButtonElement>(".hatch-all");
   shoreRefs.hatchAllBtn?.addEventListener("click", () => {
     let last: Moth | null = null;
-    for (let guard = 0; guard < MAX_NESTS; guard++) {
+    const hatched: AwayHatch[] = [];
+    for (let guard = 0; guard <= MAX_NESTS; guard++) {
+      const had = new Set(state.almanac);
       const child = hatchCocoon(state, Math.random);
       if (!child) break;
       last = child;
+      hatched.push({ moth: child, newPages: almanacKeysOf(child).filter((k) => !had.has(k)) });
     }
     if (last) {
       selectedMoth = last.id;
       mothChanged(true);
+      celebrateHatches(hatched);
     }
   });
   const selA = breed.querySelector<HTMLSelectElement>(".breed-a");
   const selB = breed.querySelector<HTMLSelectElement>(".breed-b");
   const timeNote = breed.querySelector<HTMLElement>(".breed-time");
+  const forecast = breed.querySelector<HTMLElement>(".breed-forecast");
   const showTime = () => {
     const a = mothById(state, breedParentA);
     const b = mothById(state, breedParentB);
     if (timeNote) timeNote.textContent = a && b && a !== b ? formatDuration(cocoonDurationMs(a, b, state) / 1000) : "pick two moths";
+    if (forecast) forecast.innerHTML = a && b && a !== b ? forecastHtml(a, b, false) : "";
   };
   if (selA) {
     selA.value = breedParentA;
@@ -1553,7 +1595,7 @@ function buildBreeding(host: HTMLElement): void {
 
 function buildPosts(host: HTMLElement): void {
   const card = document.createElement("div");
-  card.className = "card side-card";
+  card.className = "card side-card posts-card";
   const picked = mothById(state, selectedMoth);
   const canPost = picked !== undefined && !isCocoonParent(state, picked.id) && !isAtSea(state, picked.id);
   const rows = CHAIN_LIGHTHOUSES.filter((l) => state.litLighthouses.includes(l.id)).map((l) => {
@@ -1596,9 +1638,9 @@ function breedingPages(): SplashPage[] {
     title: "How breeding works",
     html: `
       <ul>
-        <li>Two moths at home spin a <strong>cocoon</strong>; both parents stay. It takes 30 minutes for Plain parents up to 75 for Prismatic (84 for Hollow), less with a <strong>Fertile</strong> parent, and keeps going while you're away.</li>
+        <li>Two moths at home spin a <strong>cocoon</strong>; both parents stay, and can stand duty while they spin. The cocoon keeps a place in the roost for its hatchling, so it can always hatch: lures can't fill that place. It takes 30 minutes for Plain parents up to 75 for Prismatic (84 for Hollow), less with a <strong>Fertile</strong> parent, and keeps going while you're away.</li>
         <li>The roost has <strong>${BASE_NESTS} nests</strong>, so ${BASE_NESTS} cocoons can spin at once, each from its own pair. A bigger roost makes room for more: one more nest every ${EXPANSIONS_PER_NEST} roost expansions, up to ${MAX_NESTS}, and the Almanac's A Fifth Nest adds one more.</li>
-        <li>The child usually takes the <strong>rarer</strong> parent's wings, sometimes shifting a tier. Prismatic is unstable: two Prismatics give a Prismatic 3 times in 5.</li>
+        <li>The child usually takes the <strong>rarer</strong> parent's wings, sometimes shifting a tier. Prismatic is unstable: two Prismatics give a Prismatic 3 times in 5. Under each pair, the garden shows the odds of its wings, and a <strong>★</strong> for every Almanac page it could fill that you're missing.</li>
         <li>Its <strong>glow</strong> is about the parents' average (now and then a bright jump), never above its own pattern's ceiling.</li>
         <li>It may inherit a parent's <strong>trait</strong> (half the time) or, rarely, a new one.</li>
         <li>A Starlit or Prismatic cocoon that opens in a <strong>Stormfront</strong> is sometimes Tidelit (5%). Tick <strong>Open in the next Stormfront</strong> on a cocoon and it waits for one by itself, even while you're away.</li>
@@ -1616,6 +1658,70 @@ function postPages(): SplashPage[] {
       <p>Every lit lighthouse has room for one moth. A posted moth strengthens that lighthouse's supply board by <strong>glow × 0.2%</strong> support, doubled for a <strong>Chain-tender</strong>.</p>
       <p>A posted moth leaves duty and can't breed until it comes home. Select a moth in the roster, then press <strong>Post</strong> beside a lighthouse; <strong>Recall</strong> brings it back.</p>`,
   }];
+}
+
+/** An Almanac page's name: "Prismatic · Seeker", "Hollow · no trait". */
+function pageName(key: string): string {
+  const [pid, tid] = key.split(":");
+  const trait = traitById(tid);
+  return `${patternById(pid).name} · ${trait ? trait.name : "no trait"}`;
+}
+
+/**
+ * What a pair's cocoon may bring (breedingOdds.pairForecast): the odds of
+ * its wings, and a ★ line for the Almanac pages it could fill that are
+ * missing. `storm`: the cocoon will open in a Stormfront.
+ */
+function forecastHtml(a: Moth, b: Moth, storm: boolean): string {
+  const f = pairForecast(state, a, b, storm);
+  const wings = f.wings
+    .filter((w) => w.p >= 0.001)
+    .map((w) => {
+      const p = patternById(w.pattern);
+      const rare = w.pattern === "hollow" || w.pattern === "tidelit";
+      return `<span class="fc-wing">${wingDot(p.swatch, p.name)} ${rare ? `<strong>${p.name}</strong>` : p.name} ${pct(w.p)}</span>`;
+    });
+  if (!storm && f.tidelitInStorm >= 0.005) wings.push(`<span class="fc-wing muted">Tidelit ${pct(f.tidelitInStorm)} in a Stormfront</span>`);
+  // Pages worth a ★: 1% or better. The rest are a new trait's long shot (3% a cocoon, spread over six).
+  const LIKELY = 0.01;
+  const shown = f.newPages.filter((n) => n.p >= LIKELY).slice(0, 3);
+  const rest = f.newPages.length - shown.length;
+  let pages = shown.length > 0 ? `<span class="fc-star">★</span> ${shown.map((n) => `${pageName(n.key)} ${pct(n.p)}`).join(", ")}${rest > 0 ? `, +${rest} rarer` : ""}` : "";
+  const storms = f.stormPages.filter((n) => n.p >= LIKELY);
+  if (storms.length > 0) {
+    pages += `${pages ? "<br>" : ""}<span class="fc-star">★</span> in a Stormfront: ${storms.slice(0, 2).map((n) => `${pageName(n.key)} ${pct(n.p)}`).join(", ")}${storms.length > 2 ? `, +${storms.length - 2} more` : ""}`;
+  }
+  const none = f.newPages.length > 0 ? `No likely page you're missing (${f.newPages.length} long shot${f.newPages.length === 1 ? "" : "s"} under 1%).` : "No page you're missing.";
+  return `<div class="forecast"><div class="fc-wings">${wings.join(" · ")}</div><div class="fc-pages${pages ? "" : " muted"}">${pages || none}</div></div>`;
+}
+
+/** tendCocoons, noting the Almanac pages each hatchling filled. */
+function tendCocoonsNoting(now: number): AwayHatch[] {
+  const had = new Set(state.almanac);
+  return tendCocoons(state, Math.random, now).map((moth) => {
+    const newPages = almanacKeysOf(moth).filter((k) => !had.has(k));
+    for (const k of newPages) had.add(k);
+    return { moth, newPages };
+  });
+}
+
+/**
+ * A Tidelit or Hollow hatch gets a moment of its own: they are the last
+ * pages of the Almanac, days in the making, and used to get the same chime
+ * as a Plain moth (design review).
+ */
+function celebrateHatches(list: AwayHatch[]): void {
+  const rare = list.find((h) => h.moth.pattern === "hollow") ?? list.find((h) => h.moth.pattern === "tidelit");
+  if (!rare) return;
+  const m = rare.moth;
+  const traits = traitsOf(m).map((t) => t.name);
+  const carry = traits.length > 0 ? `, carrying ${traits.join(" and ")}` : "";
+  const pages = rare.newPages.length > 0 ? ` New page${rare.newPages.length === 1 ? "" : "s"} in the Almanac: ${rare.newPages.map(pageName).join(", ")}.` : "";
+  if (m.pattern === "hollow") {
+    playMoment("hollow", "Two perfect Prismatics", `${m.name} is Hollow`, `Glow ${m.glow}${carry}. Its wings are not a colour at all: they are the shape the light leaves when it passes.${pages}`, 11000);
+  } else {
+    playMoment("tidelit", "Opened in the Stormfront", `${m.name} is Tidelit`, `Glow ${m.glow}${carry}. The storm stayed in its wings: bright when the sea is rough, dim when it is still.${pages}`, 11000);
+  }
 }
 
 function openAlmanac(): void {
@@ -1654,7 +1760,8 @@ function updateShoreView(now: number): void {
   const roostLine = roostBar?.querySelector<HTMLElement>(".moth-roost-line");
   if (roostLine) {
     const duty = dutyMoths(state);
-    roostLine.textContent = `${state.moths.length}/${mothCapacity(state)} moths · ${duty.length}/${dutySlots(state)} on duty (+${(dutyGlowTotal(state) * DUTY_GLOW_BONUS * 100).toFixed(1)}% to the beam) · ${state.wingScales} scale${state.wingScales === 1 ? "" : "s"}`;
+    const kept = keptPlaces(state);
+    roostLine.textContent = `${state.moths.length}/${mothCapacity(state)} moths${kept > 0 ? ` (+${kept} kept for hatchlings)` : ""} · ${duty.length}/${dutySlots(state)} on duty (+${(dutyGlowTotal(state) * DUTY_GLOW_BONUS * 100).toFixed(1)}% to the beam) · ${state.wingScales} scale${state.wingScales === 1 ? "" : "s"}`;
   }
   // The Crossing's next offering, while The Hollow Light is the next light.
   const offeringLine = document.querySelector<HTMLElement>("#shore-offering");
@@ -1673,7 +1780,8 @@ function updateShoreView(now: number): void {
   document.querySelector("#sea-dot")?.classList.toggle("hidden", !(state.expedition && expeditionReady(state, now)));
   if (shoreRefs.attractBtn && shoreRefs.attractNote) {
     const lures = lureStatus(state, now);
-    const full = state.moths.length >= mothCapacity(state);
+    // A spinning cocoon keeps a place for its hatchling (moths.openPlaces).
+    const full = openPlaces(state) < 1;
     const ready = lures.held > 0;
     // Attract and Rush share one button, so the row never gains or loses one.
     if (ready) {
@@ -1699,7 +1807,8 @@ function updateShoreView(now: number): void {
     }
     const next = lures.nextInMs === null ? "the lure bank is full" : `next lure in ${formatDuration(lures.nextInMs / 1000)}`;
     if (full) {
-      shoreRefs.attractNote.textContent = `the roost is full — expand it or release a moth · ${next}`;
+      const kept = keptPlaces(state);
+      shoreRefs.attractNote.textContent = `the roost is full${kept > 0 ? ` (${kept} place${kept === 1 ? " is" : "s are"} kept for hatchlings)` : ""} — expand it or release a moth · ${next}`;
     } else if (!ready) {
       shoreRefs.attractNote.textContent = `${next}, even while you're away${lures.rushes > 0 ? " · each rush triples the next until a lure regrows" : ""}`;
     } else {
@@ -1720,6 +1829,17 @@ function updateShoreView(now: number): void {
     shoreRefs.roostNote.textContent = affordable ? `room for ${mothCapacity(state) + 2}` : "";
   }
   const full = state.moths.length >= mothCapacity(state);
+  if (shoreRefs.bestDutyBtn && shoreRefs.dutyNote) {
+    const up = dutyUpgrade(state);
+    shoreRefs.bestDutyBtn.classList.toggle("hidden", !up);
+    shoreRefs.dutyNote.classList.toggle("hidden", !up);
+    const say = !up
+      ? ""
+      : up.drop
+        ? `${up.add.name} (${Math.round(dutyGlowOf(up.add))}) would light the lamp more than ${up.drop.name} (${Math.round(dutyGlowOf(up.drop))}) on duty${isCocoonParent(state, up.add.id) ? ", even while it spins its cocoon" : ""}.`
+        : `A duty place is empty: ${up.add.name} (${Math.round(dutyGlowOf(up.add))}) could stand it.`;
+    if (shoreRefs.dutyNote.textContent !== say) shoreRefs.dutyNote.textContent = say;
+  }
   if (shoreRefs.sparesBtn) {
     const n = spareMoths(state).length;
     shoreRefs.sparesBtn.classList.toggle("hidden", n === 0);
@@ -2562,7 +2682,7 @@ let momentTimer: number | undefined;
 let momentReturnFocus: Element | null = null;
 
 /** When each moment's words appear (s), after the picture has had its say. */
-const MOMENT_TEXT_DELAY: Record<MomentKind, number> = { rekindle: 2.2, relight: 1.2, waymark: 1.2, ending: 4.6 };
+const MOMENT_TEXT_DELAY: Record<MomentKind, number> = { rekindle: 2.2, relight: 1.2, waymark: 1.2, ending: 4.6, tidelit: 1.8, hollow: 1.8 };
 
 /**
  * Play a moment over the whole screen. It closes on Continue, a click, or
@@ -2628,6 +2748,13 @@ function showAwayCard(r: AwayReport): void {
   }
   if (r.stewardLevels > 0) news.push(`<li>${GLYPHS.gear} Your Chain Steward tended the chain: ${r.stewardLevels} level${r.stewardLevels === 1 ? "" : "s"} of supplies and Beam.</li>`);
   const shoreNews: string[] = [];
+  for (const h of r.hatched) {
+    const p = patternById(h.moth.pattern);
+    const rare = h.moth.pattern === "tidelit" || h.moth.pattern === "hollow";
+    shoreNews.push(
+      `<li>${GLYPHS.cocoon} A cocoon opened in the Stormfront: <strong>${h.moth.name}</strong>, ${rare ? `<strong>${p.name}</strong>` : p.name.toLowerCase()}-winged, glow ${h.moth.glow}${traitList(h.moth)}.${h.newPages.length > 0 ? ` New page${h.newPages.length === 1 ? "" : "s"}: ${h.newPages.map(pageName).join(", ")}.` : ""}</li>`,
+    );
+  }
   if (r.cocoonNew) shoreNews.push(`<li>${GLYPHS.cocoon} ${state.cocoons.length > 1 ? "Cocoons are" : "A cocoon is"} ready to hatch.</li>`);
   if (r.bottleNew) shoreNews.push(`<li>${GLYPHS.bottle} A bottle has washed back onto the glass.</li>`);
   if ((r.luresGained ?? 0) > 0) {
@@ -2636,7 +2763,7 @@ function showAwayCard(r: AwayReport): void {
   }
   news.push(...shoreNews);
   for (const title of r.storyTitles) news.push(`<li>${GLYPHS.scroll} A new page of the story: <strong>${title}</strong>.</li>`);
-  const toShore = r.cocoonNew || r.bottleNew;
+  const toShore = r.cocoonNew || r.bottleNew || r.hatched.length > 0;
   splash.open(
     [
       {
@@ -3531,12 +3658,17 @@ function gameTick(): void {
     autoLearn(state);
     autoHire(state, now);
     tendBottles(state, Math.random, now);
-    tendCocoons(state, Math.random, now);
+    const hatched = tendCocoonsNoting(now);
+    if (hatched.length > 0) {
+      mothChanged(true);
+      celebrateHatches(hatched);
+    }
   }
+  let hatchedAway: AwayHatch[] = [];
   if (result.mode === "offline") {
     welcomeBack(result.gain, result.creditedSeconds, result.elapsedSeconds);
     tendBottles(state, Math.random, now);
-    tendCocoons(state, Math.random, now);
+    hatchedAway = tendCocoonsNoting(now);
     if (fed > 0) addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${fed} level${fed === 1 ? "" : "s"}.`);
   }
   // The guide's next page, when its part of the game first matters, if
@@ -3563,7 +3695,9 @@ function gameTick(): void {
     saveState(state);
     if (before) {
       const offlineResult = { awaySeconds: result.elapsedSeconds, creditedSeconds: result.creditedSeconds, gain: result.gain };
-      showAwayCard(awayReport(state, offlineResult, before, now, { stewardLevels: fed, storyTitles: beats.map((b) => b.title) }));
+      showAwayCard(awayReport(state, offlineResult, before, now, { stewardLevels: fed, storyTitles: beats.map((b) => b.title), hatched: hatchedAway }));
+    } else if (hatchedAway.length > 0) {
+      celebrateHatches(hatchedAway);
     }
   }
   if (document.hidden) return; // nothing to draw; the clock still runs

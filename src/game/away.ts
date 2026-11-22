@@ -5,7 +5,7 @@ import { productionPerSecond, type OfflineResult } from "./engine";
 import { expeditionReady } from "./expeditions";
 import { cocoonReady, lureStatus, mothsUnlocked } from "./moths";
 import { TIDE_BUCKET_MS } from "./tides";
-import type { GameState } from "./types";
+import type { GameState, Moth } from "./types";
 import { offlineRateFor } from "./upgrades";
 
 // ── Welcome back: what time away brought ─────────────────────────────────────
@@ -63,11 +63,19 @@ export interface AwayReport {
   stewardLevels: number;
   /** Story beats the time away earned. */
   storyTitles: string[];
+  /** Cocoons that opened by themselves in a Stormfront while you were gone, and the Almanac pages each filled. */
+  hatched: AwayHatch[];
+}
+
+export interface AwayHatch {
+  moth: Moth;
+  newPages: string[];
 }
 
 export interface AwayExtras {
   stewardLevels?: number;
   storyTitles?: string[];
+  hatched?: AwayHatch[];
 }
 
 /** Build the report after offline earnings were applied at `now` (state.lastSeen is now `now`). */
@@ -104,6 +112,7 @@ export function awayReport(
     bottleNew: bottle && !before.bottleReady,
     stewardLevels: extras.stewardLevels ?? 0,
     storyTitles: extras.storyTitles ?? [],
+    hatched: extras.hatched ?? [],
   };
 }
 
@@ -116,6 +125,7 @@ export function shouldShowAway(r: AwayReport): boolean {
     r.bottleNew ||
     (r.luresGained ?? 0) > 0 ||
     r.stewardLevels > 0 ||
-    r.storyTitles.length > 0
+    r.storyTitles.length > 0 ||
+    r.hatched.length > 0
   );
 }

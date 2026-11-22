@@ -38,6 +38,7 @@ import {
   roostExpansionCost,
   rushAttractMoth,
   rushLureCost,
+  scentedAttractMoth,
   startBreeding,
   toggleDuty,
 } from "../src/game/moths";
@@ -337,13 +338,16 @@ describe("lantern moths — breeding", () => {
     expect(restored!.moths[0].glow).toBe(95);
   });
 
-  it("hatching needs a free roost slot", () => {
+  it("a cocoon needs a place for its hatchling, and keeps it until it hatches", () => {
     const state = parents();
     state.moths.push(moth("c", "plain", 10), moth("d", "plain", 10), moth("e", "plain", 10), moth("f", "plain", 10));
     expect(state.moths.length).toBe(6);
-    startBreeding(state, "a", "b", 0);
-    expect(hatchCocoon(state, mulberry32(5), 1e9)).toBeNull();
+    expect(startBreeding(state, "a", "b", 0)).toBe(false); // a full roost: nowhere for the hatchling
     expect(releaseMoth(state, "f")).not.toBeNull();
+    expect(startBreeding(state, "a", "b", 0)).toBe(true);
+    // The last place is kept: a lure can't take it.
+    state.wingScales = 100;
+    expect(scentedAttractMoth(state, mulberry32(3))).toBeNull();
     expect(hatchCocoon(state, mulberry32(5), 1e9)).not.toBeNull();
   });
 

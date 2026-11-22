@@ -16,7 +16,7 @@ import { ALMANAC_PATTERNS, ALMANAC_SIZE, ALMANAC_TRAITS } from "../src/game/alma
 import { MOTH_PATTERNS, SCENTED_LURE_SCALES, WILD_TRAIT_CHANCE, patternByTier } from "../src/game/moths";
 import { MOTH_TRAITS } from "../src/game/mothTraits";
 import type { Moth } from "../src/game/types";
-import { childTierOdds } from "./breedingOdds";
+import { childTierOdds } from "../src/game/breedingOdds";
 import { ALMANAC_KEYS, type AlmanacRun, type AlmanacScenario, type Source, simulateAlmanac } from "./almanacSim";
 
 const late = { roostExpansions: 7, mothLantern: true, quickLures: 20, spinningSilk: 20, endingSeen: true, maxDays: 365 };

@@ -17,11 +17,11 @@ const code = (file: string) => ({ label: basename(file), value: readFileSync(fil
 const simMeta = [
   code("scripts/almanacSim.ts"),
   code("scripts/almanac.ts"),
-  code("scripts/breedingOdds.ts"),
+  code("src/game/breedingOdds.ts"),
   code("scripts/almanacReport.ts"),
   { label: "Game rules", value: "src/game/moths.ts, src/game/almanac.ts, src/game/mothTraits.ts, src/game/expeditions.ts, src/game/tides.ts (Tidelight, the build this was run on)" },
 ];
-const oddsMeta = [code("scripts/breedingOdds.ts"), code("scripts/almanac.ts"), code("scripts/almanacReport.ts")];
+const oddsMeta = [code("src/game/breedingOdds.ts"), code("scripts/almanac.ts"), code("scripts/almanacReport.ts")];
 
 type Summary = {
   scenario: { id: string; name: string; checkMinutes: number; wakingHours: number; roostExpansions: number; mothLantern: boolean; quickLures: number; spinningSilk: number; maxDays: number };

@@ -1690,7 +1690,7 @@ follows pushes, pops, a swapped id and a new list.
 The designer asked for an analysis program for the breeding odds and the
 lure mechanics: what it really takes to finish the Almanac, with graphs.
 
-- [x] **Exact odds** (`scripts/breedingOdds.ts`): a cocoon's child pattern,
+- [x] **Exact odds** (now `src/game/breedingOdds.ts`): a cocoon's child pattern,
       trait, Tidelit (a Starlit or Prismatic cocoon opening in a Stormfront)
       and Hollow (two glow-100 Prismatics after the ending) odds, worked out
       from the rules. `tests/breedingOdds.test.ts` samples the game's own
@@ -1773,3 +1773,59 @@ same seeds:
   the book was already decided by the Hollow pages (2% a cocoon), which
   nothing here touched, so ~10 days stays ~10 days, with a shorter tail. The
   Hollow pages are now the last pages for every keeper.
+
+## ✅ Post-launch — Design review 4: the moths
+
+A design-council review of the Moth Garden, with dedicated time on the
+moths, using the designer's own phone save (14 moths, 25 of 56 pages) and a
+test save from late in the Almanac chase. The verdict: good rules, and a
+screen that hid the decisions they ask for. Fixed:
+
+- [x] **What a pair can hatch** (`breedingOdds.pairForecast`, the odds moved
+      into the game): under the pair picker and every cocoon, the odds of its
+      wings (Hollow and Tidelit in bold) and a ★ for each missing Almanac page
+      it could fill at 1% or better, with a line for the Tidelit pages a
+      Stormfront would add. The designer's own cocoon was a 2% shot at
+      Hollow · Fertile, and nothing said so.
+- [x] **Brightest on duty** (`moths.dutyUpgrade`, `setBrightestDuty`): a
+      button and a note ("Cinderlight (100) would light the lamp more than
+      Thistledust (43) on duty, even while it spins its cocoon") whenever a
+      brighter moth could stand duty. Moths in a cocoon can work, and the
+      detail card and breeding guide now say so. The designer's save went
+      from +29.1% to +40.1% to the beam in one tap.
+- [x] **A cocoon keeps a place for its hatchling** (`moths.openPlaces`,
+      `keptPlaces`): lures can't fill it, and a cocoon needs one free to
+      start, so a ready cocoon can always hatch and one waiting for a
+      Stormfront never misses it. Nests cap at a third of the roost (two
+      parents and a place each). It replaces the last PR's nest cap. The
+      roost line shows "(+N kept for hatchlings)".
+- [x] **Rare hatches are seen**: a Tidelit or Hollow hatch plays a moment (a
+      cocoon splitting, the moth climbing on beating wings, a storm for the
+      Tidelit), and a cocoon that opened in a Stormfront while you were away
+      is on the welcome-back card with the pages it filled.
+- [x] **The garden on a phone**: Breeding first, then the roster, the posts,
+      and the meadow last; the selected moth opens as a sheet above the tab
+      bar instead of below the whole roster.
+
+The kept places mattered more than expected. The Almanac keeper fills the
+roost with lures at every visit, so before this change its waiting cocoons
+usually found the roost full when their Stormfront came, and missed it. The
+same keepers on the same seeds:
+
+| Keeper (16 waking hours a day) | First analysis | Last PR | Now | 10th–90th now |
+|---|---|---|---|---|
+| Late game, every 10 min | 9.8 | 10.1 | 8.6 | 6.1–10.6 |
+| Late game, every 30 min | 19.4 | 14.5 | 9.1 | 6.5–13.6 |
+| Late game, every hour | 43.9 | 26.4 | 14.5 | 11.6–18.4 |
+| Late game, every 2 h | 97.9 | 46.4 | 24.2 | 19.4–30.6 |
+| Late game, every 4 h | 176.5 | 87.0 | 42.4 | 35.5–54.4 |
+| Fresh, every 10 min | 76.7 | 72.2 | 55.3 | 42.3–80.3 |
+| Fresh, every hour | 148.3 | 98.2 | 71.5 | 54.4–104.3 |
+
+Every run of every keeper finishes. The Hollow pages are the last for all
+of them. Tests: the forecast (Hollow for two perfect Prismatics, Tidelit
+only in a storm, filled pages left out), brightest on duty (cocoon parents
+included, posts left alone), kept places (a full roost can't start a
+cocoon; lures can't take the place; a storm-waiting cocoon always opens), and
+the away card's storm hatches.
+

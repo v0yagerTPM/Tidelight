@@ -181,6 +181,9 @@ a hearth whose fire grows with the Embers you'd bank.
   cocoon) and the child inherits their wings — usually the rarer
   parent's pattern, about the average of their glows, and a little
   chaos. Prismatic wings are unstable. A perfect roster is a long chase.
+  Each pair shows its odds and a ★ for every Almanac page it could fill,
+  and a spinning cocoon keeps a place in the roost for its hatchling.
+  **Brightest on duty** puts your best moths to work (cocoon parents too).
   The roost has **nests**: two cocoons spin at once from the start, each
   from its own pair, and a bigger roost makes room for more (a third at 3
   roost expansions, a fourth at 6). Hatch them one by one, or all at once.
@@ -247,9 +250,9 @@ a hearth whose fire grows with the Embers you'd bank.
   bot plays the Shore with the game's own functions and chases every
   missing page, many times per kind of keeper, and the exact breeding and
   lure odds are worked out from the rules. A late-game keeper who looks in
-  every 10 minutes fills all 56 pages in a median of ~10 days; hourly,
-  ~26; every 4 hours, ~87. Without Ember-shop help and with a 6-moth
-  roost, ~72 and ~98. The last pages are Hollow wings (two glow-100
+  every 10 minutes fills all 56 pages in a median of ~9 days; hourly,
+  ~15; every 4 hours, ~42. Without Ember-shop help and with a 6-moth
+  roost, ~55 and ~72. The last pages are Hollow wings (two glow-100
   Prismatics, 2% a cocoon).
 
 ## Run it

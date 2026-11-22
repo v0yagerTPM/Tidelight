@@ -95,4 +95,15 @@ describe("welcome-back report", () => {
     expect(r.storyTitles).toEqual(["A page"]);
     expect(shouldShowAway(r)).toBe(true);
   });
+  it("a cocoon that opened in a Stormfront while you were away is news on its own", () => {
+    const state = createInitialState(LEFT);
+    state.lastSeen = LEFT;
+    const before = snapshotAway(state);
+    const offline = { awaySeconds: 3600, creditedSeconds: 3600, gain: new Decimal(0) };
+    const moth = { id: "t", name: "Tide", pattern: "tidelit", glow: 90, generation: 4, trait: "seeker" };
+    const r = awayReport(state, offline, before, LEFT + 3_600_000, { hatched: [{ moth, newPages: ["tidelit:seeker"] }] });
+    expect(r.hatched).toHaveLength(1);
+    expect(shouldShowAway(r)).toBe(true);
+    expect(awayReport(state, offline, before, LEFT + 3_600_000).hatched).toEqual([]);
+  });
 });

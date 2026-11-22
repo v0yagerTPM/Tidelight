@@ -309,6 +309,44 @@ export function toggleDuty(state: GameState, mothId: string): boolean {
   return true;
 }
 
+/**
+ * The moths that would light the lamp hardest on duty: the brightest by
+ * working glow (Lamp-loyal ×1.5) among those free to stand it (not posted,
+ * not at sea), up to dutySlots. A moth in a cocoon can stand duty too.
+ */
+export function brightestDuty(state: GameState): Moth[] {
+  return state.moths
+    .filter((m) => postOf(state, m.id) === null && !isAtSea(state, m.id))
+    .sort((a, b) => dutyGlowOf(b) - dutyGlowOf(a))
+    .slice(0, dutySlots(state));
+}
+
+/**
+ * The best single change to the duty roster, if one would light the lamp
+ * more: the brightest moth off duty, and the dimmest on duty it would
+ * replace (null when a duty slot is empty). In the design review a keeper's
+ * own save had glow 43–53 moths on duty while two glow-100 Prismatics sat in
+ * a cocoon, not knowing they could work.
+ */
+export function dutyUpgrade(state: GameState): { add: Moth; drop: Moth | null } | null {
+  const duty = dutyMoths(state);
+  const onDuty = new Set(duty.map((m) => m.id));
+  const best = brightestDuty(state).find((m) => !onDuty.has(m.id));
+  if (!best) return null;
+  if (duty.length < dutySlots(state)) return { add: best, drop: null };
+  const dimmest = duty.reduce((low, m) => (dutyGlowOf(m) < dutyGlowOf(low) ? m : low));
+  return dutyGlowOf(best) > dutyGlowOf(dimmest) ? { add: best, drop: dimmest } : null;
+}
+
+/** Put the brightest moths on duty (brightestDuty). Returns whether the roster changed. */
+export function setBrightestDuty(state: GameState): boolean {
+  const ids = brightestDuty(state).map((m) => m.id);
+  const before = dutyMoths(state).map((m) => m.id);
+  if (ids.length === before.length && ids.every((id) => before.includes(id))) return false;
+  state.mothDuty = ids;
+  return true;
+}
+
 // ── Attracting & the roost ───────────────────────────────────────────────────
 
 function rollPattern(rng: () => number): MothPatternDef {
@@ -321,8 +359,24 @@ function rollPattern(rng: () => number): MothPatternDef {
   return patternByTier(MAX_TIER);
 }
 
+/**
+ * Places in the roost a new moth can take. Every spinning cocoon keeps one
+ * place for its hatchling, so a lure can't fill the place a cocoon will
+ * need: a full roost used to leave ready cocoons unable to hatch, and a
+ * cocoon told to wait for a Stormfront missed it (the design review found
+ * two stuck that way, with no spares to release).
+ */
+export function openPlaces(state: GameState): number {
+  return Math.max(0, mothCapacity(state) - state.moths.length - state.cocoons.length);
+}
+
+/** Places kept for the hatchlings of spinning cocoons (as far as the roost has them). */
+export function keptPlaces(state: GameState): number {
+  return Math.min(state.cocoons.length, Math.max(0, mothCapacity(state) - state.moths.length));
+}
+
 function canAttract(state: GameState): boolean {
-  return mothsUnlocked(state) && state.moths.length < mothCapacity(state);
+  return mothsUnlocked(state) && openPlaces(state) > 0;
 }
 
 /**
@@ -449,15 +503,15 @@ export const MAX_NESTS = 4;
 
 /**
  * How many cocoons can spin at once (A Fifth Nest adds one past MAX_NESTS),
- * but never so many that their parents fill the roost: a cocoon needs room
- * to hatch, and a cocoon's parents can't be released, so one moth always
- * stays free. (A 6-moth roost with A Fifth Nest could put all six in three
- * cocoons, and then nothing could ever hatch: the Almanac analysis found it.)
+ * but no more than the roost can hold: each cocoon takes two parents and
+ * keeps a place for its hatchling (openPlaces), so a 6-moth roost holds two
+ * cocoons whatever the nests. (A 6-moth roost with A Fifth Nest once put all
+ * six moths in three cocoons, and nothing could ever hatch.)
  */
 export function nestCount(state: GameState): number {
   const fromRoost = Math.min(MAX_NESTS, BASE_NESTS + Math.floor(state.roostExpansions / EXPANSIONS_PER_NEST));
   const nests = fromRoost + (hasAlmanacReward(state, "fifth-nest") ? 1 : 0);
-  return Math.min(nests, Math.floor((mothCapacity(state) - 1) / 2));
+  return Math.min(nests, Math.floor(mothCapacity(state) / 3));
 }
 
 /** Roost expansions until the next nest, or null at the most a roost can give. */
@@ -488,10 +542,12 @@ export function cocoonDurationMs(parentA: Moth, parentB: Moth, state?: GameState
  * Start a cocoon from two distinct moths, in a free nest (nestCount). It
  * takes cocoonDurationMs() of real time (timestamp-based, so it progresses
  * while away). Parents are NOT consumed, but each sits in one cocoon at a
- * time. Hatching — not starting — needs a free slot in the roost.
+ * time. The cocoon keeps a place in the roost for its hatchling, so it
+ * needs one free (openPlaces): it can always hatch.
  */
 export function startBreeding(state: GameState, parentAId: string, parentBId: string, now: number = Date.now()): boolean {
   if (!nestFree(state)) return false;
+  if (openPlaces(state) < 1) return false; // no place for the hatchling
   if (parentAId === parentBId) return false;
   if (isCocoonParent(state, parentAId) || isCocoonParent(state, parentBId)) return false; // already spinning
   if (!mothById(state, parentAId) || !mothById(state, parentBId)) return false;
