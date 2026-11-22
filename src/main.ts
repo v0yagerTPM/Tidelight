@@ -68,7 +68,7 @@ import {
   type EmberPerkDef,
   type KindlingDef,
 } from "./game/emberShop";
-import { LAMP_CREW_LIGHTHOUSE, QUARTERMASTER_LIGHTHOUSE, autoHire, autoLearn, lampCrewIdleReason, lampCrewUnlocked, quartermasterUnlocked } from "./game/automation";
+import { LAMP_CREW_LIGHTHOUSE, QUARTERMASTER_LIGHTHOUSE, autoHire, autoLearn, lampCrewIdleReason, lampCrewUnlocked, quartermasterActive, quartermasterUnlocked } from "./game/automation";
 import {
   advanceToNow,
   LIVE_GAP_LIMIT_SECONDS,
@@ -97,6 +97,7 @@ import {
   expeditionReady,
   routeById,
   sendExpedition,
+  expeditionCache,
   relicChanceFor,
   tendBottles,
   voyageMs,
@@ -241,6 +242,22 @@ function storyLogTitle(message: string): string {
   const rest = message.slice("📖".length).trim();
   const dash = rest.indexOf(" — ");
   return dash >= 0 ? rest.slice(0, dash) : rest;
+}
+
+/** A hire that adds less than this share of your light is shown quietly (the Light view). */
+const MINOR_BUY_SHARE = 0.001;
+/** When the tab dots were last worked out (once a second is plenty). */
+let lastTabNewsAt = 0;
+/** How many helper rows could be hired right now (the Light view's last refresh). */
+let affordableHires = 0;
+
+/** A gain as a share of the light you make now: "+3%", "+0.25%", "+<0.01%". */
+function shareOfLight(gain: Decimal, rate: Decimal): string {
+  if (rate.lte(0)) return "";
+  const s = gain.div(rate).toNumber() * 100;
+  if (s >= 1) return `+${s < 10 ? s.toFixed(1).replace(/\.0$/, "") : Math.round(s)}%`;
+  if (s >= 0.01) return `+${s.toFixed(2)}%`;
+  return "+<0.01%";
 }
 
 /** "More than a day away…" from "more than a day away…". */
@@ -1103,10 +1120,12 @@ interface ShoreRefs {
   expeditionNote: HTMLElement | null;
   claimBtn: HTMLButtonElement | null;
   sendBtns: { routeId: string; btn: HTMLButtonElement; note: HTMLElement | null }[];
+  /** Each route's "brings ~X Lumen" (expeditions.expeditionCache), refreshed in place. */
+  routeCaches: { route: (typeof EXPEDITION_ROUTES)[number]; el: HTMLElement }[];
 }
 let shoreRefs: ShoreRefs = {
   attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
-  cocoonRows: [], hatchAllBtn: null, sparesBtn: null, bestDutyBtn: null, dutyNote: null, expeditionNote: null, claimBtn: null, sendBtns: [],
+  cocoonRows: [], hatchAllBtn: null, sparesBtn: null, bestDutyBtn: null, dutyNote: null, expeditionNote: null, claimBtn: null, sendBtns: [], routeCaches: [],
 };
 
 /** ", Seeker" / ", Seeker, Fertile" for a moth's select option; "" with no trait. */
@@ -1137,7 +1156,7 @@ function shoreKey(): string {
 function rebuildShore(): void {
   shoreRefs = {
     attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
-    cocoonRows: [], hatchAllBtn: null, sparesBtn: null, bestDutyBtn: null, dutyNote: null, expeditionNote: null, claimBtn: null, sendBtns: [],
+    cocoonRows: [], hatchAllBtn: null, sparesBtn: null, bestDutyBtn: null, dutyNote: null, expeditionNote: null, claimBtn: null, sendBtns: [], routeCaches: [],
   };
 
   // ── Moth Garden ──
@@ -1197,7 +1216,7 @@ function rebuildShore(): void {
     const riders = state.moths.filter((m) => !isCocoonParent(state, m.id));
     if (!riders.some((m) => m.id === bottleRider)) bottleRider = "";
     const chosenRider = (): Moth | null => riders.find((m) => m.id === bottleRider) ?? null;
-    const chanceSpans: { route: (typeof EXPEDITION_ROUTES)[number]; el: HTMLElement | null }[] = [];
+    const chanceSpans: { route: (typeof EXPEDITION_ROUTES)[number]; el: HTMLElement | null; cache: HTMLElement | null }[] = [];
     if (!state.expedition && riders.length > 0) {
       const pick = document.createElement("div");
       pick.className = "card";
@@ -1225,12 +1244,15 @@ function rebuildShore(): void {
       card.innerHTML = `
         <div class="gen-name">${route.name}</div>
         <p class="muted">${route.flavor}</p>
-        <p class="muted">${formatDuration(voyageMs(state, route) / 1000)} · relic chance <span class="route-chance">${Math.round(relicChanceFor(state, route, state.expedition ? riderOf(state) : chosenRider()) * 100)}%</span> · cache at least ${fmt(route.minCache)} Lumen</p>
+        <p class="muted">${formatDuration(voyageMs(state, route) / 1000)} · relic chance <span class="route-chance">${Math.round(relicChanceFor(state, route, state.expedition ? riderOf(state) : chosenRider()) * 100)}%</span> · brings <span class="route-cache">~${fmt(expeditionCache(state, route))}</span> Lumen</p>
         <button class="buy route-send">Send a bottle — ${fmt(route.cost)} Lumen</button>
         <span class="gen-note muted route-note"></span>`;
       const btn = card.querySelector<HTMLButtonElement>(".route-send");
       const note = card.querySelector<HTMLElement>(".route-note");
-      chanceSpans.push({ route, el: card.querySelector<HTMLElement>(".route-chance") });
+      const cache = card.querySelector<HTMLElement>(".route-cache");
+      chanceSpans.push({ route, el: card.querySelector<HTMLElement>(".route-chance"), cache });
+      // What a bottle brings grows with your light: refreshed in place (it used to say "at least 500 Lumen" in a game making 1e28 a second).
+      if (cache) shoreRefs.routeCaches.push({ route, el: cache });
       if (btn) {
         btn.addEventListener("click", () => {
           // With Glass Charts and a bottle at sea, the button sets the next voyage's route.
@@ -1957,6 +1979,10 @@ function updateShoreView(now: number): void {
     shoreRefs.hatchAllBtn.disabled = full;
     const label = `Hatch all ${n}`;
     if (shoreRefs.hatchAllBtn.textContent !== label) shoreRefs.hatchAllBtn.textContent = label;
+  }
+  for (const { route, el } of shoreRefs.routeCaches) {
+    const text = `~${fmt(expeditionCache(state, route, now))}`;
+    if (el.textContent !== text) el.textContent = text;
   }
   if (state.expedition && shoreRefs.expeditionNote) {
     const ready = expeditionReady(state, now);
@@ -2990,6 +3016,8 @@ const hud = {
   rkRelative: document.querySelector<HTMLElement>("#rk-relative"),
   rkHearth: document.querySelector<HTMLElement>("#rk-hearth"),
   rkTab: document.querySelector<HTMLElement>('.tab[data-tab="rekindle"]'),
+  shoreTab: document.querySelector<HTMLElement>('.tab[data-tab="shore"]'),
+  upgradesTab: document.querySelector<HTMLElement>('.tab[data-tab="upgrades"]'),
   rkRecovery: document.querySelector<HTMLElement>("#rk-recovery"),
   shopHeld: document.querySelector<HTMLElement>("#shop-held"),
   rkLabel: document.querySelector<HTMLElement>("#rk-progress-label"),
@@ -3332,6 +3360,10 @@ function renderDynamic(full = true): void {
     }
     // Once a frame: what reaches the thrown beam per unit of helper output.
     const thrown = thrownFactor(state, nowMs, rateNow);
+    // Each affordable hire's gain, to say which buy matters: late in a run every
+    // row is gold and affordable, and a Candle Crab adds a billionth of the
+    // light (design review 5).
+    const buys: { row: GenRow; gain: Decimal; cost: Decimal }[] = [];
     for (const row of genRows) {
       const owned = state.generators[row.def.id] ?? 0;
       row.ring.style.strokeDashoffset = String(100 - milestoneProgress(owned) * 100);
@@ -3346,6 +3378,9 @@ function renderDynamic(full = true): void {
       // The real gain is a full recount of the light, so only for a hire that can happen now
       // (performance pass: nine of these every refresh were a third of its cost).
       const gain = quote.affordable && quote.count > 0 ? thrownGain(state, row.def, quote.count, nowMs, rateNow) : new Decimal(0);
+      if (quote.affordable && !row.row.classList.contains("hidden") && canBuyGenerator(state, row.def.id) && generatorLockedBy(state, row.def.id) === null) {
+        buys.push({ row, gain, cost: quote.cost });
+      }
       setTip(row.milestone, milestoneHint(owned));
       // First Light Only challenge: tiers 4+ are blocked outright.
       const blockedByChallenge = !canBuyGenerator(state, row.def.id);
@@ -3393,12 +3428,26 @@ function renderDynamic(full = true): void {
       } else if (blockedByChallenge) {
         row.note.textContent = "Blocked — First Light Only challenge";
       } else if (quote.affordable) {
-        row.note.textContent = gain.gt(0) ? `+${fmt(gain)} Lumen/s` : "";
+        row.note.textContent = gain.gt(0) ? `+${fmt(gain)} Lumen/s · ${shareOfLight(gain, rateNow)}` : "";
       } else {
         const tta = timeToAffordCost(state, quote.cost, rateNow);
         row.note.textContent = Number.isFinite(tta) ? affordableIn(tta) : "earn Lumen by flashing";
       }
     }
+    // Gold means "this matters now": the best buy (most light for its price)
+    // keeps its glow and an edge; a hire that adds under 0.1% of your light goes quiet.
+    let best: (typeof buys)[number] | null = null;
+    for (const b of buys) {
+      if (b.gain.lte(0)) continue;
+      if (!best || b.gain.div(b.cost).gt(best.gain.div(best.cost))) best = b;
+    }
+    for (const row of genRows) {
+      const b = buys.find((x) => x.row === row);
+      const minor = b !== undefined && rateNow.gt(0) && b.gain.div(rateNow).lt(MINOR_BUY_SHARE);
+      row.row.classList.toggle("minor-buy", minor && b !== best);
+      row.row.classList.toggle("best-buy", buys.length >= 2 && b !== undefined && b === best);
+    }
+    affordableHires = buys.length;
   }
 
   // Upgrades view: rebuild on structure change, refresh affordability in place.
@@ -3433,7 +3482,9 @@ function renderDynamic(full = true): void {
     // A switched-on Lamp Crew that can't hire says why (automation.lampCrewIdleReason).
     if (crewNote) {
       const reason = lampCrewIdleReason(state, nowMs);
-      const text = reason === "chain" ? "waiting on the chain" : reason === "budget" ? "saving up" : "";
+      // Off, with three or more hires waiting: the crew could take them on.
+      const offer = !state.autoHire && lampCrewUnlocked(state) && affordableHires >= 3;
+      const text = reason === "chain" ? "waiting on the chain" : reason === "budget" ? "saving up" : offer ? "it could hire for you" : "";
       if (crewNote.textContent !== text) crewNote.textContent = text;
       setTip(
         crewNote,
@@ -3441,7 +3492,9 @@ function renderDynamic(full = true): void {
           ? "Every helper it could afford would drop the beam below 90% (or below where it is now). Feed the chain, or let the Steward, and the crew gets back to hiring."
           : reason === "budget"
             ? "It hires with a tenth of your Lumen, and nothing costs that little yet."
-            : "",
+            : offer
+              ? "Every helper is affordable. Switched on, the Lamp Crew hires the best-value one with up to a tenth of your Lumen, once a second, and never starves the beam."
+              : "",
       );
     }
   }
@@ -3524,6 +3577,21 @@ function renderDynamic(full = true): void {
     hud.rkHearth.classList.toggle("ready", moment.phase === "best" || (moment.phase === "first" && gain >= PRESTIGE_RECOMMENDED_EMBERS));
   }
   hud.rkTab?.classList.toggle("tab-ready", moment.phase === "best");
+  // The other tabs call you over too (design review 5): a dot on the Shore when
+  // a cocoon is ready to hatch (not one waiting for a Stormfront) or a bottle is
+  // home, and on Upgrades when a lesson is affordable and no Quartermaster is
+  // learning for you. The Shore's own pane dots only showed once you were there.
+  if (nowMs - lastTabNewsAt >= 1000) {
+    lastTabNewsAt = nowMs;
+    const shoreNews = state.cocoons.some((c) => nowMs >= c.readyAt && !c.stormWait) || (state.expedition !== null && expeditionReady(state, nowMs));
+    const lessonNews = !quartermasterActive(state) && UPGRADES.some((u) => !state.upgrades.includes(u.id) && isUnlocked(state, u) && state.lumen.gte(u.cost));
+    hud.shoreTab?.classList.toggle("tab-news", shoreNews && activeTab !== "shore");
+    hud.upgradesTab?.classList.toggle("tab-news", lessonNews && activeTab !== "upgrades");
+    for (const [tab, on, what] of [[hud.shoreTab, shoreNews, "something is waiting on the Shore"], [hud.upgradesTab, lessonNews, "a lesson is ready to learn"]] as const) {
+      const label = tab?.querySelector(".tab-label")?.textContent ?? "";
+      tab?.setAttribute("aria-label", on ? `${label}: ${what}` : label);
+    }
+  }
   if (hud.rkRecovery && activeTab === "rekindle") {
     hud.rkRecovery.textContent =
       state.activeChallenge !== null

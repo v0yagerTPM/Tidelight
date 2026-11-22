@@ -1853,3 +1853,24 @@ Then the rest of the review, and a request:
       wait for one (untick to hatch sooner). Tests: the suggestion, the
       storm, the fallback, and the page routes.
 
+## ✅ Post-launch — Design review 5: the whole game
+
+A design-council review of every tab, on the designer's phone save and a new
+game. The moth garden came out the clearest room; the late-game rooms had
+drifted. Fixed:
+
+- [x] **The Light view says which buy matters.** Each affordable hire's note
+      gives its gain as a share of your light ("+3.99e25 Lumen/s · +0.13%").
+      The best buy (most light for its price) keeps its gold and gains an
+      edge; a hire adding under 0.1% of your light goes quiet. (On the save,
+      all nine rows were gold, and a Candle Crab added a billionth.) With
+      three or more hires waiting and the Lamp Crew off, its note says "it
+      could hire for you".
+- [x] **The tabs call you over.** A dot on the Shore when a cocoon is ready to
+      hatch (not one waiting for a Stormfront) or a bottle is home, and on
+      Upgrades when a lesson is affordable and no Quartermaster is learning
+      for you. Only the Rekindle tab used to light up.
+- [x] **Bottles say what they bring**: "brings ~9.43e30 Lumen" (the real
+      cache, refreshed in place), not "cache at least 500 Lumen".
+- [x] **Never "affordable in 0s"** under a greyed button: waits round up.
+
