@@ -1915,3 +1915,28 @@ saves (6 h and 13 h) and the designer's late save. Fixed:
       posts with the first, the spare controls at four.
 - [x] **"+1 Ember"**, not "+1 Embers", on the Rekindle button and its messages.
 
+## ✅ Post-launch — Design review 7: devices, access, and after the ending
+
+A council round on a small phone (360×640), a tablet (820×1180), the keyboard,
+a screen reader's view, reduced motion and the ending card. Already sound:
+no sideways overflow at either size, visible focus rings, dialogs that keep
+focus and close on Escape, every button named, scenes hidden from screen
+readers and still under reduced motion. Fixed:
+
+- [x] **The Next Keeping says what it costs**: "your 27.17T Embers (×1.09T
+      production) go back to the sea, and you begin with 5", then the
+      legacy. The Kept list now names the Wing Almanac and the Kindlings, and
+      "Still out there: 31 Almanac pages · 3 challenges" links to each (and
+      to the relics while any are missing).
+- [x] **Tabs a screen reader can follow**: every tab says whether it's
+      selected and which view it controls (the views are tab panels), and in
+      every tab bar (the views, and the Shore's, Rekindle's and the Log's
+      panes) the arrow keys, Home and End move along it.
+- [x] **The game's news is read out**: a hidden polite announcer reads the
+      newest Keeper's Log line, at most one every five seconds, skipping the
+      helpers' routine rounds (Quartermaster, Lamp Crew, Steward, Glass
+      Charts).
+- [x] **Small phones see a helper first**: on short phone screens the scene
+      is 170px once the supply strip joins it (it was 270), so the first
+      helper row shows above the tab bar at 360×640.
+

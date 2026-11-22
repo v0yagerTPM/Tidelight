@@ -172,7 +172,7 @@ import {
   serializeState,
   startBoard,
 } from "./game/state";
-import type { BuyAmount, GameState, Moth } from "./game/types";
+import type { BuyAmount, GameState, LogEntry, Moth } from "./game/types";
 import { Sound } from "./audio/sound";
 import { ChainFlowRenderer } from "./scene/chainFlow";
 import { COAST_LAYOUT, CoastRenderer } from "./scene/coast";
@@ -294,6 +294,37 @@ function showBuyAdvice(o: OtherBuy | null, rate: Decimal): void {
   }
 }
 
+// ── News for screen readers ──────────────────────────────────────────────────
+// A relit lighthouse, a hatched cocoon, a bottle home or a story beat reached
+// only the Keeper's Log, which nothing announced (design review 7). The newest
+// log line is read out politely, at most one every few seconds, skipping the
+// helpers' routine rounds.
+const SR_NEWS_GAP_MS = 5000;
+const SR_ROUTINE = /^(Your Quartermaster learned|Your Lamp Crew|While you were away, your Chain Steward|Glass Charts:)/;
+let srLastEntry: LogEntry | undefined;
+let srLastAt = 0;
+let srPending: string | null = null;
+function announceNews(now: number): void {
+  const log = state.log;
+  const last = log[log.length - 1];
+  if (srLastEntry === undefined) {
+    srLastEntry = last; // nothing from before this visit
+    return;
+  }
+  if (last && last !== srLastEntry) {
+    const from = log.indexOf(srLastEntry) + 1;
+    const fresh = log.slice(from > 0 ? from : log.length - 1).filter((e) => !SR_ROUTINE.test(e.message));
+    srLastEntry = last;
+    if (fresh.length > 0) srPending = fresh[fresh.length - 1].message.replace(/^📖\uFE0F?\s*/u, "");
+  }
+  if (srPending && now - srLastAt >= SR_NEWS_GAP_MS) {
+    const region = document.querySelector<HTMLElement>("#sr-news");
+    if (region) region.textContent = srPending;
+    srPending = null;
+    srLastAt = now;
+  }
+}
+
 /** When the tab dots were last worked out (once a second is plenty). */
 let lastTabNewsAt = 0;
 /** How many helper rows could be hired right now (the Light view's last refresh). */
@@ -408,7 +439,7 @@ app.innerHTML = `
     </div>
   </header>
 
-  <nav class="tabs" role="tablist">
+  <nav class="tabs" role="tablist" aria-label="Views">
 ${[
     ["light", "Light"],
     ["upgrades", "Upgrades"],
@@ -419,13 +450,14 @@ ${[
   ]
     .map(
       ([id, label], i) =>
-        `<button class="tab${i === 0 ? " active" : ""}" data-tab="${id}" role="tab"><span class="tab-icon">${TAB_ICONS[id]}</span><span class="tab-label">${label}</span></button>`,
+        `<button class="tab${i === 0 ? " active" : ""}" data-tab="${id}" id="tab-${id}" role="tab" aria-selected="${i === 0}" aria-controls="view-${id}"><span class="tab-icon">${TAB_ICONS[id]}</span><span class="tab-label">${label}</span></button>`,
     )
     .join("")}
   </nav>
 
+  <div id="sr-news" class="sr-only" aria-live="polite" aria-atomic="true"></div>
   <main>
-    <section id="view-light" class="view active">
+    <section id="view-light" role="tabpanel" aria-labelledby="tab-light" class="view active">
       <div id="challenge-banner" class="challenge-banner hidden" role="button" tabindex="0"></div>
       <div class="light-main">
       <div class="scene">
@@ -493,7 +525,7 @@ ${[
       </div>
     </section>
 
-    <section id="view-upgrades" class="view">
+    <section id="view-upgrades" role="tabpanel" aria-labelledby="tab-upgrades" class="view">
       <h2>Upgrades ${infoTip("One-time lessons for the light. Most are forgotten when you Rekindle; the ones marked ♾\uFE0E are keeper knowledge and are kept.", "About upgrades")}</h2>
       <p class="muted"><span id="upgrades-summary"></span></p>
       <div class="section-head" id="upgrades-ready-head">
@@ -513,7 +545,7 @@ ${[
       <div id="upgrades-purchased" class="lesson-shelf"></div>
     </section>
 
-    <section id="view-lighthouses" class="view">
+    <section id="view-lighthouses" role="tabpanel" aria-labelledby="tab-lighthouses" class="view">
       <h2>The Seven Lighthouses ${infoTip("Lit lighthouses stay lit forever, even through a Rekindle. Their supply chains don't: every board is stripped back to its starting levels when the light gutters. They relight in order, and each demands a beam running at its efficiency. Feed the chain from the supply strip on the Light view; the boards below show it lighthouse by lighthouse.", "About the lighthouses")}</h2>
       <div class="coast">
         <canvas id="coast-canvas" aria-hidden="true"></canvas>
@@ -526,7 +558,7 @@ ${[
       <div id="chain-area"></div>
     </section>
 
-    <section id="view-shore" class="view">
+    <section id="view-shore" role="tabpanel" aria-labelledby="tab-shore" class="view">
       <div class="shore-head">
         <h2>The Shore ${infoTip("What the glass sea gives back. Moths, relics and story fragments are permanent: they roost through every Rekindle.", "About the Shore")}</h2>
         <div class="buy-toggle shore-panes" role="tablist" aria-label="The Shore">
@@ -553,7 +585,7 @@ ${[
       </div>
     </section>
 
-    <section id="view-rekindle" class="view">
+    <section id="view-rekindle" role="tabpanel" aria-labelledby="tab-rekindle" class="view">
       <div class="shore-head">
       <h2>Rekindle ${infoTip("Let the light gutter out and light it again, stronger. Embers are banked from this run's lifetime Lumen: √(lifetime ÷ 5,000). Each Ember you hold adds +2% to all production.", "About Rekindling")}</h2>
         <div class="buy-toggle shore-panes rk-panes" role="tablist" aria-label="Rekindle">
@@ -607,7 +639,7 @@ ${[
       </div>
     </section>
 
-    <section id="view-log" class="view">
+    <section id="view-log" role="tabpanel" aria-labelledby="tab-log" class="view">
       <div class="shore-head">
         <h2>The Log</h2>
         <div class="buy-toggle shore-panes log-panes" role="tablist" aria-label="The Log">
@@ -659,7 +691,10 @@ const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".tab"));
 let activeTab = "light";
 function activateTab(name: string): void {
   activeTab = name;
-  tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+  tabs.forEach((t) => {
+    t.classList.toggle("active", t.dataset.tab === name);
+    t.setAttribute("aria-selected", String(t.dataset.tab === name));
+  });
   document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
   document.querySelector(`#view-${name}`)?.classList.add("active");
   // Opening the Rekindle view always gets a fresh recovery estimate.
@@ -672,6 +707,25 @@ for (const tab of tabs) {
     if (tab.dataset.tab) activateTab(tab.dataset.tab);
   });
 }
+// Every tab bar (the views, and the Shore's, Rekindle's and the Log's panes):
+// the arrow keys, Home and End move along it and open the tab, as screen-reader
+// users expect of a tab list (design review 7).
+document.addEventListener("keydown", (e) => {
+  const tab = (e.target as Element | null)?.closest<HTMLElement>('[role="tab"]');
+  const list = tab?.closest<HTMLElement>('[role="tablist"]');
+  if (!tab || !list) return;
+  const all = [...list.querySelectorAll<HTMLElement>('[role="tab"]')];
+  const i = all.indexOf(tab);
+  const next = e.key === "ArrowRight" || e.key === "ArrowDown" ? all[(i + 1) % all.length]
+    : e.key === "ArrowLeft" || e.key === "ArrowUp" ? all[(i - 1 + all.length) % all.length]
+    : e.key === "Home" ? all[0]
+    : e.key === "End" ? all[all.length - 1]
+    : null;
+  if (!next) return;
+  e.preventDefault();
+  next.focus();
+  next.click();
+});
 
 // The challenge banner in the Light view jumps to the Rekindle view.
 const challengeBanner = document.querySelector<HTMLDivElement>("#challenge-banner");
@@ -2279,6 +2333,19 @@ let relightTargetId: string | null = null;
 let lockedChainNote: HTMLElement | null = null;
 let chainSummary: HTMLElement | null = null;
 let endingStats: HTMLElement | null = null;
+/** The Next Keeping's real cost, in your numbers, and what's still open on this shore (design review 7). */
+let endingStakes: HTMLElement | null = null;
+let endingOpen: HTMLElement | null = null;
+// "Still out there" links: the Almanac, the challenges, the relics.
+document.addEventListener("click", (e) => {
+  const go = (e.target as Element | null)?.closest<HTMLElement>("[data-ending-go]")?.dataset.endingGo;
+  if (!go) return;
+  if (go === "almanac") openAlmanac();
+  if (go === "trials" || go === "sea") {
+    activateTab(go === "trials" ? "rekindle" : "shore");
+    document.querySelector<HTMLButtonElement>(go === "trials" ? '[data-rkpane="trials"]' : '[data-pane="sea"]')?.click();
+  }
+});
 
 /** Plain-words summary of what a lit lighthouse grants, from its def. */
 function lighthouseBonusText(def: (typeof CHAIN_LIGHTHOUSES)[number]): string {
@@ -2313,19 +2380,23 @@ function rebuildEndingPanel(): void {
       <div><h3>Kept in the Next Keeping</h3><ul>
         <li>Lantern moths, duty roster, roost &amp; cocoon</li>
         <li>Relics &amp; story — every beat you've heard</li>
-        <li>Ember perks &amp; challenge rewards</li>
+        <li>The Wing Almanac and its rewards</li>
+        <li>Ember perks, Kindlings &amp; challenge rewards</li>
         <li>Keeper knowledge (Longer Wicks, Ember Resonance)</li>
         <li>Your settings, stats &amp; all-time Lumen</li>
       </ul></div>
       <div><h3>Reset</h3><ul>
         <li>Lumen, generators &amp; non-permanent upgrades</li>
         <li>All seven lighthouses go dark (First Light remains)</li>
-        <li>Chain boards, and the Ember ledger — held AND total earned</li>
+        <li>Chain boards, and every Ember: held and earned</li>
       </ul></div>
     </div>
-    <p class="muted">In exchange: a legacy — production ×${legacyMultiplier(state).toFixed(2)} now, ×${(legacyMultiplier(state) + 0.25).toFixed(2)} in the Next Keeping — and ${5 * (state.ngPlusCount + 1)} inherited Embers in hand at the start.</p>
+    <p class="ending-stakes"></p>
+    <p class="ending-open"></p>
     <button class="danger ngplus-button">Begin the Next Keeping (NG+)</button>`;
   endingStats = panel.querySelector<HTMLElement>(".ending-stats");
+  endingStakes = panel.querySelector<HTMLElement>(".ending-stakes");
+  endingOpen = panel.querySelector<HTMLElement>(".ending-open");
   const btn = panel.querySelector<HTMLButtonElement>(".ngplus-button");
   if (btn) armTwoStep(btn, "Are you sure? The shore goes dark — click again to begin the Next Keeping", () => {
     if (startNgPlus(state)) {
@@ -3943,7 +4014,30 @@ function renderDynamic(full = true): void {
       `${state.moths.length} moths in the roost · ${state.relics.length} of 8 relics home · ` +
       `${state.storySeen.length} of ${STORY_BEATS.length} story beats heard · ${formatDuration(state.playTimeSeconds)} at the lamp.`;
   }
+  if (endingStakes) {
+    const inherit = 5 * (state.ngPlusCount + 1);
+    const bonus = bonusText(effectiveEmbers(state.embers) * Math.round(emberBonusPerEmber(state) * 100));
+    const text =
+      `The cost: your ${fmt(state.embers)} Embers (${bonus} production) go back to the sea, and you begin with ${inherit}. ` +
+      `In exchange: a legacy, production ×${legacyMultiplier(state).toFixed(2)} now and ×${(legacyMultiplier(state) + 0.25).toFixed(2)} in the Next Keeping, and the whole shore to light again.`;
+    if (endingStakes.textContent !== text) endingStakes.textContent = text;
+  }
+  if (endingOpen) {
+    const open: string[] = [];
+    const pages = ALMANAC_SIZE - state.almanac.length;
+    if (pages > 0) open.push(`<button type="button" class="link-btn" data-ending-go="almanac">${pages} Almanac page${pages === 1 ? "" : "s"}</button>`);
+    const trials = CHALLENGES.length - state.completedChallenges.length;
+    if (trials > 0) open.push(`<button type="button" class="link-btn" data-ending-go="trials">${trials} challenge${trials === 1 ? "" : "s"}</button>`);
+    const relics = RELICS.length - state.relics.length;
+    if (relics > 0) open.push(`<button type="button" class="link-btn" data-ending-go="sea">${relics} relic${relics === 1 ? "" : "s"}</button>`);
+    const html = open.length > 0 ? `Still out there: ${open.join(" · ")}.` : "Nothing left undone on this shore: every page, challenge and relic is yours.";
+    if (endingOpen.dataset.html !== html) {
+      endingOpen.dataset.html = html;
+      endingOpen.innerHTML = html;
+    }
+  }
 
+  announceNews(nowMs);
   // Log view (newest first; story beats get their own styling)
   // Rebuilt only when an entry arrives, so the Log can be read, selected
   // and copied (rebuilding every tick replaced the nodes under the cursor).
