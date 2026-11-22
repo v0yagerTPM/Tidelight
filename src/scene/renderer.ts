@@ -17,6 +17,8 @@ interface Ring { r: number; life: number }
 
 const rand = seeded(1871);
 const STARS = Array.from({ length: 150 }, () => ({ x: rand(), y: rand() * 0.52, s: rand() * 1.3 + 0.35, p: rand() * 6.283 }));
+/** One star in this many twinkles live; the rest are painted once (paintLayer). */
+const TWINKLE_EVERY = 5;
 const CRACKS = Array.from({ length: 13 }, () => {
   const pts: [number, number][] = [];
   let x = 0.3 + rand() * 0.7;
@@ -84,37 +86,55 @@ export class SceneRenderer extends AnimatedCanvas {
     const storm = m.tide === "storm";
     const calm = m.tide === "calm";
 
-    // Sky — stars fade as the lamplight grows.
-    const sky = ctx.createLinearGradient(0, 0, 0, horizon);
-    sky.addColorStop(0, storm ? "#04070e" : "#050b18");
-    sky.addColorStop(1, storm ? "#151b27" : "#17324c");
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, W, horizon + 1);
+    // The still parts of the night are painted once into two layers and
+    // reused until something about them changes (tide, size, the lamplight's
+    // reach, the dark lights): redrawing gradients, 150 stars and a
+    // full-scene radial gradient every frame was most of a phone's frame
+    // (second performance pass). Only what moves is drawn live.
+    const darkLights = m.farLit.filter((lit) => !lit).length;
+    const px = `${W}|${H}|${this.canvas.width}|${horizon.toFixed(1)}`;
+    const starAlpha = 0.85 - m.reach * 0.45;
+    this.paintLayer(ctx, "sky", `${px}|${storm}|${calm}|${m.seaIsWater}|${Math.round(m.reach * 40)}`, (c) => {
+      // Sky — stars fade as the lamplight grows (the steady ones live here).
+      const sky = c.createLinearGradient(0, 0, 0, horizon);
+      sky.addColorStop(0, storm ? "#04070e" : "#050b18");
+      sky.addColorStop(1, storm ? "#151b27" : "#17324c");
+      c.fillStyle = sky;
+      c.fillRect(0, 0, W, horizon + 1);
+      if (!storm) {
+        STARS.forEach((s, i) => {
+          if (i % TWINKLE_EVERY === 0) return; // drawn live, twinkling
+          c.fillStyle = `rgba(233,230,220,${(starAlpha * 0.78).toFixed(3)})`;
+          c.fillRect(s.x * W, s.y * H, s.s, s.s);
+        });
+        glow(c, W * 0.84, H * 0.15, 70, "255,240,210", 0.45);
+        c.fillStyle = "#f4ead2";
+        c.beginPath();
+        c.arc(W * 0.84, H * 0.15, 9, 0, Math.PI * 2);
+        c.fill();
+      }
+      // The sea: glass or, after the ending, water.
+      const sea = c.createLinearGradient(0, horizon, 0, H);
+      if (m.seaIsWater) {
+        sea.addColorStop(0, "#1d4a66");
+        sea.addColorStop(1, "#08172a");
+      } else {
+        sea.addColorStop(0, calm ? "#1b3a55" : "#132b42");
+        sea.addColorStop(1, "#070f1c");
+      }
+      c.fillStyle = sea;
+      c.fillRect(0, horizon, W, H - horizon);
+    });
     if (!storm) {
-      const starAlpha = 0.85 - m.reach * 0.45;
-      for (const s of STARS) {
+      // A fifth of the stars twinkle.
+      for (let i = 0; i < STARS.length; i += TWINKLE_EVERY) {
+        const s = STARS[i];
         const tw = 0.55 + 0.45 * Math.sin(t * 1.3 + s.p);
         ctx.fillStyle = `rgba(233,230,220,${(starAlpha * tw).toFixed(3)})`;
         ctx.fillRect(s.x * W, s.y * H, s.s, s.s);
       }
-      this.glow(W * 0.84, H * 0.15, 70, "255,240,210", 0.45);
-      ctx.fillStyle = "#f4ead2";
-      ctx.beginPath();
-      ctx.arc(W * 0.84, H * 0.15, 9, 0, Math.PI * 2);
-      ctx.fill();
     }
-
-    // The sea: glass (cracked, faintly shimmering) or, after the ending, water.
-    const sea = ctx.createLinearGradient(0, horizon, 0, H);
-    if (m.seaIsWater) {
-      sea.addColorStop(0, "#1d4a66");
-      sea.addColorStop(1, "#08172a");
-    } else {
-      sea.addColorStop(0, calm ? "#1b3a55" : "#132b42");
-      sea.addColorStop(1, "#070f1c");
-    }
-    ctx.fillStyle = sea;
-    ctx.fillRect(0, horizon, W, H - horizon);
+    // The sea's shimmer lines move, so they stay live.
     for (let i = 0; i < 24; i++) {
       const y = horizon + Math.pow(i / 24, 1.6) * (H - horizon);
       const swell = m.seaIsWater ? Math.sin(t * 1.4 + i) * 3 : 0;
@@ -126,50 +146,49 @@ export class SceneRenderer extends AnimatedCanvas {
       ctx.lineTo(W, y - swell + (i % 3) - 1);
       ctx.stroke();
     }
-    if (!m.seaIsWater) {
-      // One pair of cracks per dark lighthouse (plus one that never heals
-      // until the end): the glass mends as the coast relights.
-      const dark = m.farLit.filter((lit) => !lit).length;
-      ctx.strokeStyle = "rgba(205,232,242,0.13)";
-      ctx.lineWidth = 1;
-      for (const crack of CRACKS.slice(0, 1 + dark * 2)) {
-        ctx.beginPath();
-        crack.forEach(([x, y], i) => {
-          const px = x * W;
-          const py = horizon + 6 + y * (H - horizon) * 0.9;
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        });
-        ctx.stroke();
+    this.paintLayer(ctx, "shore", `${px}|${m.seaIsWater}|${darkLights}|${m.tide === "low"}|${Math.round(m.reach * 200)}`, (c) => {
+      if (!m.seaIsWater) {
+        // One pair of cracks per dark lighthouse (plus one that never heals
+        // until the end): the glass mends as the coast relights.
+        c.strokeStyle = "rgba(205,232,242,0.13)";
+        c.lineWidth = 1;
+        for (const crack of CRACKS.slice(0, 1 + darkLights * 2)) {
+          c.beginPath();
+          crack.forEach(([x, y], i) => {
+            const cx = x * W;
+            const cy = horizon + 6 + y * (H - horizon) * 0.9;
+            if (i === 0) c.moveTo(cx, cy);
+            else c.lineTo(cx, cy);
+          });
+          c.stroke();
+        }
       }
-    }
-    if (m.tide === "low") {
-      ctx.fillStyle = "#0c1727";
-      for (const [x, w] of [[0.55, 60], [0.71, 38], [0.88, 70]] as const) {
-        ctx.beginPath();
-        ctx.ellipse(x * W, horizon + (H - horizon) * 0.36, w, 9, 0, Math.PI, 0);
-        ctx.fill();
+      if (m.tide === "low") {
+        c.fillStyle = "#0c1727";
+        for (const [x, w] of [[0.55, 60], [0.71, 38], [0.88, 70]] as const) {
+          c.beginPath();
+          c.ellipse(x * W, horizon + (H - horizon) * 0.36, w, 9, 0, Math.PI, 0);
+          c.fill();
+        }
       }
-    }
-
-    // Foreground rocks.
-    ctx.fillStyle = "#0a111e";
-    ctx.beginPath();
-    ctx.moveTo(0, H);
-    ctx.lineTo(0, g.base - H * 0.02);
-    ctx.quadraticCurveTo(W * 0.12, g.base - H * 0.08, lx - 40, g.base - H * 0.02);
-    ctx.quadraticCurveTo(lx + 70, g.base - H * 0.05, W * 0.5, H * 0.93);
-    ctx.lineTo(W * 0.52, H);
-    ctx.closePath();
-    ctx.fill();
-
-    // The dark: lamplight reach pushes it back as production grows.
-    const reachR = Math.max(W, H) * (0.28 + 0.95 * m.reach);
-    const dark = ctx.createRadialGradient(lx, lampY, reachR * 0.35, lx, lampY, reachR * 1.25);
-    dark.addColorStop(0, "rgba(3,6,12,0)");
-    dark.addColorStop(1, "rgba(3,6,12,0.72)");
-    ctx.fillStyle = dark;
-    ctx.fillRect(0, 0, W, H);
+      // Foreground rocks.
+      c.fillStyle = "#0a111e";
+      c.beginPath();
+      c.moveTo(0, H);
+      c.lineTo(0, g.base - H * 0.02);
+      c.quadraticCurveTo(W * 0.12, g.base - H * 0.08, lx - 40, g.base - H * 0.02);
+      c.quadraticCurveTo(lx + 70, g.base - H * 0.05, W * 0.5, H * 0.93);
+      c.lineTo(W * 0.52, H);
+      c.closePath();
+      c.fill();
+      // The dark: lamplight reach pushes it back as production grows.
+      const reachR = Math.max(W, H) * (0.28 + 0.95 * m.reach);
+      const dark = c.createRadialGradient(lx, lampY, reachR * 0.35, lx, lampY, reachR * 1.25);
+      dark.addColorStop(0, "rgba(3,6,12,0)");
+      dark.addColorStop(1, "rgba(3,6,12,0.72)");
+      c.fillStyle = dark;
+      c.fillRect(0, 0, W, H);
+    });
 
     // ── Lights and living things, drawn over the dark (they make their own light).
     this.drawFarLighthouses(m, t, horizon);
@@ -204,6 +223,33 @@ export class SceneRenderer extends AnimatedCanvas {
     if (storm) this.drawStorm(t, still);
     this.drawFlashEffects(g);
     this.flashLevel = Math.max(0, this.flashLevel - 0.035);
+  }
+
+  private readonly layers = new Map<string, { canvas: HTMLCanvasElement; key: string }>();
+
+  /**
+   * Draw a cached layer: painted by `paint` into an offscreen canvas the
+   * size of the scene, again only when `key` changes, then copied in.
+   */
+  private paintLayer(ctx: CanvasRenderingContext2D, name: string, key: string, paint: (c: CanvasRenderingContext2D) => void): void {
+    let layer = this.layers.get(name);
+    if (!layer) {
+      layer = { canvas: document.createElement("canvas"), key: "" };
+      this.layers.set(name, layer);
+    }
+    if (layer.key !== key) {
+      const { canvas } = layer;
+      canvas.width = this.canvas.width;
+      canvas.height = this.canvas.height;
+      const c = canvas.getContext("2d");
+      if (!c) return;
+      const dpr = this.canvas.width / Math.max(1, this.w);
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.clearRect(0, 0, this.w, this.h);
+      paint(c);
+      layer.key = key;
+    }
+    ctx.drawImage(layer.canvas, 0, 0, this.w, this.h);
   }
 
   private glow(x: number, y: number, r: number, rgb: string, alpha: number): void {

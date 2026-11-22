@@ -333,3 +333,21 @@ describe("save migration (Sprint 0 → Sprint 1)", () => {
     expect(restored?.buyAmount).toBe(1);
   });
 });
+
+describe("hasUpgrade's set", () => {
+  it("follows pushes, pops, a different id pushed in place, and a new list", async () => {
+    const { createInitialState } = await import("../src/game/state");
+    const { hasUpgrade } = await import("../src/game/upgrades");
+    const state = createInitialState(0);
+    expect(hasUpgrade(state, "click-1")).toBe(false);
+    state.upgrades.push("click-1");
+    expect(hasUpgrade(state, "click-1")).toBe(true);
+    state.upgrades.pop();
+    state.upgrades.push("click-2"); // same length, another id (the bot's try-and-undo)
+    expect(hasUpgrade(state, "click-1")).toBe(false);
+    expect(hasUpgrade(state, "click-2")).toBe(true);
+    state.upgrades = ["keepers-focus"];
+    expect(hasUpgrade(state, "click-2")).toBe(false);
+    expect(hasUpgrade(state, "keepers-focus")).toBe(true);
+  });
+});

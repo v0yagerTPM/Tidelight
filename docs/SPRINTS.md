@@ -1640,3 +1640,47 @@ Fixes:
 The Light tab's remaining cost is mostly canvas drawing (headless Chromium
 draws in software, so a phone's GPU should do better), which the pacing
 now absorbs. Checked in the browser: every tab still updates on opening.
+
+## ✅ Post-launch — NG+ performance, second pass
+
+"It still feels slow." Per-call timers (a temporary build, at a 4× CPU
+slowdown, 2× pixels, tapping three times a second on the Light view of an
+NG+ save) found three things the first pass hadn't:
+
+- **Every tap ran a full refresh** (~9 ms at that speed) on top of the ten
+  a second from the clock.
+- **The views refreshed ten times a second**, though nothing in them needs
+  to move that fast; the helper rows alone were ~3.5 ms, partly because each
+  row's "affordable in…" recounted the light.
+- **The scene drew at the screen's own rate** (120 a second on a 120 Hz
+  phone), and most of each frame was a still background repainted from
+  scratch: two gradients, 150 stars, a full-scene radial gradient, and a new
+  radial gradient for every glow.
+
+Fixes:
+- [x] **The clock refreshes the header ten times a second and the open view
+      four** (`renderDynamic(full)`, `FULL_RENDER_MS`); anything the keeper
+      does still refreshes everything at once. A tap refreshes the header
+      only. The tide strip is rewritten only when its text changes.
+- [x] `timeToAffordCost` takes the Lumen/s the refresh already has.
+- [x] **Scenes on touch devices draw at 30 fps** (a coarse pointer), on top
+      of the slow-frame fallback from the first pass.
+- [x] **The Light scene's still parts are painted once** into two cached
+      layers (sky, steady stars, moon, sea; cracks, shoals, rocks and the
+      dark), repainted only when the tide, size, the lamplight's reach or the
+      dark lights change. A fifth of the stars still twinkle live; the sea's
+      lines still move. Screenshots before and after match.
+- [x] **Glows are stamped from a pre-painted sprite per colour**
+      (`canvas.glow`) instead of a new radial gradient each time: the same
+      picture, for every scene.
+- [x] `hasUpgrade` keeps a set beside the upgrades list (rebuilt when its
+      length or last id changes, which catches the bot's try-and-undo).
+
+| At 4× slowdown, per second, Light view, tapping 3/s | First pass | Now |
+|---|---|---|
+| View refresh | 74 ms | 36 ms |
+| Taps | 25 ms | 6 ms |
+| Scene drawing | ~95 ms at 30 fps (and double that at 60, four times at 120) | ~78 ms at 30 fps on touch devices |
+
+The plain bot's ending is unchanged (29.9h). Tests: `hasUpgrade`'s set
+follows pushes, pops, a swapped id and a new list.

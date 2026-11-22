@@ -2454,7 +2454,9 @@ function flashBeam(): void {
   sound.flash();
   if (value.gt(0)) scene?.flash(flashEchoShare(state) > 0 && !echoing ? `+${fmt(value)} · echo resting` : `+${fmt(value)}`);
   updateEchoPips(now);
-  renderDynamic();
+  // The header only: the rest follows within a quarter second (a tap used
+  // to cost a full refresh, ~9 ms on a phone).
+  renderDynamic(false);
 }
 
 /** The three marks on Flash the Beam: echoes left this second (shown once a Flash Echo is learned). */
@@ -2948,11 +2950,21 @@ function updateSupplyStrip(now: number, chain = chainStatus(state, now)): void {
   }
 }
 
-function renderDynamic(): void {
+/** The least time between two full refreshes from the clock (the header still counts 10 times a second). */
+const FULL_RENDER_MS = 250;
+let lastFullRenderAt = 0;
+
+/**
+ * Refresh what's on screen. `full` (the default, after anything the keeper
+ * does) refreshes the open view too; the clock's ten-a-second ticks refresh
+ * only the header and the echo marks between full refreshes, four a second
+ * (second performance pass: the views' refresh was most of the game's cost
+ * on a phone, and nothing in them needs to move faster).
+ */
+function renderDynamic(full = true): void {
   const nowMs = Date.now();
   // Read once a refresh and shared below: recounting the light is the costliest thing here.
   const rateNow = productionPerSecond(state, nowMs);
-  const chainNow = chainStatus(state, nowMs);
   if (hud.lumen) hud.lumen.textContent = fmt(state.lumen);
   if (hud.rate) {
     const helpers = rateNow;
@@ -2970,6 +2982,9 @@ function renderDynamic(): void {
   }
   if (hud.embers) hud.embers.textContent = fmt(state.embers);
   updateEchoPips(nowMs);
+  if (!full) return;
+  lastFullRenderAt = nowMs;
+  const chainNow = chainStatus(state, nowMs);
 
   // Tide strip (Sprint 4): current tide, its effect in words, the turn
   // countdown, and what's coming next.
@@ -2980,9 +2995,10 @@ function renderDynamic(): void {
         ? " Your Storm in a Bottle hums: ×1.45 for you."
         : "";
     const nextHint = next.def.id === "storm" ? " — shore up your chain." : "";
-    hud.tideStrip.innerHTML =
+    const tideHtml =
       `${TIDE_GLYPHS[current.def.id]} <strong>${current.def.name}</strong> ` +
       `<span class="tide-turn">· turns in ${formatDuration((current.endsAt - nowMs) / 1000)} · next: ${TIDE_GLYPHS[next.def.id]} ${next.def.name}</span>`;
+    if (hud.tideStrip.innerHTML !== tideHtml) hud.tideStrip.innerHTML = tideHtml;
     setTip(hud.tideStrip, `${current.def.name}: ${current.def.effectText}${stormRelic}\nNext, ${next.def.name}: ${next.def.effectText}${nextHint}`);
   }
 
@@ -3100,7 +3116,7 @@ function renderDynamic(): void {
       } else if (quote.affordable) {
         row.note.textContent = gain.gt(0) ? `+${fmt(gain)} Lumen/s` : "";
       } else {
-        const tta = timeToAffordCost(state, quote.cost);
+        const tta = timeToAffordCost(state, quote.cost, rateNow);
         row.note.textContent = Number.isFinite(tta) ? affordableIn(tta) : "earn Lumen by flashing";
       }
     }
@@ -3173,7 +3189,7 @@ function renderDynamic(): void {
       if (affordable) {
         row.note.textContent = "";
       } else {
-        const tta = timeToAffordCost(state, new Decimal(row.def.cost));
+        const tta = timeToAffordCost(state, new Decimal(row.def.cost), rateNow);
         row.note.textContent = Number.isFinite(tta) ? capitalize(affordableIn(tta)) : "";
       }
     }
@@ -3485,7 +3501,7 @@ function gameTick(): void {
   }
   if (document.hidden) return; // nothing to draw; the clock still runs
   try {
-    renderDynamic();
+    renderDynamic(now - lastFullRenderAt >= FULL_RENDER_MS);
     refreshScene();
   } catch (err) {
     if (!renderErrorLogged) {

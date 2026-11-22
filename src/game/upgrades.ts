@@ -397,8 +397,23 @@ export function unlockText(def: UpgradeDef): string {
 
 // ── Ownership & effects ──────────────────────────────────────────────────────
 
+// A set beside each upgrades list, rebuilt when the list's length or last
+// id changes or the list is replaced. Upgrades are only pushed, or the list
+// swapped for a new one on a Rekindle; the bot tries one by pushing it and
+// popping it off again, which the last id catches. Recounting the light asks hundreds of times a refresh,
+// and a search of ~70 ids each time was a large share of a phone's frame
+// (second performance pass).
+const UPGRADE_SETS = new WeakMap<readonly string[], { length: number; last: string | undefined; set: ReadonlySet<string> }>();
+
 export function hasUpgrade(state: GameState, id: string): boolean {
-  return state.upgrades.includes(id);
+  const list = state.upgrades;
+  let memo = UPGRADE_SETS.get(list);
+  const last = list[list.length - 1];
+  if (!memo || memo.length !== list.length || memo.last !== last) {
+    memo = { length: list.length, last, set: new Set(list) };
+    UPGRADE_SETS.set(list, memo);
+  }
+  return memo.set.has(id);
 }
 
 export function isPermanentUpgrade(id: string): boolean {

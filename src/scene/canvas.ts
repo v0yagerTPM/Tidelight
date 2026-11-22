@@ -27,6 +27,12 @@ export abstract class AnimatedCanvas {
   private gapEma = 16.7;
   private halfRate = false;
   private halfSince = 0;
+  /**
+   * Phones and tablets (a coarse pointer) draw the scenes at 30 fps always:
+   * they are slow, glowing scenes, and on a phone the drawing was half of
+   * what the game cost (second performance pass, NG+).
+   */
+  private readonly touch = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
   private readonly resizeObserver: ResizeObserver;
 
   constructor(protected readonly canvas: HTMLCanvasElement) {
@@ -62,7 +68,7 @@ export abstract class AnimatedCanvas {
         this.halfRate = false;
         this.gapEma = 16.7;
       }
-      if (this.halfRate && tms - this.lastDraw < HALF_RATE_MS) return;
+      if ((this.halfRate || this.touch) && tms - this.lastDraw < HALF_RATE_MS) return;
       this.lastDraw = tms;
       this.frame(tms);
     };
@@ -120,11 +126,49 @@ export function seeded(seed: number): () => number {
 /** A soft radial light. `rgb` is "r,g,b". */
 export function glow(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, rgb: string, alpha: number): void {
   if (r <= 0 || alpha <= 0) return;
-  const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-  grad.addColorStop(0, `rgba(${rgb},${Math.min(1, alpha).toFixed(3)})`);
-  grad.addColorStop(1, `rgba(${rgb},0)`);
-  ctx.fillStyle = grad;
-  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  // A pre-painted soft disc per colour, stamped at the glow's size and
+  // strength: the same picture as a fresh radial gradient (whose stops ran
+  // from alpha to 0), without building one for every glow of every frame,
+  // which was a large share of a phone's frame (second performance pass).
+  const sprite = glowSprite(rgb);
+  if (!sprite) {
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, `rgba(${rgb},${Math.min(1, alpha).toFixed(3)})`);
+    grad.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    return;
+  }
+  const prev = ctx.globalAlpha;
+  ctx.globalAlpha = prev * Math.min(1, alpha);
+  ctx.drawImage(sprite, x - r, y - r, r * 2, r * 2);
+  ctx.globalAlpha = prev;
+}
+
+/** The glow sprites, by colour: GLOW_SPRITE_PX square, opaque centre fading to clear. */
+const GLOW_SPRITE_PX = 256;
+const GLOW_SPRITES = new Map<string, HTMLCanvasElement | null>();
+function glowSprite(rgb: string): HTMLCanvasElement | null {
+  let sprite = GLOW_SPRITES.get(rgb);
+  if (sprite !== undefined) return sprite;
+  if (GLOW_SPRITES.size >= 64) return null; // the palette is small; never grow without bound
+  sprite = null;
+  if (typeof document !== "undefined") {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = GLOW_SPRITE_PX;
+    const c = canvas.getContext("2d");
+    if (c) {
+      const half = GLOW_SPRITE_PX / 2;
+      const grad = c.createRadialGradient(half, half, 0, half, half, half);
+      grad.addColorStop(0, `rgba(${rgb},1)`);
+      grad.addColorStop(1, `rgba(${rgb},0)`);
+      c.fillStyle = grad;
+      c.fillRect(0, 0, GLOW_SPRITE_PX, GLOW_SPRITE_PX);
+      sprite = canvas;
+    }
+  }
+  GLOW_SPRITES.set(rgb, sprite);
+  return sprite;
 }
 
 /** A four-point glint. */
