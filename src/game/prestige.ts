@@ -1,7 +1,7 @@
 import Decimal from "break_infinity.js";
 import { CHAIN_NODE_IDS, GENERATORS, PRESTIGE_DIVISOR, litEmberGainMultiplier } from "./config";
-import { canBuyGenerator } from "./challenges";
-import { WARM_HEARTH_HELPERS, WARM_HEARTH_TIERS, hasPerk, headStartLumen, perkById } from "./emberShop";
+import { canBuyGenerator, generatorLockedBy } from "./challenges";
+import { FULL_HEARTH_TIERS, WARM_HEARTH_HELPERS, WARM_HEARTH_TIERS, hasPerk, headStartLumen, perkById } from "./emberShop";
 import { relicEmberGainMultiplier } from "./expeditions";
 import { formatNumber } from "./format";
 import { addLog, startBoard } from "./state";
@@ -52,7 +52,9 @@ export function keptThroughRekindle(state: GameState, id: string): boolean {
   if (isPermanentUpgrade(id)) return true;
   if (!hasPerk(state, "ember-memory")) return false;
   const def = upgradeById(id);
-  return def.kind === "generator" && generatorUpgradeTier(def) === 1;
+  if (def.kind !== "generator") return false;
+  // Second Memory (far shelf) keeps the second tier too.
+  return generatorUpgradeTier(def) <= (hasPerk(state, "second-memory") ? 2 : 1);
 }
 
 export function resetRun(state: GameState): void {
@@ -65,7 +67,11 @@ export function resetRun(state: GameState): void {
   // Warm Hearth (Ember perk): the new run starts with a crew of the first
   // three helpers (a challenge's rules are set before this runs).
   if (hasPerk(state, "warm-hearth")) {
-    for (const def of GENERATORS.slice(0, WARM_HEARTH_TIERS)) if (canBuyGenerator(state, def.id)) state.generators[def.id] = WARM_HEARTH_HELPERS;
+    // Full Hearth (far shelf) widens the crew to six, where they can be hired.
+    const tiers = hasPerk(state, "full-hearth") ? FULL_HEARTH_TIERS : WARM_HEARTH_TIERS;
+    for (const def of GENERATORS.slice(0, tiers)) {
+      if (canBuyGenerator(state, def.id) && generatorLockedBy(state, def.id) === null) state.generators[def.id] = WARM_HEARTH_HELPERS;
+    }
   }
   // Chain boards reset to their starting levels; lit lighthouses stay lit.
   let boardsHadProgress = false;

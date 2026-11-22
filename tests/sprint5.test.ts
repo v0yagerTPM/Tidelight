@@ -382,7 +382,7 @@ describe("save export/import and the v5 → v6 migration", () => {
     };
     const restored = deserializeState(JSON.parse(JSON.stringify(v5Save)));
     expect(restored).not.toBeNull();
-    expect(restored?.version).toBe(15);
+    expect(restored?.version).toBe(17);
     expect(restored?.litLighthouses).toEqual([FIRST_LIGHT_ID, GULL_ROCK_ID]); // Gull Rock stays lit
     expect(restored?.chainBoards[GULL_ROCK_ID]).toEqual({ wick: 1, oil: 0, lens: 0, beam: 0 });
     expect(restored?.storySeen).toEqual([]);

@@ -1,7 +1,7 @@
 import Decimal from "break_infinity.js";
 import { describe, expect, it } from "vitest";
 import { lureBankSize, lureRegrowMs } from "../src/game/almanac";
-import { EXPEDITION_ROUTES, voyageMs } from "../src/game/expeditions";
+import { EXPEDITION_ROUTES, relicChanceFor, voyageMs } from "../src/game/expeditions";
 import { autoHire, autoLearn, lampCrewActive, lampCrewUnlocked, quartermasterActive, quartermasterUnlocked } from "../src/game/automation";
 import { chainStatus } from "../src/game/chain";
 import { startChallenge } from "../src/game/challenges";
@@ -72,17 +72,19 @@ describe("Kindlings", () => {
     expect(kindlingCost(state, "ember-glow")).toBe(Infinity);
   });
 
-  it("the Shore Kindlings take 5% off lures, cocoons and bottles a level", () => {
+  it("the Shore Kindlings take 5% off lures and cocoons a level; Tailwind adds 2 points of relic chance", () => {
     const state = keeper(0);
     const a = { id: "a", name: "A", pattern: "plain", glow: 10 } as Moth;
     const lure = lureRegrowMs(state);
     const cocoon = cocoonDurationMs(a, a, state);
     const route = EXPEDITION_ROUTES[0];
     const voyage = voyageMs(state, route);
+    const chance = relicChanceFor(state, route, null);
     state.kindlings = { "quick-lures": 2, "spinning-silk": 2, tailwind: 2 };
     expect(lureRegrowMs(state)).toBe(Math.round(lure * 0.9025));
     expect(cocoonDurationMs(a, a, state)).toBe(Math.round(cocoon * 0.9025));
-    expect(voyageMs(state, route)).toBe(Math.round(voyage * 0.9025));
+    expect(voyageMs(state, route)).toBe(voyage);
+    expect(relicChanceFor(state, route, null)).toBeCloseTo(chance + 0.04, 9);
   });
 
   it("Long Watch adds an hour of offline cap a level and stops at 8", () => {
@@ -143,12 +145,12 @@ describe("late perks", () => {
     expect(state.upgrades.sort()).toEqual(["candle-crab-u1", "longer-wicks", "tide-bell-u1"]);
   });
 
-  it("Glass Charts bring bottles home 25% sooner", () => {
+  it("Glass Charts no longer hurry a bottle (they send it out again: tests/farShelf.test.ts)", () => {
     const state = keeper();
     const route = EXPEDITION_ROUTES[1];
     const before = voyageMs(state, route);
     buyPerk(state, "glass-charts");
-    expect(voyageMs(state, route)).toBe(Math.round(before * 0.75));
+    expect(voyageMs(state, route)).toBe(before);
   });
 
   it("Storm Charts soften a Stormfront's drain to ×0.9", () => {

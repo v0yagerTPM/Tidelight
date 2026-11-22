@@ -58,10 +58,13 @@ import {
   KINDLE_ALL_SHARE,
   buyKindling,
   buyPerk,
+  hasPerk,
   kindleAll,
   kindleAllPreview,
   kindlingCost,
   kindlingLevel,
+  perkOpen,
+  tailwindRelicBonus,
   type EmberPerkDef,
   type KindlingDef,
 } from "./game/emberShop";
@@ -73,7 +76,9 @@ import {
   lastingProductionMultiplier,
   buyQuote,
   buyWithAmount,
+  ECHO_FLASHES_PER_SECOND,
   clickBeam,
+  echoCharges,
   clickValue,
   generatorProduction,
   productionForOwned,
@@ -93,6 +98,7 @@ import {
   routeById,
   sendExpedition,
   relicChanceFor,
+  tendBottles,
   voyageMs,
   type ExpeditionClaim,
 } from "./game/expeditions";
@@ -103,7 +109,13 @@ import { FILL_BEAM_SHARE, bottleneckAtDemand, efficiencyAtDemand, feedNode, feed
 import { affordableIn, formatDuration, formatNumber, withArticle } from "./game/format";
 import {
   attractMoth,
+  BASE_NESTS,
+  EXPANSIONS_PER_NEST,
+  MAX_NESTS,
   cocoonReady,
+  expansionsToNextNest,
+  nestCount,
+  readyCocoonCount,
   dutyGlowTotal,
   dutyMoths,
   expandRoost,
@@ -114,7 +126,6 @@ import {
   mothsUnlocked,
   patternById,
   releaseMoth,
-  releasePayout,
   roostExpansionCost,
   roostExpansionMinutes,
   rushAttractMoth,
@@ -180,6 +191,7 @@ import {
   UPGRADES,
   buyUpgrade,
   emberBonusPerEmber,
+  flashEchoShare,
   isPermanentUpgrade,
   isUnlocked,
   totalGeneratorsOwned,
@@ -272,7 +284,8 @@ function welcomeBack(gain: Decimal, creditedSeconds: number, awaySeconds: number
   // Welcome back, in full: the Shore keeps its own time while you're gone.
   if (awaySeconds > 60) {
     const shoreNotes: string[] = [];
-    if (state.cocoon && cocoonReady(state)) shoreNotes.push("the cocoon is ready to hatch");
+    const ready = readyCocoonCount(state);
+    if (ready > 0) shoreNotes.push(ready === 1 ? "a cocoon is ready to hatch" : `${ready} cocoons are ready to hatch`);
     if (state.expedition && expeditionReady(state)) shoreNotes.push("a bottle has washed back onto the glass");
     if (shoreNotes.length > 0) {
       addLog(state, `While you were away: ${shoreNotes.join(", and ")} — see the Shore.`);
@@ -286,6 +299,8 @@ const bootNow = state.lastSeen;
 welcomeBack(offline.gain, offline.creditedSeconds, offline.awaySeconds);
 // The Chain Steward takes its share of the time away, as it does live.
 const bootStewardLevels = tendChain(state, offline.gain, bootNow);
+// Glass Charts: the bottles that came home while you were away set out again.
+tendBottles(state, Math.random, bootNow);
 if (bootStewardLevels > 0) {
   addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${bootStewardLevels} level${bootStewardLevels === 1 ? "" : "s"}.`);
 }
@@ -339,7 +354,7 @@ ${[
         <canvas id="scene-canvas" aria-hidden="true"></canvas>
         <div id="tide-strip" class="tide-strip"></div>
         <div class="scene-foot">
-          <button id="flash" class="beam">Flash the Beam</button>
+          <button id="flash" class="beam">Flash the Beam<span class="echo-pips hidden" id="echo-pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
         </div>
       </div>
       <section id="supply-strip" class="card supply-strip hidden" aria-label="Supply chain">
@@ -471,6 +486,7 @@ ${[
               <div class="hearth-arrow" aria-hidden="true">→</div>
               <div><span class="stat-label">After Rekindle</span><strong id="rk-after">+0%</strong></div>
             </div>
+            <p class="hearth-relative" id="rk-relative"></p>
           </div>
         </div>
         <div class="row"><span id="rk-held-label">Embers held</span><strong id="rk-held">0</strong></div>
@@ -835,7 +851,7 @@ let shopRows: ShopRow[] = [];
 let shopStructureKey: string | null = null;
 
 function emberShopKey(): string {
-  return `${state.emberPerks.join(",")}|${KINDLINGS.map((k) => kindlingLevel(state, k.id)).join(",")}|${state.autoLearn}|${state.autoHire}`;
+  return `${state.emberPerks.join(",")}|${KINDLINGS.map((k) => kindlingLevel(state, k.id)).join(",")}|${state.autoLearn}|${state.autoHire}|${state.litLighthouses.length}`;
 }
 
 /** The total effect a Kindling's levels give, in words ("×2.25 production"). */
@@ -846,8 +862,9 @@ function kindlingTotal(def: KindlingDef, level: number): string {
       return `Now: all production +${Math.round((def.factor ** level - 1) * 100)}%`;
     case "quick-lures":
     case "spinning-silk":
-    case "tailwind":
       return `Now: ${Math.round((1 - def.factor ** level) * 100)}% less waiting`;
+    case "tailwind":
+      return `Now: relic chance +${Math.round(tailwindRelicBonus(state) * 100)} points`;
     case "long-watch":
       return `Now: offline cap +${level} hour${level === 1 ? "" : "s"}`;
     default:
@@ -884,20 +901,23 @@ function rebuildEmberShop(): void {
 
   const perkCard = (def: EmberPerkDef): HTMLElement => {
     const owned = state.emberPerks.includes(def.id);
+    const open = perkOpen(state, def);
     const card = document.createElement("article");
-    card.className = `perk${owned ? " owned" : ""}`;
-    const foot = !owned
-      ? `<span class="perk-cost">${EMBER_GLYPH}${fmt(def.costEmbers)}</span><button class="buy">Kindle</button>`
-      : `<span class="learned">Kindled ✓ · permanent</span>`;
+    card.className = `perk${owned ? " owned" : ""}${open ? "" : " shut"}`;
+    const foot = owned
+      ? `<span class="learned">Kindled ✓ · permanent</span>`
+      : open
+        ? `<span class="perk-cost">${EMBER_GLYPH}${fmt(def.costEmbers)}</span><button class="buy">Kindle</button>`
+        : `<span class="perk-cost">${EMBER_GLYPH}${fmt(def.costEmbers)}</span><span class="muted">Opens when Siren's Rest burns</span>`;
     card.innerHTML = `
       <div class="perk-art">${PERK_ICONS[def.id] ?? UNKNOWN_ICON}</div>
       <div class="perk-body">
         <h4 class="perk-name">${def.name}</h4>
         <p class="perk-effect">${def.effect}</p>
-        ${owned ? "" : `<p class="perk-warning"></p>`}
+        ${owned || !open ? "" : `<p class="perk-warning"></p>`}
       </div>
       <div class="perk-foot">${foot}</div>`;
-    if (!owned) addRow(card, () => def.costEmbers, () => buyPerk(state, def.id));
+    if (!owned && open) addRow(card, () => def.costEmbers, () => buyPerk(state, def.id));
     return card;
   };
 
@@ -929,6 +949,9 @@ function rebuildEmberShop(): void {
 
   const late = shelf("Late perks", "One-time perks for a keeper deep in the game, priced ten times apart.");
   for (const def of EMBER_PERKS.filter((p) => p.shelf === "late")) late.appendChild(perkCard(def));
+
+  const far = shelf("The far shelf", "Opens when Siren's Rest burns, for the long crossing to The Hollow Light: a quicker start to every run, and more from the moths on duty.");
+  for (const def of EMBER_PERKS.filter((p) => p.shelf === "far")) far.appendChild(perkCard(def));
 }
 // The automation switches: beside Learn all affordable (the Quartermaster,
 // with Gull Rock) and beside the buy amounts (the Lamp Crew, with
@@ -1056,16 +1079,16 @@ interface ShoreRefs {
   scentedBtn: HTMLButtonElement | null;
   roostBtn: HTMLButtonElement | null;
   roostNote: HTMLElement | null;
-  cocoonNote: HTMLElement | null;
-  cocoonBar: HTMLElement | null;
-  hatchBtn: HTMLButtonElement | null;
+  /** One row per cocoon spinning, by its place in state.cocoons. */
+  cocoonRows: { index: number; note: HTMLElement | null; bar: HTMLElement | null; btn: HTMLButtonElement | null }[];
+  hatchAllBtn: HTMLButtonElement | null;
   expeditionNote: HTMLElement | null;
   claimBtn: HTMLButtonElement | null;
   sendBtns: { routeId: string; btn: HTMLButtonElement; note: HTMLElement | null }[];
 }
 let shoreRefs: ShoreRefs = {
   attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
-  cocoonNote: null, cocoonBar: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
+  cocoonRows: [], hatchAllBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
 };
 
 /** ", Seeker" / ", Seeker, Fertile" for a moth's select option; "" with no trait. */
@@ -1084,16 +1107,19 @@ function shoreKey(): string {
     state.almanac.length,
     selectedMoth,
     state.moths.map((m) => `${m.trait ?? ""}+${m.trait2 ?? ""}`).join(","),
-    state.cocoon ? `${state.cocoon.parentIds.join("+")}@${state.cocoon.readyAt}` : "-",
+    state.cocoons.map((c) => `${c.parentIds.join("+")}@${c.readyAt}`).join(",") || "-",
+    nestCount(state),
     state.expedition ? `${state.expedition.routeId}@${state.expedition.returnsAt}:${state.expedition.riderId ?? ""}` : "-",
     state.relics.join(","),
+    state.bottleRoute ?? "-",
+    state.emberPerks.includes("glass-charts") ? "G" : "-",
   ].join("|");
 }
 
 function rebuildShore(): void {
   shoreRefs = {
     attractBtn: null, attractNote: null, scentedBtn: null, roostBtn: null, roostNote: null,
-    cocoonNote: null, cocoonBar: null, hatchBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
+    cocoonRows: [], hatchAllBtn: null, expeditionNote: null, claimBtn: null, sendBtns: [],
   };
 
   // ── Moth Garden ──
@@ -1131,6 +1157,7 @@ function rebuildShore(): void {
       card.innerHTML = `
         <div class="gen-name">${GLYPHS.bottle} Out at sea — ${route?.name ?? "an unknown route"}</div>
         ${rider ? `<p class="muted">${rider.name} rides on the cork.</p>` : ""}
+        ${hasPerk(state, "glass-charts") ? `<p class="muted">Glass Charts: when it washes home it's claimed and sets out again on ${routeById(state.bottleRoute ?? "")?.name ?? route?.name ?? "the same route"}. Choose another route below for the next voyage.</p>` : ""}
         <p class="muted expedition-note"></p>
         <button class="buy expedition-claim">Claim the bottle</button>`;
       shoreRefs.expeditionNote = card.querySelector<HTMLElement>(".expedition-note");
@@ -1188,6 +1215,14 @@ function rebuildShore(): void {
       chanceSpans.push({ route, el: card.querySelector<HTMLElement>(".route-chance") });
       if (btn) {
         btn.addEventListener("click", () => {
+          // With Glass Charts and a bottle at sea, the button sets the next voyage's route.
+          if (state.expedition && hasPerk(state, "glass-charts")) {
+            state.bottleRoute = route.id;
+            sound.chime();
+            saveState(state);
+            renderDynamic();
+            return;
+          }
           if (sendExpedition(state, route.id, Date.now(), bottleRider || undefined)) {
             bottleRider = "";
             sound.buy();
@@ -1357,7 +1392,7 @@ function mothDetail(onDuty: Set<string>): HTMLElement {
     </div>
     <div class="detail-actions">
       <button class="buy moth-duty"${post ? ` disabled title="Recall it from its post first"` : atSea ? ` disabled title="It is out at sea"` : ""}>${isDuty ? "Stand down" : "Put on duty"}</button>
-      <button class="buy moth-release"${atSea || inCocoon ? " disabled" : ""}>Release (+${fmt(releasePayout(state, moth))}, +${scales} scale${scales === 1 ? "" : "s"})</button>
+      <button class="buy moth-release"${atSea || inCocoon ? " disabled" : ""}>Release (+${scales} Wing Scale${scales === 1 ? "" : "s"})</button>
       <span class="muted detail-hint">${post || atSea || inCocoon ? "" : "Post it from the Lighthouse posts panel."}</span>
     </div>`;
   card.querySelector(".moth-duty")?.addEventListener("click", () => {
@@ -1378,64 +1413,90 @@ function mothDetail(onDuty: Set<string>): HTMLElement {
 function buildBreeding(host: HTMLElement): void {
   const breed = document.createElement("div");
   breed.className = "card side-card";
-  const home = state.moths.filter((m) => postOf(state, m.id) === null && !isAtSea(state, m.id));
-  if (state.cocoon) {
-    const a = mothById(state, state.cocoon.parentIds[0]);
-    const b = mothById(state, state.cocoon.parentIds[1]);
-    breed.innerHTML = `
-      <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} The Cocoon</span></div>
-      <p class="muted side-line">${a?.name ?? "?"} × ${b?.name ?? "?"}</p>
-      <div class="progress"><div class="progress-bar cocoon-bar"></div></div>
-      <div class="side-row"><span class="muted cocoon-note"></span><button class="buy cocoon-hatch">Hatch</button></div>`;
-    shoreRefs.cocoonNote = breed.querySelector(".cocoon-note");
-    shoreRefs.cocoonBar = breed.querySelector(".cocoon-bar");
-    shoreRefs.hatchBtn = breed.querySelector(".cocoon-hatch");
-    shoreRefs.hatchBtn?.addEventListener("click", () => {
-      const child = hatchCocoon(state, Math.random);
-      if (child) {
-        selectedMoth = child.id;
-        mothChanged(true);
-      }
-    });
-  } else if (home.length >= 2) {
+  // Moths free to breed: at home, not on watch, not already in a cocoon.
+  const home = state.moths.filter((m) => postOf(state, m.id) === null && !isAtSea(state, m.id) && !isCocoonParent(state, m.id));
+  const nests = nestCount(state);
+  const next = expansionsToNextNest(state);
+  const nestNote = next === null ? "" : ` A bigger roost makes room for another: ${next} more expansion${next === 1 ? "" : "s"}.`;
+  let html = `
+    <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} Breeding</span></div>
+    <p class="muted side-line nest-line">${state.cocoons.length} of ${nests} nests spinning.${nestNote}</p>`;
+  state.cocoons.forEach((c, i) => {
+    const a = mothById(state, c.parentIds[0]);
+    const b = mothById(state, c.parentIds[1]);
+    html += `
+      <div class="nest" data-nest="${i}">
+        <p class="muted side-line">${a?.name ?? "?"} × ${b?.name ?? "?"}</p>
+        <div class="progress"><div class="progress-bar cocoon-bar"></div></div>
+        <div class="side-row"><span class="muted cocoon-note"></span><button class="buy cocoon-hatch">Hatch</button></div>
+      </div>`;
+  });
+  if (state.cocoons.length > 1) html += `<div class="side-row nest-all"><span></span><button class="buy hatch-all hidden">Hatch all</button></div>`;
+  const free = state.cocoons.length < nests;
+  if (free && home.length >= 2) {
     if (!home.some((m) => m.id === breedParentA)) breedParentA = home[0].id;
     if (!home.some((m) => m.id === breedParentB) || breedParentB === breedParentA) {
       breedParentB = home.find((m) => m.id !== breedParentA)?.id ?? "";
     }
     const options = home.map((m) => `<option value="${m.id}">${m.name} (${patternById(m.pattern).name}, ${m.glow}${traitList(m)})</option>`).join("");
-    breed.innerHTML = `
-      <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} Breeding</span></div>
-      <select class="breed-select breed-a" aria-label="First parent">${options}</select>
-      <select class="breed-select breed-b" aria-label="Second parent">${options}</select>
-      <div class="side-row"><span class="muted breed-time"></span><button class="buy breed-start">Spin a cocoon</button></div>`;
-    const selA = breed.querySelector<HTMLSelectElement>(".breed-a");
-    const selB = breed.querySelector<HTMLSelectElement>(".breed-b");
-    const timeNote = breed.querySelector<HTMLElement>(".breed-time");
-    const showTime = () => {
-      const a = mothById(state, breedParentA);
-      const b = mothById(state, breedParentB);
-      if (timeNote) timeNote.textContent = a && b && a !== b ? formatDuration(cocoonDurationMs(a, b, state) / 1000) : "pick two moths";
-    };
-    if (selA) {
-      selA.value = breedParentA;
-      selA.addEventListener("change", () => { breedParentA = selA.value; showTime(); });
-    }
-    if (selB) {
-      selB.value = breedParentB;
-      selB.addEventListener("change", () => { breedParentB = selB.value; showTime(); });
-    }
-    showTime();
-    breed.querySelector(".breed-start")?.addEventListener("click", () => {
-      if (startBreeding(state, breedParentA, breedParentB)) {
-        sound.buy();
-        mothChanged();
+    html += `
+      <div class="nest nest-new">
+        <select class="breed-select breed-a" aria-label="First parent">${options}</select>
+        <select class="breed-select breed-b" aria-label="Second parent">${options}</select>
+        <div class="side-row"><span class="muted breed-time"></span><button class="buy breed-start">Spin a cocoon</button></div>
+      </div>`;
+  } else if (free) {
+    html += `<p class="muted side-line">${state.cocoons.length > 0 ? "Another cocoon needs two more moths at home." : "Breeding needs two moths at home in the roost."}</p>`;
+  }
+  breed.innerHTML = html;
+  breed.querySelectorAll<HTMLElement>(".nest[data-nest]").forEach((el) => {
+    const index = Number(el.dataset.nest);
+    const btn = el.querySelector<HTMLButtonElement>(".cocoon-hatch");
+    shoreRefs.cocoonRows.push({ index, note: el.querySelector(".cocoon-note"), bar: el.querySelector(".cocoon-bar"), btn });
+    btn?.addEventListener("click", () => {
+      const child = hatchCocoon(state, Math.random, Date.now(), index);
+      if (child) {
+        selectedMoth = child.id;
+        mothChanged(true);
       }
     });
-  } else {
-    breed.innerHTML = `
-      <div class="side-title"><span class="gen-name">${GLYPHS.cocoon} Breeding</span></div>
-      <p class="muted side-line">Breeding needs two moths at home in the roost.</p>`;
+  });
+  shoreRefs.hatchAllBtn = breed.querySelector<HTMLButtonElement>(".hatch-all");
+  shoreRefs.hatchAllBtn?.addEventListener("click", () => {
+    let last: Moth | null = null;
+    for (let guard = 0; guard < MAX_NESTS; guard++) {
+      const child = hatchCocoon(state, Math.random);
+      if (!child) break;
+      last = child;
+    }
+    if (last) {
+      selectedMoth = last.id;
+      mothChanged(true);
+    }
+  });
+  const selA = breed.querySelector<HTMLSelectElement>(".breed-a");
+  const selB = breed.querySelector<HTMLSelectElement>(".breed-b");
+  const timeNote = breed.querySelector<HTMLElement>(".breed-time");
+  const showTime = () => {
+    const a = mothById(state, breedParentA);
+    const b = mothById(state, breedParentB);
+    if (timeNote) timeNote.textContent = a && b && a !== b ? formatDuration(cocoonDurationMs(a, b, state) / 1000) : "pick two moths";
+  };
+  if (selA) {
+    selA.value = breedParentA;
+    selA.addEventListener("change", () => { breedParentA = selA.value; showTime(); });
   }
+  if (selB) {
+    selB.value = breedParentB;
+    selB.addEventListener("change", () => { breedParentB = selB.value; showTime(); });
+  }
+  if (timeNote) showTime();
+  breed.querySelector(".breed-start")?.addEventListener("click", () => {
+    if (startBreeding(state, breedParentA, breedParentB)) {
+      sound.buy();
+      mothChanged();
+    }
+  });
   breed.querySelector(".side-title")?.appendChild(infoButton("How breeding works", breedingPages));
   host.appendChild(breed);
 }
@@ -1486,6 +1547,7 @@ function breedingPages(): SplashPage[] {
     html: `
       <ul>
         <li>Two moths at home spin a <strong>cocoon</strong>; both parents stay. It takes 30 minutes for Plain parents up to 75 for Prismatic (84 for Hollow), less with a <strong>Fertile</strong> parent, and keeps going while you're away.</li>
+        <li>The roost has <strong>${BASE_NESTS} nests</strong>, so ${BASE_NESTS} cocoons can spin at once, each from its own pair. A bigger roost makes room for more: one more nest every ${EXPANSIONS_PER_NEST} roost expansions, up to ${MAX_NESTS}.</li>
         <li>The child usually takes the <strong>rarer</strong> parent's wings, sometimes shifting a tier. Prismatic is unstable: two Prismatics give a Prismatic 3 times in 5.</li>
         <li>Its <strong>glow</strong> is about the parents' average (now and then a bright jump), never above its own pattern's ceiling.</li>
         <li>It may inherit a parent's <strong>trait</strong> (half the time) or, rarely, a new one.</li>
@@ -1555,7 +1617,7 @@ function updateShoreView(now: number): void {
     offeringLine.classList.toggle("hidden", !waymark);
   }
   // Dots on the Shore's pane buttons: something is waiting there.
-  document.querySelector("#garden-dot")?.classList.toggle("hidden", !(state.cocoon && cocoonReady(state, now)));
+  document.querySelector("#garden-dot")?.classList.toggle("hidden", !cocoonReady(state, now));
   document.querySelector("#sea-dot")?.classList.toggle("hidden", !(state.expedition && expeditionReady(state, now)));
   if (shoreRefs.attractBtn && shoreRefs.attractNote) {
     const lures = lureStatus(state, now);
@@ -1605,24 +1667,35 @@ function updateShoreView(now: number): void {
     );
     shoreRefs.roostNote.textContent = affordable ? `room for ${mothCapacity(state) + 2}` : "";
   }
-  if (state.cocoon && shoreRefs.cocoonNote) {
-    const ready = cocoonReady(state, now);
-    const full = state.moths.length >= mothCapacity(state);
-    shoreRefs.cocoonNote.textContent = ready
-      ? full
-        ? "Ready, but the roost is full"
-        : "Ready to hatch"
-      : `Hatches in ${formatDuration((state.cocoon.readyAt - now) / 1000)}`;
-    if (shoreRefs.cocoonBar) {
-      const a = mothById(state, state.cocoon.parentIds[0]);
-      const b = mothById(state, state.cocoon.parentIds[1]);
+  const full = state.moths.length >= mothCapacity(state);
+  for (const row of shoreRefs.cocoonRows) {
+    const cocoon = state.cocoons[row.index];
+    if (!cocoon) continue;
+    const ready = now >= cocoon.readyAt;
+    if (row.note) {
+      row.note.textContent = ready
+        ? full
+          ? "Ready, but the roost is full"
+          : "Ready to hatch"
+        : `Hatches in ${formatDuration((cocoon.readyAt - now) / 1000)}`;
+    }
+    if (row.bar) {
+      const a = mothById(state, cocoon.parentIds[0]);
+      const b = mothById(state, cocoon.parentIds[1]);
       const span = a && b ? cocoonDurationMs(a, b, state) : 1;
-      shoreRefs.cocoonBar.style.width = `${Math.max(0, Math.min(100, (1 - (state.cocoon.readyAt - now) / span) * 100)).toFixed(1)}%`;
+      row.bar.style.width = `${Math.max(0, Math.min(100, (1 - (cocoon.readyAt - now) / span) * 100)).toFixed(1)}%`;
     }
-    if (shoreRefs.hatchBtn) {
-      shoreRefs.hatchBtn.disabled = !ready || full;
-      shoreRefs.hatchBtn.classList.toggle("affordable", ready && !full);
+    if (row.btn) {
+      row.btn.disabled = !ready || full;
+      row.btn.classList.toggle("affordable", ready && !full);
     }
+  }
+  if (shoreRefs.hatchAllBtn) {
+    const n = readyCocoonCount(state, now);
+    shoreRefs.hatchAllBtn.classList.toggle("hidden", n < 2);
+    shoreRefs.hatchAllBtn.disabled = full;
+    const label = `Hatch all ${n}`;
+    if (shoreRefs.hatchAllBtn.textContent !== label) shoreRefs.hatchAllBtn.textContent = label;
   }
   if (state.expedition && shoreRefs.expeditionNote) {
     const ready = expeditionReady(state, now);
@@ -1639,6 +1712,18 @@ function updateShoreView(now: number): void {
     if (!route) continue;
     const busy = state.expedition !== null;
     const affordable = state.lumen.gte(route.cost);
+    if (busy && hasPerk(state, "glass-charts")) {
+      // Glass Charts: while a bottle is out, each route can be the next voyage's.
+      const standing = state.bottleRoute === route.id;
+      btn.disabled = standing;
+      btn.classList.toggle("affordable", !standing);
+      const label = standing ? "The next voyage ✓" : "Sail here next";
+      if (btn.textContent !== label) btn.textContent = label;
+      if (note) note.textContent = "";
+      continue;
+    }
+    const sendLabel = `Send a bottle — ${fmt(route.cost)} Lumen`;
+    if (btn.textContent !== sendLabel) btn.textContent = sendLabel;
     btn.disabled = busy || !affordable;
     btn.classList.toggle("affordable", !busy && affordable);
     if (note) {
@@ -2361,11 +2446,35 @@ const flashRate = new FlashRate();
 
 function flashBeam(): void {
   const now = Date.now();
+  // The Flash Echo rings on up to three flashes a second (engine.ECHO_FLASHES_PER_SECOND);
+  // a quicker flash says so, rather than paying a tiny number without a word.
+  const echoing = flashEchoShare(state) > 0 && echoCharges(state, now) > 0;
   const value = clickBeam(state, now);
   flashRate.add(now, value);
   sound.flash();
-  if (value.gt(0)) scene?.flash(`+${fmt(value)}`);
+  if (value.gt(0)) scene?.flash(flashEchoShare(state) > 0 && !echoing ? `+${fmt(value)} · echo resting` : `+${fmt(value)}`);
+  updateEchoPips(now);
   renderDynamic();
+}
+
+/** The three marks on Flash the Beam: echoes left this second (shown once a Flash Echo is learned). */
+const echoPips = document.querySelector<HTMLElement>("#echo-pips");
+function updateEchoPips(now: number): void {
+  const learned = flashEchoShare(state) > 0;
+  const flash = document.querySelector<HTMLElement>("#flash");
+  if (flash) {
+    setTip(
+      flash,
+      learned
+        ? `+${fmt(clickValue(state, now))} Lumen per flash (tapping the sea works too). The echo rings on up to ${ECHO_FLASHES_PER_SECOND} flashes a second: the marks show how many are left, and quicker flashes pay the plain flash.`
+        : `+${fmt(clickValue(state, now))} Lumen per flash (tapping the sea works too). Hire help below and the light keeps itself.`,
+    );
+  }
+  if (!echoPips) return;
+  echoPips.classList.toggle("hidden", !learned);
+  if (!learned) return;
+  const left = echoCharges(state, now);
+  echoPips.querySelectorAll("i").forEach((pip, i) => pip.classList.toggle("spent", i >= left));
 }
 document.querySelector<HTMLButtonElement>("#flash")?.addEventListener("click", flashBeam);
 // Tapping anywhere on the scene flashes too (the button stays for keyboards).
@@ -2452,7 +2561,7 @@ function showAwayCard(r: AwayReport): void {
   }
   if (r.stewardLevels > 0) news.push(`<li>${GLYPHS.gear} Your Chain Steward tended the chain: ${r.stewardLevels} level${r.stewardLevels === 1 ? "" : "s"} of supplies and Beam.</li>`);
   const shoreNews: string[] = [];
-  if (r.cocoonNew) shoreNews.push(`<li>${GLYPHS.cocoon} The cocoon is ready to hatch.</li>`);
+  if (r.cocoonNew) shoreNews.push(`<li>${GLYPHS.cocoon} ${state.cocoons.length > 1 ? "Cocoons are" : "A cocoon is"} ready to hatch.</li>`);
   if (r.bottleNew) shoreNews.push(`<li>${GLYPHS.bottle} A bottle has washed back onto the glass.</li>`);
   if ((r.luresGained ?? 0) > 0) {
     const full = r.luresHeld >= r.lureBank ? "your lure bank is full" : `${r.luresHeld} of ${r.lureBank} held`;
@@ -2597,6 +2706,7 @@ const hud = {
   rkTotal: document.querySelector<HTMLElement>("#rk-total"),
   rkBonus: document.querySelector<HTMLElement>("#rk-bonus"),
   rkAfter: document.querySelector<HTMLElement>("#rk-after"),
+  rkRelative: document.querySelector<HTMLElement>("#rk-relative"),
   rkHearth: document.querySelector<HTMLElement>("#rk-hearth"),
   rkTab: document.querySelector<HTMLElement>('.tab[data-tab="rekindle"]'),
   rkRecovery: document.querySelector<HTMLElement>("#rk-recovery"),
@@ -2857,8 +2967,7 @@ function renderDynamic(): void {
     }
   }
   if (hud.embers) hud.embers.textContent = fmt(state.embers);
-  const flashBtn = document.querySelector("#flash");
-  if (flashBtn) setTip(flashBtn, `+${fmt(clickValue(state, nowMs))} Lumen per flash (tapping the sea works too). Hire help below and the light keeps itself.`);
+  updateEchoPips(nowMs);
 
   // Tide strip (Sprint 4): current tide, its effect in words, the turn
   // countdown, and what's coming next.
@@ -3063,6 +3172,19 @@ function renderDynamic(): void {
   }
   if (hud.rkTotal) hud.rkTotal.textContent = fmt(state.embersTotalEarned);
   if (hud.rkBonus) hud.rkBonus.textContent = state.activeChallenge !== null ? "resting" : bonusText(effectiveEmbers(state.embers) * perEmberPct);
+  // The bonus in trillions says little; what a Rekindle does to the light does
+  // (design review). Same Ember bonus math as bonusText.
+  if (hud.rkRelative) {
+    const before = 1 + (effectiveEmbers(state.embers) * perEmberPct) / 100;
+    const after = 1 + (effectiveEmbers(state.embers + gain) * perEmberPct) / 100;
+    const ratio = after / before;
+    hud.rkRelative.textContent =
+      state.activeChallenge !== null || gain < 1
+        ? ""
+        : ratio >= 2
+          ? `A Rekindle now makes your light ×${fmt(ratio)} as bright.`
+          : `A Rekindle now makes your light ${Math.max(1, Math.round((ratio - 1) * 100))}% brighter.`;
+  }
   if (hud.rkAfter) {
     hud.rkAfter.textContent = state.activeChallenge !== null || gain < 1 ? "—" : bonusText(effectiveEmbers(state.embers + gain) * perEmberPct);
   }
@@ -3301,9 +3423,11 @@ function gameTick(): void {
     lastAutomationAt = now;
     autoLearn(state);
     autoHire(state, now);
+    tendBottles(state, Math.random, now);
   }
   if (result.mode === "offline") {
     welcomeBack(result.gain, result.creditedSeconds, result.elapsedSeconds);
+    tendBottles(state, Math.random, now);
     if (fed > 0) addLog(state, `While you were away, your Chain Steward saw to the supply line and the Beam: ${fed} level${fed === 1 ? "" : "s"}.`);
   }
   // The guide's next page, when its part of the game first matters, if

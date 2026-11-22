@@ -1,5 +1,5 @@
 import Decimal from "break_infinity.js";
-import { GULL_ROCK_ID, OFFLINE_CAP_SECONDS, chainLighthouseById, litOfflineCapBonusSeconds } from "./config";
+import { GULL_ROCK_ID, OFFLINE_CAP_SECONDS, SIRENS_REST_ID, chainLighthouseById, litOfflineCapBonusSeconds } from "./config";
 import { SHORE_KINDLING_FACTOR } from "./almanac";
 import { addLog } from "./state";
 import type { GameState } from "./types";
@@ -28,13 +28,19 @@ import type { GameState } from "./types";
 //   storm-charts  → tides: a Stormfront's support ×0.8 becomes ×0.9
 //   moth-lantern  → almanac.lureBankSize +1, moths.cocoonDurationMs ×0.75
 //   ember-memory  → prestige.resetRun keeps every helper's first upgrade
-//   glass-charts  → expeditions.voyageMs ×0.75 (bottles home sooner)
+//   glass-charts  → expeditions.tendBottles: a returned bottle is claimed
+//                   and set out again on the standing route, even while away
+// The far shelf (design review, round three: the shop ran out halfway
+// through the story) opens when Siren's Rest burns, in the same spirit:
+//   second-memory → prestige.resetRun keeps every helper's second upgrade too
+//   moth-watch    → moths.mothProductionMultiplier: duty moths' bonus ×2
+//   full-hearth   → prestige.resetRun: Warm Hearth's crew covers six helpers
 // Kindlings (repeatable; each level costs more than the last):
 //   ember-glow    → engine production ×1.05 per level (10 levels)
 //   long-watch    → offline cap +1 hour per level (8 levels)
 //   quick-lures   → almanac.lureRegrowMs ×0.95 per level (20 levels)
 //   spinning-silk → moths.cocoonDurationMs ×0.95 per level (20 levels)
-//   tailwind      → expeditions.voyageMs ×0.95 per level (20 levels)
+//   tailwind      → expeditions.relicChanceFor +2 points per level (20 levels)
 //
 // A comfort shop, on purpose: every production boost here compounds (more
 // production, bigger Rekindles, more Embers, more production), and the sim
@@ -50,8 +56,8 @@ export interface EmberPerkDef {
   effect: string;
   /** Cost in held Embers. */
   costEmbers: number;
-  /** Which shelf of the shop it sits on. */
-  shelf: "keeper" | "late";
+  /** Which shelf of the shop it sits on ("far" opens with Siren's Rest). */
+  shelf: "keeper" | "late" | "far";
 }
 
 export const HEAD_START_LUMEN = 1_000;
@@ -82,7 +88,12 @@ export const WARM_HEARTH_TIERS = 3;
 /** The Chain Steward's purse cap with the Steward's Ledger: ×3 (10 → 30 minutes). */
 export const STEWARD_LEDGER_PURSE_MULTIPLIER = 3;
 export const MOTH_LANTERN_COCOON_MULTIPLIER = 0.75;
-export const GLASS_CHARTS_VOYAGE_MULTIPLIER = 0.75;
+/** Full Hearth (far shelf): Warm Hearth's crew covers the first six helpers, where they can be hired. */
+export const FULL_HEARTH_TIERS = 6;
+/** Moth-Watch (far shelf): what the duty moths add to the beam, doubled. */
+export const MOTH_WATCH_MULTIPLIER = 2;
+/** Tailwind (Kindling): relic chance per level, in points. */
+export const TAILWIND_RELIC_CHANCE = 0.02;
 
 const LATE_PERKS: readonly Omit<EmberPerkDef, "shelf">[] = [
   { id: "warm-hearth",   name: "Warm Hearth",         effect: "Every new run starts with 10 Candle Crabs, 10 Lantern Moths and 10 Tide Bells.",           costEmbers: 50_000 },
@@ -90,7 +101,14 @@ const LATE_PERKS: readonly Omit<EmberPerkDef, "shelf">[] = [
   { id: "storm-charts",  name: "Storm Charts",        effect: "A Stormfront drains the chain half as hard (support ×0.9, not ×0.8).",    costEmbers: 5_000_000 },
   { id: "moth-lantern",  name: "Moth Lantern",        effect: "One more lure in the bank, and cocoons spin 25% faster.",                 costEmbers: 50_000_000 },
   { id: "ember-memory",  name: "Ember Memory",        effect: "Every helper's first upgrade is kept through a Rekindle.",                costEmbers: 500_000_000 },
-  { id: "glass-charts",  name: "Glass Charts",        effect: "Bottles come home 25% sooner on every route.",                            costEmbers: 5_000_000_000 },
+  { id: "glass-charts",  name: "Glass Charts",        effect: "A bottle that washes home is claimed and set out again by itself, on the route you choose, even while you're away.", costEmbers: 5_000_000_000 },
+];
+
+/** The far shelf: opens when Siren's Rest burns (the shop ran dry halfway through the story). */
+const FAR_PERKS: readonly Omit<EmberPerkDef, "shelf">[] = [
+  { id: "second-memory", name: "Second Memory", effect: "Every helper's second upgrade is kept through a Rekindle too.", costEmbers: 1e11 },
+  { id: "moth-watch",    name: "Moth-Watch",    effect: "Moths on duty light the beam twice as brightly.",              costEmbers: 1e12 },
+  { id: "full-hearth",   name: "Full Hearth",   effect: "Warm Hearth's crew grows: every new run starts with 10 of each of the first six helpers you can hire.", costEmbers: 1e13 },
 ];
 
 /**
@@ -107,6 +125,7 @@ export const RETIRED_PERKS: readonly { id: string; name: string; costEmbers: num
 export const EMBER_PERKS: readonly EmberPerkDef[] = [
   ...KEEPER_PERKS.map((p) => ({ ...p, shelf: "keeper" as const })),
   ...LATE_PERKS.map((p) => ({ ...p, shelf: "late" as const })),
+  ...FAR_PERKS.map((p) => ({ ...p, shelf: "far" as const })),
 ];
 
 // ── Kindlings: repeatable perks ──────────────────────────────────────────────
@@ -134,7 +153,9 @@ export const KINDLINGS: readonly KindlingDef[] = [
   // ×3 a level, so the 20th (2.3 trillion Embers) is within reach by the ending.
   { id: "quick-lures",   name: "Quick Lures",   perLevel: "Lures regrow 5% sooner",   factor: SHORE_KINDLING_FACTOR, baseCost: 2_000, growth: 3, maxLevel: 20 },
   { id: "spinning-silk", name: "Spinning Silk", perLevel: "Cocoons spin 5% faster",   factor: SHORE_KINDLING_FACTOR, baseCost: 2_000, growth: 3, maxLevel: 20 },
-  { id: "tailwind",      name: "Tailwind",      perLevel: "Bottles come home 5% sooner", factor: SHORE_KINDLING_FACTOR, baseCost: 2_000, growth: 3, maxLevel: 20 },
+  // Was "bottles come home 5% sooner": once a bottle paid for the voyage as
+  // sailed, speed was worth no Lumen (design review), so it charts relics.
+  { id: "tailwind",      name: "Tailwind",      perLevel: "Relic chance +2 points on every route", factor: 0, baseCost: 2_000, growth: 3, maxLevel: 20 },
 ];
 
 const KINDLINGS_BY_ID: ReadonlyMap<string, KindlingDef> = new Map(KINDLINGS.map((k) => [k.id, k]));
@@ -194,7 +215,7 @@ export interface ShopOffer {
 /** Every perk not yet owned, and every Kindling's next level, cheapest first. */
 export function shopOffers(state: GameState): ShopOffer[] {
   const offers: ShopOffer[] = [];
-  for (const p of EMBER_PERKS) if (!hasPerk(state, p.id)) offers.push({ kind: "perk", id: p.id, name: p.name, cost: p.costEmbers });
+  for (const p of EMBER_PERKS) if (!hasPerk(state, p.id) && perkOpen(state, p)) offers.push({ kind: "perk", id: p.id, name: p.name, cost: p.costEmbers });
   for (const k of KINDLINGS) {
     const cost = kindlingCost(state, k.id);
     if (Number.isFinite(cost)) offers.push({ kind: "kindling", id: k.id, name: k.name, cost });
@@ -238,6 +259,11 @@ export function perkById(id: string): EmberPerkDef {
   return def;
 }
 
+/** Whether a perk's shelf is open: the far shelf waits for Siren's Rest. */
+export function perkOpen(state: GameState, def: EmberPerkDef): boolean {
+  return def.shelf !== "far" || state.litLighthouses.includes(SIRENS_REST_ID);
+}
+
 export function hasPerk(state: GameState, id: string): boolean {
   return state.emberPerks.includes(id);
 }
@@ -250,6 +276,7 @@ export function hasPerk(state: GameState, id: string): boolean {
 export function buyPerk(state: GameState, id: string, log = true): boolean {
   const def = perkById(id);
   if (hasPerk(state, id)) return false;
+  if (!perkOpen(state, def)) return false;
   if (state.embers < def.costEmbers) return false;
   state.embers -= def.costEmbers;
   state.emberPerks.push(id);
@@ -279,9 +306,19 @@ export function chainSupportMultiplier(state: GameState): number {
   return hasPerk(state, "deep-wicks") ? DEEP_WICKS_SUPPORT_MULTIPLIER : 1;
 }
 
-/** How long a bottle's voyage takes, as a share of the route's time: Glass Charts ×0.75, Tailwind ×0.95 a level. */
-export function voyageMultiplier(state: GameState): number {
-  return (hasPerk(state, "glass-charts") ? GLASS_CHARTS_VOYAGE_MULTIPLIER : 1) * kindlingMultiplier(state, "tailwind");
+/**
+ * How long a bottle's voyage takes, as a share of the route's time. Nothing
+ * shortens it now: Glass Charts sends bottles out again instead, and
+ * Tailwind charts relics (design review: a bottle pays for the voyage as
+ * sailed, so a faster one was worth no Lumen).
+ */
+export function voyageMultiplier(_state: GameState): number {
+  return 1;
+}
+
+/** Tailwind's relic chance bonus: +2 points a level. */
+export function tailwindRelicBonus(state: GameState): number {
+  return TAILWIND_RELIC_CHANCE * kindlingLevel(state, "tailwind");
 }
 
 /**

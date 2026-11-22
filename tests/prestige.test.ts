@@ -64,7 +64,7 @@ describe("save serialization", () => {
     state.lumen = new Decimal("1.23e45");
     state.embers = 7;
     const saved = serializeState(state);
-    expect(saved.version).toBe(15); // bumped in Sprint 5 (v13: the Crossing; v14: the guide a page at a time) (v1–v5 saves migrate on load)
+    expect(saved.version).toBe(17); // bumped in Sprint 5 (v13: the Crossing; v14: the guide a page at a time) (v1–v5 saves migrate on load)
     expect(saved.lumen).toBe("1.23e+45"); // break_infinity's string form
     const restored = deserializeState(JSON.parse(JSON.stringify(saved)));
     expect(restored).not.toBeNull();

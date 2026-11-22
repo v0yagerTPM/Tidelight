@@ -1521,3 +1521,85 @@ The council re-ran on the 30-hour build. Findings 1, 2, 4 and 5 are done.
       the browser on desktop and phone: the hearth's three phases and the
       tab dot, the Crossing card's offerings, the Shore's line, the rows
       and the Beam.
+
+## ✅ Post-launch — Design review, round three: the rest
+
+Findings 3, 6, 7 and 8, after 1, 2, 4 and 5 above.
+
+- [x] **3. A far shelf in the Ember shop.** The shop bot bought its last
+      perk at 11h of 19; the phone keeper finished holding 2.7e13 Embers
+      with nothing to buy. A fourth shelf opens when Siren's Rest burns
+      (`perkOpen`; Kindle all and the bot skip it until then), in the shop's
+      comfort spirit:
+      - Second Memory (1e11): every helper's second upgrade survives a
+        Rekindle too.
+      - Moth-Watch (1e12): what moths on duty add to the beam, doubled.
+      - Full Hearth (1e13): Warm Hearth's crew covers the first six helpers
+        (where they can be hired).
+      The shop bot now buys its last perk at 18.5h of 19.5h.
+- [x] **6. Bottle perks with a purpose.** Once a bottle paid for the voyage
+      as sailed, speed was worth no Lumen.
+      - **Glass Charts** (`expeditions.tendBottles`): a bottle that washes
+        home is claimed and set out again on the standing route
+        (`state.bottleRoute`, v16: the last route sent, or one chosen with
+        "Sail here next" while a bottle is out). It runs once a second live
+        and on return from time away, where voyages count only inside the
+        offline cap. Its claims are quiet (no salvage line, no repeated story
+        fragment); one line sums them up. Relics, a changed rider and the
+        Glass Stair's chart still get their own lines.
+      - **Tailwind**: relic chance +2 points a level (was 5% sooner).
+      - Nothing shortens a voyage now (`voyageMultiplier` is 1).
+- [x] **7. The echo ceiling, shown.** Three marks on Flash the Beam empty
+      with each echoing flash and refill over a second
+      (`engine.echoCharges`); a flash past them floats "+64 · echo resting",
+      and the button's tip says why.
+- [x] **8. Leftovers.**
+      - Releasing a moth leaves Wing Scales only ("+60 Lumen of stored
+        lamplight" in a game making 1e28 a second meant nothing).
+      - The Rekindle view says what a Rekindle does to the light ("A
+        Rekindle now makes your light ×1.6 as bright"), under the bonuses
+        in trillions.
+      - The 40-Ember line went with finding 1.
+
+| Bot | Waymarks | Last step | Ending |
+|---|---|---|---|
+| Plain | 19.4 / 21.8 / 23.5h | 6.4h | 29.9h |
+| Ember shop | 14.1 / 15.4 / 16.7h | 2.8h | 19.5h |
+| The phone keeper's kit and habits | 6.5 / 7.1 / 7.7h | 0.7h (level with the steps before) | 8.4h |
+| Engaged | | | 18.9h |
+
+The shop bot is a little slower than before (18.6h): the far shelf costs
+held Embers, a trade like the rest of the shop. With Moth-Watch, the phone
+keeper's last step is level with the others rather than longer.
+
+- [x] Tests: `tests/farShelf.test.ts`; the Kindling, Glass Charts, release
+      and save-version tests are updated.
+
+## ✅ Post-launch — Nests: more cocoons at once
+
+The designer asked for more moth hatches. One cocoon at a time made
+breeding the slowest thing on the Shore: one pair toward a glow-100
+Prismatic, the rest of the roost idle.
+
+- [x] **Nests** (`moths.nestCount`): two cocoons spin at once from the
+      start, one more every 3 roost expansions, up to 4. Each pair is its
+      own; a moth sits in one cocoon at a time. `hatchCocoon` hatches the
+      one asked for, or the first that's ready.
+- [x] **Save v17**: `cocoons` (a list) replaces `cocoon`. A v16 save's
+      cocoon becomes the first nest's; a moth listed in two cocoons keeps
+      only the first.
+- [x] **The breeding panel** lists every cocoon with its own bar and Hatch
+      button, "Hatch all" when two or more are ready, "n of m nests
+      spinning" and how many expansions to the next nest, and the pair for
+      the next cocoon while a nest is free (moths already spinning aren't
+      offered). The meadow hangs a cocoon on the branch for each nest in
+      use; the Shore's dot, the welcome-back card and the info page count
+      them all.
+- [x] Pacing: none of the bots breed, so the sim is unchanged. The engaged
+      bot assumes duty glow climbs over 40 hours; with two to four nests
+      a breeder gets there sooner.
+- [x] Tests: `tests/nests.test.ts` (5); the cocoon tests in `away`,
+      `scene` and `sprint4` and the save-version tests are updated.
+      Checked in the browser with a real phone save (7 expansions, so 4
+      nests): three cocoons spinning from the panel, the meadow showing
+      all three.

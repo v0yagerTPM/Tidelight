@@ -180,6 +180,16 @@ export const PERK_ICONS: Record<string, string> = {
   "glass-charts": svg(
     `<path d="M5 8l7-3 8 3 7-3v19l-7 3-8-3-7 3z"/><path d="M12 5v19M20 8v19" opacity=".5"/><path d="M8 18c3-4 7-2 9-6s5-3 7-3" stroke="var(--lamp)" stroke-dasharray="2 2"/>`,
   ),
+  // The far shelf (opens with Siren's Rest)
+  "second-memory": svg(
+    `<path d="M12 5a8 8 0 0 0-8 8c0 3 1.7 4.8 1.7 7v3h12.6v-3c0-2.2 1.7-4 1.7-7a8 8 0 0 0-8-8z"/><path d="M20 7.5a8 8 0 0 1 8 5.5c0 3-1.7 4.8-1.7 7v3h-5" opacity=".6"/>${FLAME(12, 16, 0.9)}`,
+  ),
+  "moth-watch": svg(
+    `<circle cx="16" cy="16" r="11" opacity=".5"/><path d="M16 16c-3-3-6-3-6 0s3 3 6 0c3 3 6 3 6 0s-3-3-6 0z" fill="var(--lamp)" fill-opacity=".7" stroke="none"/><path d="M16 3v3M16 26v3M3 16h3M26 16h3" stroke="var(--lamp)"/>`,
+  ),
+  "full-hearth": svg(
+    `<path d="M3 27V14l13-9 13 9v13z"/><path d="M9 27v-5a3 3 0 0 1 6 0v5M17 27v-5a3 3 0 0 1 6 0v5"/>${FLAME(12, 24, 0.7)}${FLAME(20, 24, 0.7)}`,
+  ),
 };
 
 /** Kindlings: repeatable Ember perks. */

@@ -7,7 +7,7 @@ import { CHAIN_LIGHTHOUSES, CHAIN_NODE_IDS, FIRST_LIGHT_ID, GENERATORS, HOLLOW_L
 import { CHALLENGES } from "./challenges";
 import { EMBER_PERKS, KINDLINGS, RETIRED_PERKS } from "./emberShop";
 import { GUIDE_PAGE_IDS } from "./guide";
-import { RELICS } from "./expeditions";
+import { EXPEDITION_ROUTES, RELICS } from "./expeditions";
 import { STORY_BEATS } from "./story";
 import { UPGRADES } from "./upgrades";
 import type {
@@ -23,9 +23,9 @@ import type {
 } from "./types";
 
 export const SAVE_KEY = "tidelight-save-v1";
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 17;
 /** Older saves (Sprint 0 = v1 … Chain Steward = v11) migrate on load. */
-const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+const LEGACY_SAVE_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 /** supply.ts STEWARD_SHARES / STEWARD_TARGETS (literal: this module stays a leaf). */
 const STEWARD_SHARE_CHOICES: readonly number[] = [0.1, 0.25, 0.5];
 const STEWARD_TARGET_CHOICES: readonly number[] = [0.8, 0.9, 1];
@@ -154,13 +154,14 @@ function sanitizeAlmanac(raw: unknown, moths: Moth[]): string[] {
  * Normalize the Sprint 4 fields of a loaded save: moths are structurally
  * validated, the duty roster is filtered to moths that actually exist
  * (and capped at 3), and a cocoon survives only while both parents do.
+ * (v17: there can be several cocoons, one per nest.)
  * Saves before v5 simply have none of these fields — they default empty.
  */
 function sanitizeShore(s: Partial<SavedState>): {
   moths: Moth[];
   mothDuty: string[];
   roostExpansions: number;
-  cocoon: Cocoon | null;
+  cocoons: Cocoon[];
   mothLures: number;
   mothLureAnchor: number;
   mothLureRushes: number;
@@ -196,7 +197,17 @@ function sanitizeShore(s: Partial<SavedState>): {
     moths,
     mothDuty,
     roostExpansions: sanitizeCount(s.roostExpansions),
-    cocoon: sanitizeCocoon(s.cocoon, moths),
+    // v17: several nests. A v16 save's single cocoon becomes the first; no
+    // moth sits in two, and a cocoon whose parents are gone is dropped.
+    cocoons: (() => {
+      const raw = Array.isArray(s.cocoons) ? s.cocoons : s.cocoon ? [s.cocoon] : [];
+      const out: Cocoon[] = [];
+      for (const r of raw) {
+        const c = sanitizeCocoon(r, moths);
+        if (c && !out.some((o) => o.parentIds.some((id) => c.parentIds.includes(id)))) out.push(c);
+      }
+      return out;
+    })(),
     // The moth rebalance (v7) migration: a full lure bank, the clock from now.
     mothLures: typeof s.mothLures === "number" ? Math.min(LURE_BANK, sanitizeCount(s.mothLures)) : 3,
     mothLureAnchor:
@@ -232,7 +243,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     moths: [],
     mothDuty: [],
     roostExpansions: 0,
-    cocoon: null,
+    cocoons: [],
     mothLures: 3, // a full starting bank (almanac.ts lureBankSize)
     mothLureAnchor: now,
     mothLureRushes: 0,
@@ -262,6 +273,7 @@ export function createInitialState(now: number = Date.now()): GameState {
     runSeconds: 0,
     runBestGrowth: 0,
     deepGlassBottle: false,
+    bottleRoute: null,
     lastSeen: now,
     log: [{ at: now, message: "You arrive at Candlewick Point. The lamp is cold. The sea is glass." }],
   };
@@ -299,7 +311,7 @@ export function serializeState(state: GameState): SavedState {
     moths: state.moths.map((m) => ({ ...m })),
     mothDuty: [...state.mothDuty],
     roostExpansions: state.roostExpansions,
-    cocoon: state.cocoon ? { parentIds: [...state.cocoon.parentIds], readyAt: state.cocoon.readyAt } : null,
+    cocoons: state.cocoons.map((c) => ({ parentIds: [...c.parentIds] as [string, string], readyAt: c.readyAt })),
     mothLures: state.mothLures,
     mothLureAnchor: state.mothLureAnchor,
     mothLureRushes: state.mothLureRushes,
@@ -329,6 +341,7 @@ export function serializeState(state: GameState): SavedState {
     runSeconds: state.runSeconds,
     runBestGrowth: state.runBestGrowth,
     deepGlassBottle: state.deepGlassBottle,
+    bottleRoute: state.bottleRoute,
     lastSeen: state.lastSeen,
     log: state.log.map((e) => ({ ...e })),
   };
@@ -464,6 +477,8 @@ export function deserializeState(raw: unknown): GameState | null {
       runSeconds: typeof s.runSeconds === "number" && Number.isFinite(s.runSeconds) && s.runSeconds >= 0 ? s.runSeconds : -1,
       runBestGrowth: typeof s.runBestGrowth === "number" && Number.isFinite(s.runBestGrowth) && s.runBestGrowth >= 0 ? s.runBestGrowth : 0,
       deepGlassBottle: s.deepGlassBottle === true,
+      // v16: Glass Charts' standing route; a v15 save's bottle at sea sets it.
+      bottleRoute: typeof s.bottleRoute === "string" && EXPEDITION_ROUTES.some((r) => r.id === s.bottleRoute) ? s.bottleRoute : null,
       lastSeen: typeof s.lastSeen === "number" && Number.isFinite(s.lastSeen) ? s.lastSeen : Date.now(),
       log: sanitizeLog(s.log),
     };

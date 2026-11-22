@@ -175,6 +175,11 @@ p { max-width: 70ch; }
 }
 .beam:hover { box-shadow: 0 0 40px rgba(255, 196, 99, 0.6); }
 .beam:active { transform: scale(0.96); }
+/* The Flash Echo's marks: echoes left this second (engine.echoCharges). */
+.beam { position: relative; }
+.echo-pips { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); display: flex; gap: 5px; pointer-events: none; }
+.echo-pips i { width: 5px; height: 5px; border-radius: 50%; background: #261803; opacity: 0.7; transition: opacity 0.15s; }
+.echo-pips i.spent { opacity: 0.15; }
 
 /* ── Generators ───────────────────────────────────── */
 .gen-list { display: flex; flex-direction: column; gap: 8px; }
@@ -644,6 +649,8 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 .hearth-gain strong { font-family: var(--display); font-weight: 400; font-size: clamp(2.4rem, 7vw, 3.4rem); line-height: 1; color: var(--lamp); text-shadow: 0 0 24px rgba(255, 170, 80, 0.5); }
 .hearth-unit { font-family: var(--display); font-size: 1.1rem; color: var(--lamp-soft); }
 .hearth-compare { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.hearth-relative { margin: 8px 0 0; font-size: 0.92rem; color: var(--lamp-soft); }
+.hearth-relative:empty { display: none; }
 .hearth-compare strong { display: block; font-family: var(--mono); font-weight: 500; font-size: 1.1rem; color: var(--lamp-soft); }
 .hearth-arrow { color: var(--lamp); font-size: 1.3rem; }
 
@@ -676,6 +683,8 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 .perk-cost { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); color: #ffb37a; }
 .ember-glyph { color: #ff9a55; filter: drop-shadow(0 0 4px rgba(255, 140, 60, 0.7)); }
 .perk.owned { border-color: rgba(143, 214, 196, 0.45); }
+/* The far shelf before Siren's Rest: shown, not yet for sale. */
+.perk.shut { opacity: 0.6; }
 .perk.owned .perk-art { color: var(--lamp-soft); box-shadow: inset 0 0 0 1px rgba(143, 214, 196, 0.5), 0 0 20px -8px rgba(255, 196, 99, 0.9); }
 
 /* ── Trials (Challenges) ───────────────────────────── */
@@ -1300,3 +1309,7 @@ body { font-variant-numeric: tabular-nums; }
 .crew-note { font-size: 0.78rem; color: var(--muted); }
 .crew-note:empty { display: none; }
 @media (prefers-reduced-motion: reduce) { .hearth.rekindled { animation: none; } }
+
+/* Breeding nests (moths.nestCount): one block per cocoon, then the pair for the next. */
+.nest + .nest, .nest-all + .nest, .nest-new { border-top: 1px dashed var(--edge-soft); margin-top: 8px; padding-top: 8px; }
+.nest .side-line { margin: 0 0 4px; }

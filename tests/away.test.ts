@@ -65,7 +65,7 @@ describe("welcome-back report", () => {
     state.generators["lantern-moth"] = 1;
     state.mothLures = 0;
     state.mothLureAnchor = LEFT;
-    state.cocoon = { parentIds: ["a", "b"], readyAt: LEFT + 60_000 };
+    state.cocoons = [{ parentIds: ["a", "b"], readyAt: LEFT + 60_000 }];
     const r = returnAfter(state, (2 * LURE_REGROW_MS) / 1000 + 5);
     expect(r.luresGained).toBe(2);
     expect(r.luresHeld).toBe(2);
@@ -75,7 +75,7 @@ describe("welcome-back report", () => {
 
   it("doesn't call a cocoon new if it was ready before you left", () => {
     const state = keeper();
-    state.cocoon = { parentIds: ["a", "b"], readyAt: LEFT - 1 };
+    state.cocoons = [{ parentIds: ["a", "b"], readyAt: LEFT - 1 }];
     const r = returnAfter(state, 3600);
     expect(r.cocoonReady).toBe(true);
     expect(r.cocoonNew).toBe(false);

@@ -224,8 +224,8 @@ export interface MeadowModel {
   /** The garden wakes with the first Lantern Moth hired (or any moth kept). */
   unlocked: boolean;
   moths: MeadowMoth[];
-  /** progress 0–1 toward hatching. */
-  cocoon: { progress: number; ready: boolean } | null;
+  /** Every cocoon spinning (one per nest in use), with progress 0–1 toward hatching. */
+  cocoons: { progress: number; ready: boolean }[];
   /**
    * The bottle at sea: progress 0–1 of its voyage (out, then home), how far
    * its route reaches (0–1: the Drift … the Deep Glass Crossing), and
@@ -236,16 +236,12 @@ export interface MeadowModel {
 
 export function buildMeadowModel(state: GameState, now: number): MeadowModel {
   const duty = new Set(dutyMoths(state).map((m) => m.id));
-  const cocoonIds = new Set(state.cocoon?.parentIds ?? []);
-  const cocoonParents = state.cocoon ? state.cocoon.parentIds.map((id) => mothById(state, id)) : [];
-  const cocoonSpan =
-    cocoonParents[0] && cocoonParents[1] ? cocoonDurationMs(cocoonParents[0], cocoonParents[1], state) : COCOON_BASE_MS;
-  const cocoon = state.cocoon
-    ? {
-        progress: Math.max(0, Math.min(1, 1 - (state.cocoon.readyAt - now) / cocoonSpan)),
-        ready: now >= state.cocoon.readyAt,
-      }
-    : null;
+  const cocoonIds = new Set(state.cocoons.flatMap((c) => c.parentIds));
+  const cocoons = state.cocoons.map((c) => {
+    const [a, b] = c.parentIds.map((id) => mothById(state, id));
+    const span = a && b ? cocoonDurationMs(a, b, state) : COCOON_BASE_MS;
+    return { progress: Math.max(0, Math.min(1, 1 - (c.readyAt - now) / span)), ready: now >= c.readyAt };
+  });
   let bottle: MeadowModel["bottle"] = null;
   if (state.expedition) {
     const e = state.expedition;
@@ -270,7 +266,7 @@ export function buildMeadowModel(state: GameState, now: number): MeadowModel {
         inCocoon: cocoonIds.has(m.id),
       };
     }),
-    cocoon,
+    cocoons,
     bottle,
   };
 }
