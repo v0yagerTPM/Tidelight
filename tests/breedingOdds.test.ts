@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { childOutcomes } from "../scripts/breedingOdds";
+import { childOutcomes } from "../src/game/breedingOdds";
 import { hatchCocoon, startBreeding } from "../src/game/moths";
 import { mulberry32 } from "../src/game/rng";
 import { createInitialState } from "../src/game/state";
 import { TIDE_BUCKET_MS, tideAt } from "../src/game/tides";
 import type { Moth } from "../src/game/types";
 
-// scripts/breedingOdds.ts works the cocoon odds out from the rules; these
+// src/game/breedingOdds.ts works the cocoon odds out from the rules; these
 // tests sample the game's own hatchCocoon and check the two agree.
 
 function sample(a: Moth, b: Moth, n: number, opts: { storm: boolean; endingSeen: boolean }): Map<string, number> {

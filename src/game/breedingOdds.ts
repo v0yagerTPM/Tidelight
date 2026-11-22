@@ -1,9 +1,10 @@
-// ── Breeding odds, exactly (balance tooling, not part of the game) ───────────
-// The odds of a cocoon's child, worked out from the rules in
-// src/game/moths.ts hatchCocoon rather than sampled: which wing pattern,
-// which trait, the Tidelit and Hollow chances. scripts/almanacSim.ts uses it
-// to choose breeding pairs; tests/breedingOdds.test.ts checks it against the
-// game's own hatchCocoon, so the two can't drift apart unnoticed.
+// ── Breeding odds, exactly ───────────────────────────────────────────────────
+// The odds of a cocoon's child, worked out from the rules in moths.ts
+// hatchCocoon rather than sampled: which wing pattern, which trait, the
+// Tidelit and Hollow chances. The Moth Garden shows them for a pair
+// (pairForecast); scripts/almanacSim.ts uses them to choose breeding pairs;
+// tests/breedingOdds.test.ts checks them against the game's own hatchCocoon,
+// so the two can't drift apart unnoticed.
 
 import {
   HOLLOW_CHANCE,
@@ -16,9 +17,9 @@ import {
   TRAIT_MUTATION_CHANCE as MUTATE,
   patternById,
   patternByTier,
-} from "../src/game/moths";
-import { MOTH_TRAITS, traitById } from "../src/game/mothTraits";
-import type { Moth } from "../src/game/types";
+} from "./moths";
+import { MOTH_TRAITS, traitById } from "./mothTraits";
+import type { GameState, Moth } from "./types";
 
 /** The higher-tier parent's pattern is the starting point this often (moths.ts: hatchCocoon step 1). */
 export const HIGHER_PARENT_CHANCE = 0.65;
@@ -104,4 +105,42 @@ export function expectedChildGlow(a: Moth, b: Moth): number {
   const bright = 0.03 * (avg + 11.5 * (avg >= 90 ? 0.5 : 1));
   const normal = 0.97 * (avg - 1);
   return bright + normal;
+}
+
+/** What a pair's cocoon may bring, for the Moth Garden: wing odds and missing Almanac pages. */
+export interface PairForecast {
+  /** Wing pattern → chance, most likely first (Tidelit only when `storm`). */
+  wings: { pattern: string; p: number }[];
+  /** Almanac pages the child could fill that the keeper is missing, likeliest first. */
+  newPages: { key: string; p: number }[];
+  /** The Tidelit chance if this cocoon opens in a Stormfront (0 when it can't be Tidelit). */
+  tidelitInStorm: number;
+  /** Without `storm`: the missing Tidelit pages it could fill if it opened in a Stormfront. */
+  stormPages: { key: string; p: number }[];
+}
+
+/**
+ * The forecast for a cocoon from `a` and `b`. `storm`: the cocoon will open
+ * in a Stormfront (it is set to wait for one), so Tidelit is in the odds.
+ */
+export function pairForecast(state: GameState, a: Moth, b: Moth, storm: boolean): PairForecast {
+  const outcomes = childOutcomes(a, b, { storm, endingSeen: state.endingSeen });
+  const wings = new Map<string, number>();
+  const pages = new Map<string, number>();
+  const have = new Set(state.almanac);
+  for (const o of outcomes) {
+    wings.set(o.pattern, (wings.get(o.pattern) ?? 0) + o.p);
+    for (const k of o.keys) if (!have.has(k)) pages.set(k, (pages.get(k) ?? 0) + o.p);
+  }
+  const stormed = childOutcomes(a, b, { storm: true, endingSeen: state.endingSeen }).filter((o) => o.pattern === "tidelit");
+  const tidelitInStorm = stormed.reduce((s, o) => s + o.p, 0);
+  const stormPages = new Map<string, number>();
+  if (!storm) for (const o of stormed) for (const k of o.keys) if (!have.has(k)) stormPages.set(k, (stormPages.get(k) ?? 0) + o.p);
+  const byP = <T extends { p: number }>(x: T, y: T) => y.p - x.p;
+  return {
+    wings: [...wings].map(([pattern, p]) => ({ pattern, p })).sort(byP),
+    newPages: [...pages].map(([key, p]) => ({ key, p })).sort(byP),
+    tidelitInStorm,
+    stormPages: [...stormPages].map(([key, p]) => ({ key, p })).sort(byP),
+  };
 }

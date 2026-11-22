@@ -21,6 +21,7 @@ import {
   lureStatus,
   mothCapacity,
   nestFree,
+  openPlaces,
   patternById,
   releaseMoth,
   scentedAttractMoth,
@@ -37,7 +38,7 @@ import { createInitialState } from "../src/game/state";
 import { TIDE_BUCKET_MS, tideAt } from "../src/game/tides";
 import type { GameState, Moth } from "../src/game/types";
 import Decimal from "break_infinity.js";
-import { childOutcomes, expectedChildGlow } from "./breedingOdds";
+import { childOutcomes, expectedChildGlow } from "../src/game/breedingOdds";
 
 export type Source = "lure" | "scented" | "bred" | "tidelit" | "hollow" | "rider";
 
@@ -109,13 +110,18 @@ function keepValue(state: GameState, moth: Moth, missing: Set<string>): number {
 /** Per visit: whether the keeper has pressed Release spares yet. */
 const visit = { spareTapped: false };
 
-function makeRoom(state: GameState, missing: Set<string>, run: AlmanacRun): boolean {
-  if (state.moths.length < mothCapacity(state)) return true;
+/**
+ * Room for a hatchling (`hatch`: a free roost place) or for a new moth or
+ * cocoon (`new`: a place no spinning cocoon has kept, moths.openPlaces).
+ * Releases the moth worth least, never one of `keep`.
+ */
+function makeRoom(state: GameState, missing: Set<string>, run: AlmanacRun, need: "hatch" | "new" = "new", keep: Moth[] = []): boolean {
+  if (need === "hatch" ? state.moths.length < mothCapacity(state) : openPlaces(state) > 0) return true;
   // The keeper releases the moth worth least to the chase. Counting taps: a
   // spare (moths.spareMoths) goes with one Release spares tap a visit; any
   // other release is a tap of its own.
   const atSea = state.expedition?.riderId;
-  const candidates = state.moths.filter((m) => !isCocoonParent(state, m.id) && m.id !== atSea);
+  const candidates = state.moths.filter((m) => !isCocoonParent(state, m.id) && m.id !== atSea && !keep.includes(m));
   if (candidates.length === 0) return false;
   candidates.sort((a, b) => keepValue(state, a, missing) - keepValue(state, b, missing));
   const spare = spareMoths(state).some((m) => m.id === candidates[0].id);
@@ -230,7 +236,7 @@ export function simulateAlmanac(sc: AlmanacScenario, seed: number): AlmanacRun {
     // 1. Cocoons set to wait for a Stormfront opened by themselves when one came
     //    (moths.tendCocoons, as the game does live and on return); then the
     //    keeper hatches the other ready ones.
-    if (state.cocoons.some((_, i) => (stormHatchAt(state, i) ?? Infinity) <= now)) makeRoom(state, missing, run);
+    if (state.cocoons.some((_, i) => (stormHatchAt(state, i) ?? Infinity) <= now)) makeRoom(state, missing, run, "hatch");
     for (const child of tendCocoons(state, rng, now)) {
       run.hatches++;
       note(child.pattern === "hollow" ? "hollow" : child.pattern === "tidelit" ? "tidelit" : "bred", now);
@@ -238,7 +244,7 @@ export function simulateAlmanac(sc: AlmanacScenario, seed: number): AlmanacRun {
     }
     for (let i = state.cocoons.length - 1; i >= 0; i--) {
       if (now < state.cocoons[i].readyAt || state.cocoons[i].stormWait) continue;
-      if (!makeRoom(state, missing, run)) break;
+      if (!makeRoom(state, missing, run, "hatch")) break;
       const child = hatchCocoon(state, rng, now, i);
       if (child) {
         run.hatches++;
@@ -280,7 +286,8 @@ export function simulateAlmanac(sc: AlmanacScenario, seed: number): AlmanacRun {
     // 4. Fill every free nest with the best pair for the pages still missing.
     while (nestFree(state)) {
       const pair = bestPair(state, missing, true);
-      if (!pair || !startBreeding(state, pair[0].id, pair[1].id, now)) break;
+      // A cocoon keeps a place for its hatchling: make one first.
+      if (!pair || !makeRoom(state, missing, run, "new", pair) || !startBreeding(state, pair[0].id, pair[1].id, now)) break;
       // A pair that could hatch a missing Tidelit page waits for a Stormfront.
       if (worthAStorm(state, pair[0], pair[1], missing)) {
         setStormWait(state, state.cocoons.length - 1, true);

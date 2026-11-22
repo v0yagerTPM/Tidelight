@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ALMANAC_REWARDS } from "../src/game/almanac";
+import { ALMANAC_REWARDS, dutySlots } from "../src/game/almanac";
 import {
+  dutyUpgrade,
   hatchCocoon,
+  keptPlaces,
   mothCapacity,
+  openPlaces,
+  scentedAttractMoth,
+  setBrightestDuty,
   nestCount,
   nextStormAt,
   releaseSpares,
@@ -12,6 +17,7 @@ import {
   stormHatchAt,
   tendCocoons,
 } from "../src/game/moths";
+import { pairForecast } from "../src/game/breedingOdds";
 import { CROSSING_TRAIT_CHANCE } from "../src/game/mothTraits";
 import { mulberry32 } from "../src/game/rng";
 import { createInitialState, deserializeState, serializeState } from "../src/game/state";
@@ -147,15 +153,85 @@ describe("letting spares go on arrival", () => {
 });
 
 describe("nests never fill the roost", () => {
-  it("a 6-moth roost keeps two nests even with A Fifth Nest, so one moth is always free to make room", () => {
-    const state = roost(Array.from({ length: 6 }, (_, i) => m(`m${i}`, "plain", 10)));
+  it("a 6-moth roost keeps two nests even with A Fifth Nest: each cocoon takes two parents and a place for its hatchling", () => {
+    const state = roost(Array.from({ length: 4 }, (_, i) => m(`m${i}`, "plain", 10)));
     state.roostExpansions = 0;
     state.almanac = Array.from({ length: 42 }, (_, i) => `k${i}`);
     expect(nestCount(state)).toBe(2);
     expect(startBreeding(state, "m0", "m1", 0)).toBe(true);
     expect(startBreeding(state, "m2", "m3", 0)).toBe(true);
-    expect(startBreeding(state, "m4", "m5", 0)).toBe(false);
-    state.roostExpansions = 1; // 8 moths: room for a third
+    expect(openPlaces(state)).toBe(0); // 4 moths and 2 kept places
+    expect(keptPlaces(state)).toBe(2);
+    state.roostExpansions = 1; // 8 moths: still two (three would need 9 places)
+    expect(nestCount(state)).toBe(2);
+    state.roostExpansions = 2; // 10: a third
     expect(nestCount(state)).toBe(3);
+  });
+
+  it("a cocoon waiting for a Stormfront always finds its place", () => {
+    const state = roost(Array.from({ length: 4 }, (_, i) => m(`m${i}`, "starlit", 50)));
+    state.roostExpansions = 0;
+    expect(startBreeding(state, "m0", "m1", 0)).toBe(true);
+    setStormWait(state, 0, true);
+    // Fill every other place with lures: the hatchling's place stays kept.
+    state.wingScales = 1000;
+    while (scentedAttractMoth(state, mulberry32(state.moths.length))) { /* fill */ }
+    expect(state.moths.length).toBe(mothCapacity(state) - 1);
+    const storm = stormHatchAt(state, 0)!;
+    expect(tendCocoons(state, mulberry32(9), storm)).toHaveLength(1);
+  });
+});
+
+describe("brightest on duty", () => {
+  it("names the best change, and puts the brightest on duty, cocoon parents included", () => {
+    const state = roost([m("dim", "spotted", 43), m("mid", "crescent", 48), m("p1", "prismatic", 100), m("p2", "prismatic", 100), m("loyal", "starlit", 70, "lamp-loyal")]);
+    state.mothDuty = ["dim", "mid"];
+    expect(startBreeding(state, "p1", "p2", 0)).toBe(true);
+    const slots = dutySlots(state);
+    const up = dutyUpgrade(state);
+    expect(up?.add.id).toBe("loyal"); // 70 × 1.5 = 105 working glow
+    expect(setBrightestDuty(state)).toBe(true);
+    expect(state.mothDuty.slice(0, 3)).toEqual(["loyal", "p1", "p2"]);
+    expect(state.mothDuty).toHaveLength(Math.min(slots, 5));
+    expect(setBrightestDuty(state)).toBe(false);
+    expect(dutyUpgrade(state)).toBeNull();
+  });
+
+  it("leaves posted moths at their posts", () => {
+    const state = roost([m("a", "plain", 10), m("star", "prismatic", 100)]);
+    state.litLighthouses = ["first-light"];
+    state.mothPosts = { "first-light": "star" };
+    setBrightestDuty(state);
+    expect(state.mothDuty).toEqual(["a"]);
+  });
+});
+
+describe("what a pair can hatch (pairForecast)", () => {
+  it("names Hollow for two perfect Prismatics after the ending, and the missing pages it could fill", () => {
+    const state = roost([m("a", "prismatic", 100, "fertile"), m("b", "prismatic", 100, "fertile")]);
+    state.endingSeen = true;
+    state.almanac = ["prismatic:fertile"];
+    const f = pairForecast(state, state.moths[0], state.moths[1], false);
+    const wing = (p: string) => f.wings.find((w) => w.pattern === p)?.p ?? 0;
+    expect(wing("hollow")).toBeCloseTo(0.02, 5);
+    expect(wing("tidelit")).toBe(0); // not opening in a storm
+    expect(f.wings.reduce((s, w) => s + w.p, 0)).toBeCloseTo(1, 9);
+    expect(f.newPages.map((n) => n.key)).toContain("hollow:fertile");
+    expect(f.newPages.map((n) => n.key)).not.toContain("prismatic:fertile"); // already filled
+    expect(f.stormPages.map((n) => n.key)).toContain("tidelit:fertile");
+    expect(f.tidelitInStorm).toBeGreaterThan(0);
+    // Set to wait for a Stormfront: Tidelit is in the odds and its pages are plain new pages.
+    const s = pairForecast(state, state.moths[0], state.moths[1], true);
+    expect(s.wings.find((w) => w.pattern === "tidelit")?.p ?? 0).toBeCloseTo(f.tidelitInStorm, 9);
+    expect(s.newPages.map((n) => n.key)).toContain("tidelit:fertile");
+    expect(s.stormPages).toEqual([]);
+  });
+
+  it("a Plain pair can't be Tidelit or Hollow", () => {
+    const state = roost([m("a", "plain", 30), m("b", "plain", 30)]);
+    state.endingSeen = true;
+    const f = pairForecast(state, state.moths[0], state.moths[1], true);
+    expect(f.wings.map((w) => w.pattern)).not.toContain("hollow");
+    expect(f.tidelitInStorm).toBe(0);
   });
 });

@@ -13,7 +13,7 @@ import { AnimatedCanvas, drawSweepingBeam, drawTower, glow, seeded, sparkle } fr
 // Timing is driven by the rAF timestamp from when the moment began; under
 // prefers-reduced-motion each moment shows its final, still frame.
 
-export type MomentKind = "rekindle" | "relight" | "waymark" | "ending";
+export type MomentKind = "rekindle" | "relight" | "waymark" | "ending" | "tidelit" | "hollow";
 
 const rand = seeded(5309);
 const STARS = Array.from({ length: 140 }, () => ({ x: rand(), y: rand() * 0.6, s: rand() * 1.3 + 0.3, p: rand() * 6.283 }));
@@ -70,6 +70,7 @@ export class MomentRenderer extends AnimatedCanvas {
     if (this.kind === "rekindle") this.rekindle(e, t, horizon);
     else if (this.kind === "relight") this.relight(e, t, horizon);
     else if (this.kind === "waymark") this.waymark(e, t, horizon);
+    else if (this.kind === "tidelit" || this.kind === "hollow") this.hatch(e, t, horizon, this.kind);
     else this.ending(e, t, horizon);
   }
 
@@ -161,6 +162,77 @@ export class MomentRenderer extends AnimatedCanvas {
       for (let i = 0; i < 6; i++) {
         const a = Math.sin(t * 2 + i * 1.3);
         if (a > 0.6) sparkle(ctx, lampX + Math.cos(i * 1.05) * height * 0.22, lampY + Math.sin(i * 1.05) * height * 0.12, 4, (a - 0.6) * 2.5);
+      }
+    }
+  }
+
+  /**
+   * A rare hatch: a cocoon hangs glowing under the lamp, splits, and the moth
+   * climbs into the dark on beating wings. Tidelit hatches in a storm (sea
+   * light, flickers of lightning); Hollow is pale, wings around a dark core.
+   */
+  private hatch(e: number, t: number, horizon: number, kind: "tidelit" | "hollow"): void {
+    const ctx = this.ctx;
+    const { w: W, h: H } = this;
+    const rgb = kind === "tidelit" ? "143,214,196" : "226,232,255";
+    const x = W / 2;
+    const cy = horizon - H * 0.22;
+    const s = Math.min(W, H) * 0.06;
+    // A storm for the Tidelit: the odd flash low on the sky.
+    if (kind === "tidelit") {
+      const flash = Math.max(0, Math.sin(t * 2.3) * Math.sin(t * 5.1) - 0.8) * 5;
+      if (flash > 0) {
+        ctx.fillStyle = `rgba(190,225,255,${(0.12 * flash).toFixed(3)})`;
+        ctx.fillRect(0, 0, W, horizon);
+      }
+    }
+    // The thread and the cocoon (0–1.1s), pulsing faster as it wakes.
+    const open = clamp01((e - 1.1) / 0.5);
+    if (open < 1) {
+      ctx.strokeStyle = `rgba(233,230,220,${(0.35 * (1 - open)).toFixed(3)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, cy - s * 1.4);
+      ctx.stroke();
+      const pulse = 0.5 + 0.5 * Math.sin(e * (4 + e * 6));
+      glow(ctx, x, cy, s * (3 + 2 * pulse), rgb, 0.35 + 0.3 * pulse);
+      for (const side of [-1, 1]) {
+        ctx.fillStyle = `rgba(214,200,170,${(1 - open).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.ellipse(x + side * open * s * 1.6, cy + open * s * 1.2, s * 0.5, s * 1.3, side * open * 0.8, side < 0 ? Math.PI / 2 : -Math.PI / 2, side < 0 ? Math.PI * 1.5 : Math.PI / 2);
+        ctx.fill();
+      }
+    }
+    // The moth, rising.
+    if (e > 1.1) {
+      const k = e - 1.1;
+      const mx = x + Math.sin(k * 1.7) * s * 1.2;
+      const my = cy - easeOut(k / 3) * H * 0.22;
+      glow(ctx, mx, my, s * 6, rgb, 0.45);
+      const beat = 0.25 + 0.75 * Math.abs(Math.sin(k * 9));
+      for (const side of [-1, 1]) {
+        for (const [dy, size] of [[-0.35, 1.25], [0.45, 0.85]] as const) {
+          ctx.save();
+          ctx.translate(mx + side * s * 0.15, my + dy * s);
+          ctx.scale(side * beat, 1);
+          ctx.fillStyle = kind === "tidelit" ? "rgba(143,214,196,0.92)" : "rgba(244,247,255,0.95)";
+          ctx.beginPath();
+          ctx.ellipse(s * size * 0.75, 0, s * size * 0.8, s * size * 0.55, dy < 0 ? -0.35 : 0.35, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = kind === "tidelit" ? "rgba(29,63,92,0.8)" : "rgba(11,18,32,0.9)";
+          ctx.beginPath();
+          ctx.ellipse(s * size * 0.75, 0, s * size * (kind === "hollow" ? 0.3 : 0.5), s * size * (kind === "hollow" ? 0.2 : 0.08), 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      ctx.fillStyle = "#1b2433";
+      ctx.fillRect(mx - s * 0.1, my - s * 0.6, s * 0.2, s * 1.3);
+      // Dust from its wings.
+      for (let i = 0; i < 10; i++) {
+        const age = (k * 1.3 + i * 0.37) % 2;
+        sparkle(ctx, mx + Math.sin(i * 7.1 + k) * s * 2, my + age * s * 3, 2 + i % 3, 0.8 * (1 - age / 2));
       }
     }
   }

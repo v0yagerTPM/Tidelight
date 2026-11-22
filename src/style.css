@@ -1044,6 +1044,52 @@ button.armed { background: var(--coral) !important; border-color: var(--coral) !
 @media (max-width: 480px) {
   .roster { grid-template-columns: 1fr; }
 }
+/*
+ * Phones: the garden is one column, ordered for the thumb. Breeding (the
+ * nests) comes first, then the roster, the posts, and the meadow last, as
+ * the place you arrive at. It used to sit below every moth and the meadow,
+ * ~1,500px down (design review).
+ */
+@media (max-width: 760px) {
+  .garden-grid { display: flex; flex-direction: column; align-items: stretch; }
+  .garden-main, .garden-side, #garden-side { display: contents; }
+  .garden-grid .breed-card { order: 1; }
+  .garden-grid .roster { order: 2; }
+  .garden-grid .moth-detail { order: 3; }
+  .garden-grid .posts-card { order: 4; }
+  .garden-grid .meadow { order: 5; }
+}
+.sheet-close { display: none; }
+/* …and the selected moth opens as a sheet above the tab bar, by the thumb, not below the whole roster. */
+@media (max-width: 700px) {
+  .moth-detail.has-moth {
+    position: fixed;
+    z-index: 25;
+    left: 8px;
+    right: 8px;
+    bottom: calc(var(--tabbar-h) + 8px);
+    max-height: 48vh;
+    overflow-y: auto;
+    padding-top: 14px;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.55);
+    border-color: var(--lamp-deep);
+    animation: sheet-up 0.18s ease-out;
+  }
+  .garden-grid:has(.moth-detail.has-moth) { padding-bottom: 46vh; }
+  .sheet-close { display: block; position: absolute; top: 6px; right: 8px; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 1rem; cursor: pointer; }
+  .moth-detail.has-moth .detail-head { padding-right: 28px; }
+}
+@keyframes sheet-up { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .moth-detail.has-moth { animation: none; } }
+
+/* What a pair may hatch (breedingOdds.pairForecast). */
+.forecast { display: grid; gap: 2px; font-size: 0.78rem; line-height: 1.35; padding: 4px 0 2px; }
+.fc-wings { color: var(--text); }
+.fc-wing { white-space: nowrap; }
+.fc-pages { color: var(--lamp-soft); }
+.fc-pages.muted { color: var(--muted); }
+.fc-star { color: var(--lamp); }
+.moth-duty-note { color: var(--lamp-soft); }
 /* Short desktop screens (768–800px tall): the meadow becomes a thin strip so the garden still fits. */
 @media (min-width: 761px) and (max-height: 800px) {
   .garden-side .meadow { height: 40px; }
