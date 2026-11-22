@@ -394,10 +394,9 @@ export function buyWithAmount(state: GameState, id: string, amount: BuyAmount): 
 }
 
 /** Seconds until an arbitrary cost is affordable at current production. */
-export function timeToAffordCost(state: GameState, cost: Decimal): number {
+export function timeToAffordCost(state: GameState, cost: Decimal, rate: Decimal = productionPerSecond(state)): number {
   const missing = cost.sub(state.lumen);
   if (missing.lte(0)) return 0;
-  const rate = productionPerSecond(state);
   if (rate.lte(0)) return Infinity;
   return missing.div(rate).toNumber();
 }
