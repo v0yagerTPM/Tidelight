@@ -4,6 +4,13 @@
 // the device's pixel density (capped at 2×), animates on requestAnimationFrame
 // only while started, and holds still under prefers-reduced-motion.
 
+/** Gaps between frames longer than this (on average) drop a scene to 30 fps… */
+const SLOW_GAP_MS = 22;
+/** …drawing at most this often… */
+const HALF_RATE_MS = 30;
+/** …and it tries every frame again after this long. */
+const PACE_RETRY_MS = 10_000;
+
 export abstract class AnimatedCanvas {
   protected readonly ctx: CanvasRenderingContext2D;
   protected w = 0;
@@ -11,6 +18,15 @@ export abstract class AnimatedCanvas {
   protected readonly reducedMotion: MediaQueryList;
   private raf = 0;
   private running = false;
+  // Frame pacing (performance pass, NG+ on a phone): a scene draws every
+  // frame while the device keeps up, and every other frame (30 fps) once the
+  // gaps between frames run long, so a busy phone stutters less. It tries
+  // full speed again every PACE_RETRY_MS.
+  private lastTms = 0;
+  private lastDraw = 0;
+  private gapEma = 16.7;
+  private halfRate = false;
+  private halfSince = 0;
   private readonly resizeObserver: ResizeObserver;
 
   constructor(protected readonly canvas: HTMLCanvasElement) {
@@ -30,10 +46,25 @@ export abstract class AnimatedCanvas {
   start(): void {
     if (this.running) return;
     this.running = true;
+    this.lastTms = 0;
     const loop = (tms: number): void => {
       if (!this.running) return;
-      this.frame(tms);
       this.raf = requestAnimationFrame(loop);
+      if (this.lastTms > 0) {
+        const gap = Math.min(250, tms - this.lastTms);
+        this.gapEma = this.gapEma * 0.9 + gap * 0.1;
+      }
+      this.lastTms = tms;
+      if (!this.halfRate && this.gapEma > SLOW_GAP_MS) {
+        this.halfRate = true;
+        this.halfSince = tms;
+      } else if (this.halfRate && tms - this.halfSince > PACE_RETRY_MS) {
+        this.halfRate = false;
+        this.gapEma = 16.7;
+      }
+      if (this.halfRate && tms - this.lastDraw < HALF_RATE_MS) return;
+      this.lastDraw = tms;
+      this.frame(tms);
     };
     this.raf = requestAnimationFrame(loop);
   }
