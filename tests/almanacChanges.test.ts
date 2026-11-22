@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALMANAC_REWARDS, dutySlots } from "../src/game/almanac";
+import { ALMANAC_PATTERNS, ALMANAC_REWARDS, ALMANAC_TRAITS, dutySlots } from "../src/game/almanac";
 import {
   dutyUpgrade,
   hatchCocoon,
@@ -17,7 +17,8 @@ import {
   stormHatchAt,
   tendCocoons,
 } from "../src/game/moths";
-import { pairForecast } from "../src/game/breedingOdds";
+import { newPageChance, pairForecast, suggestPair } from "../src/game/breedingOdds";
+import { pageRoute } from "../src/game/almanacRoutes";
 import { CROSSING_TRAIT_CHANCE } from "../src/game/mothTraits";
 import { mulberry32 } from "../src/game/rng";
 import { createInitialState, deserializeState, serializeState } from "../src/game/state";
@@ -28,6 +29,7 @@ import type { GameState, Moth } from "../src/game/types";
 // Stormfront, A Fifth Nest at 42 pages, releasing the spares at once, and a
 // likelier trait on the Deep Glass Crossing.
 
+const ALMANAC_KEYS_ALL = ALMANAC_PATTERNS.flatMap((p) => ALMANAC_TRAITS.map((tr) => `${p}:${tr}`));
 const m = (id: string, pattern: string, glow: number, trait?: string): Moth => ({ id, name: id, pattern, glow, generation: 1, ...(trait ? { trait } : {}) });
 
 function roost(moths: Moth[]): GameState {
@@ -233,5 +235,59 @@ describe("what a pair can hatch (pairForecast)", () => {
     const f = pairForecast(state, state.moths[0], state.moths[1], true);
     expect(f.wings.map((w) => w.pattern)).not.toContain("hollow");
     expect(f.tidelitInStorm).toBe(0);
+  });
+});
+
+describe("the suggested pair (suggestPair)", () => {
+  it("picks the pair likeliest to fill a missing page", () => {
+    const state = roost([m("p1", "plain", 30), m("p2", "plain", 30), m("s1", "starlit", 60, "fertile"), m("s2", "starlit", 60)]);
+    state.almanac = ["plain:none", "starlit:none", "spotted:none"];
+    const s = suggestPair(state, state.moths)!;
+    expect([s.a.id, s.b.id].sort()).toEqual(["s1", "s2"]); // Starlit · Fertile is half its cocoons
+    expect(s.newPage).toBeCloseTo(newPageChance(state, s.a, s.b, s.storm), 12);
+    expect(s.newPage).toBeGreaterThan(0.4);
+  });
+
+  it("with nothing to fill, breeds toward the rarest, brightest wings", () => {
+    const state = roost([m("a", "plain", 30), m("b", "plain", 35), m("c", "prismatic", 90), m("d", "prismatic", 95)]);
+    state.almanac = Array.from(ALMANAC_KEYS_ALL);
+    const s = suggestPair(state, state.moths)!;
+    expect(s.newPage).toBe(0);
+    expect([s.a.id, s.b.id].sort()).toEqual(["c", "d"]);
+  });
+
+  it("says when a Stormfront would help", () => {
+    const state = roost([m("a", "prismatic", 80, "seeker"), m("b", "prismatic", 80, "seeker")]);
+    state.almanac = Array.from(ALMANAC_KEYS_ALL).filter((k) => k !== "tidelit:seeker");
+    const s = suggestPair(state, state.moths)!;
+    expect(s.storm).toBe(true);
+    expect(s.newPage).toBeGreaterThan(0);
+  });
+});
+
+describe("how to fill an Almanac page (pageRoute)", () => {
+  it("gives the lure odds and the Crossing for a trait page, and the best pair you hold", () => {
+    const state = roost([m("c1", "crescent", 50), m("c2", "crescent", 50, "seeker")]);
+    state.almanac = ["crescent:none", "crescent:seeker"];
+    const r = pageRoute(state, "crescent:seeker");
+    expect(r.filled).toBe(true);
+    expect(r.holders.map((x) => x.id)).toEqual(["c2"]);
+    const missing = pageRoute(state, "crescent:fertile");
+    expect(missing.filled).toBe(false);
+    expect(missing.ways.join(" ")).toMatch(/scented lure/i);
+    expect(missing.ways.join(" ")).toMatch(/Send c1/);
+    expect(missing.bestPair).not.toBeNull(); // a new trait, 3% of the time
+  });
+
+  it("explains Tidelit and Hollow, which never come wild", () => {
+    const state = roost([m("a", "prismatic", 100, "fertile"), m("b", "prismatic", 100)]);
+    state.endingSeen = true;
+    const t = pageRoute(state, "tidelit:fertile");
+    expect(t.ways[0]).toMatch(/Stormfront/);
+    expect(t.bestPair?.storm).toBe(true);
+    const h = pageRoute(state, "hollow:fertile");
+    expect(h.ways.join(" ")).toMatch(/2 glow-100 Prismatics, 1 with Fertile/);
+    expect(h.bestPair?.p).toBeCloseTo(0.02, 5);
+    expect(pageRoute(state, "hollow:none").bestPair).toBeNull(); // a needs-no-trait page: a has Fertile
   });
 });

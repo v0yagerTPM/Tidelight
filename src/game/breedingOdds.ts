@@ -144,3 +144,51 @@ export function pairForecast(state: GameState, a: Moth, b: Moth, storm: boolean)
     stormPages: [...stormPages].map(([key, p]) => ({ key, p })).sort(byP),
   };
 }
+
+/** A suggested pair for the next cocoon (suggestPair). */
+export interface PairSuggestion {
+  a: Moth;
+  b: Moth;
+  /** The chance its hatchling fills a page you're missing (opening in a Stormfront when that helps). */
+  newPage: number;
+  /** It does better opening in a Stormfront (it could hatch a missing Tidelit page). */
+  storm: boolean;
+}
+
+/** The chance a cocoon from `a` and `b` fills any Almanac page not yet filled. */
+export function newPageChance(state: GameState, a: Moth, b: Moth, storm: boolean): number {
+  const have = new Set(state.almanac);
+  return childOutcomes(a, b, { storm, endingSeen: state.endingSeen })
+    .filter((o) => o.keys.some((k) => !have.has(k)))
+    .reduce((s, o) => s + o.p, 0);
+}
+
+/**
+ * The pair, among `moths`, likeliest to fill a page you're missing; when
+ * none can, or to break ties, the pair whose hatchling has the rarest wings
+ * and the brightest glow, toward the glow-100 Prismatics the Hollow pages
+ * ask for. The Moth Garden pre-selects it in an empty nest (a player asked).
+ */
+export function suggestPair(state: GameState, moths: Moth[]): PairSuggestion | null {
+  let best: PairSuggestion | null = null;
+  let bestScore = -Infinity;
+  for (let i = 0; i < moths.length; i++) {
+    for (let j = i + 1; j < moths.length; j++) {
+      const a = moths[i];
+      const b = moths[j];
+      const calm = newPageChance(state, a, b, false);
+      const canStorm = Math.max(patternById(a.pattern).tier, patternById(b.pattern).tier) >= MAX_TIER - 1;
+      const stormy = canStorm ? newPageChance(state, a, b, true) : calm;
+      const storm = stormy > calm + 1e-12;
+      const newPage = Math.max(calm, stormy);
+      let tier = 0;
+      for (const [t, p] of childTierOdds(a, b)) tier += t * p;
+      const score = newPage * 1e6 + tier * 100 + expectedChildGlow(a, b);
+      if (score > bestScore) {
+        bestScore = score;
+        best = { a, b, newPage, storm };
+      }
+    }
+  }
+  return best;
+}
